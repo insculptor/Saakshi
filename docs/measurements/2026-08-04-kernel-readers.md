@@ -160,6 +160,46 @@ The maximum, 7.1 × 10⁻¹⁵ au against coordinates of order 30 au, is again *
 than half the rows reproduce exactly. The publisher's distributed test program warns at
 1 × 10⁻¹³; nothing here comes within a factor of fourteen of it.
 
+### 4a. ⭐ The band, and what a single number across both sections was hiding
+
+The fixture declares that floor as its band — **per section, at exactly the worst value
+observed, no headroom.** Both kernels give the same two numbers:
+
+| Section | Band | Rows measured | The publisher's 1 × 10⁻¹³ is |
+|---|---|---|---|
+| `position_au` | **7.1054 × 10⁻¹⁵ au** | 1 507 / 5 608 | **14.1 ×** it |
+| `velocity_au_per_day` | **2.0817 × 10⁻¹⁷ au/day** | 1 592 / 5 746 | **4 804 ×** it |
+
+⚠ **Per section is forced here, not chosen.** Position is printed in au and velocity in
+au/day, so the larger of the two is not a wider band — it is a number with no unit. That is
+the same objection that makes a single kilometre band wrong for the state fixtures
+above, arriving through
+*dimensions* rather than through magnitude, and the second row is what it was concealing:
+one band of 7.1 × 10⁻¹⁵ would have declared the velocity section **341 times looser than it
+was ever measured to be**, and every velocity row would have passed it without being
+checked at all.
+
+⭐ **The two tolerances are a floor and a margin, not rivals.** 1 × 10⁻¹³ ÷ 7.1 × 10⁻¹⁵ is
+about fourteen, so the publisher's stated number is a floor of this order plus roughly one
+decade of headroom over it. Both are recorded, the publisher's verbatim with its source, and
+the ratio is stated on the row rather than left to a reader to divide out.
+
+⚠ **The band is ABSOLUTE here and RELATIVE for the state fixtures above, and that is not
+an inconsistency.** A
+relative band needs a denominator that exists in the row: the R2 rows each carry the norm of
+their own three components, and these rows carry a single printed component and no scale to
+divide by. The publisher argues the absolute form from the other side in the same comment
+quoted above — a fractional test is unsuitable *"since sometimes the values will be near
+zero for particular components"*.
+
+⛔ **The limit, which matters more than the number.** This floor was measured between **one**
+toolkit and the publisher's printed values. The reader that will be judged against these rows
+is a **third implementation**, which this run did not observe at all — so the band is a proxy
+for that reader's floor, not a measurement of it. ⭐ Zero headroom is the right choice for a
+band that *reports* a floor and the wrong choice for one that *gates*: a third reader
+differing by two ULP where this one differs by one has not malfunctioned, and a band with no
+headroom cannot tell that from a defect.
+
 Three things this establishes, and one it does not:
 
 * ✅ These repackaged binary files carry the same ephemeris as the published test set. No
@@ -171,8 +211,9 @@ Three things this establishes, and one it does not:
 * ✅ Every excluded row is counted by reason. 3 099 + 1 847 + 8 255 = 13 201.
 * ⛔ **It says nothing about how accurately the ephemeris models the solar system.** The
   publisher is on both sides of this comparison. It is evidence that a reader reads
-  correctly, and that is all it is — which is why the fixture carries an explicit
-  `contract_deviation` rather than being filed under a reference that judges accuracy.
+  correctly, and that is all it is — which is why the fixture is filed under a reference
+  that names *both* of the publisher's artifacts and the relationship between them, rather
+  than under one that judges accuracy.
 
 ⚠ Nutation and libration values are excluded because a planetary-position kernel does not
 carry them. That is a property of the kernel, not a gap in the evidence.
