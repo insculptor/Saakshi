@@ -426,7 +426,13 @@ def main() -> int:
         ],
     )
 
-    out_path = Path(args.out) / "kernel" / "de440s" / "publisher-test-values.jsonl"
+    # ⭐ Derived from the file that was actually verified, never hard-coded.
+    out_path = (
+        Path(args.out)
+        / "kernel"
+        / pin.dataset.removesuffix(".bsp")
+        / "publisher-test-values.jsonl"
+    )
     written = write_jsonl(
         out_path,
         header,

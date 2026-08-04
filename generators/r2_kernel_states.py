@@ -434,7 +434,9 @@ def main() -> int:
         ],
     )
 
-    out_path = Path(args.out) / "kernel" / "de440s" / "r2-states.jsonl"
+    # ⭐ Derived from the file that was actually verified, never hard-coded: a fixed
+    #    directory would quietly overwrite one kernel's evidence with another's.
+    out_path = Path(args.out) / "kernel" / pin.dataset.removesuffix(".bsp") / "r2-states.jsonl"
     written = write_jsonl(
         out_path, header, rows, declared_sections=["position", "velocity"]
     )
