@@ -94,6 +94,14 @@ python generators/r3_swiss.py --ephe-path <directory of .se1 files> --out out/
 python generators/convention_probes.py --ephe-path <directory of .se1 files> --out out/
 ```
 
+⚠ **`publisher_testpo.py` needs the network on every run, and there is no offline path.**
+Beside the value fixture it writes an *acquisition record* attesting where the published
+test file came from, and ⛔ a cache read is not an acquisition — returning cached bytes and
+stamping today's date on them produces a record that is false in the one field it exists to
+establish. A retained copy is used as a **second** observation to check the first against;
+if the two disagree the run is refused, because one address having served two artifacts is
+not something a recorder may resolve on its own.
+
 ### Asking what a library assumes when nobody says
 
 `convention_probes.py` asks five questions whose answers a caller inherits without passing
