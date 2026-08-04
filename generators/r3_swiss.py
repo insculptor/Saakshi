@@ -858,6 +858,18 @@ def write_audit_fixture(
                 "⭐ where that sweep first saw a substitution. The three sweeps disagree, "
                 "and the disagreement is the finding"
             ),
+            "ordering_changed_the_answer": (
+                "⛔ true when the first call of the naive pair changed which ephemeris "
+                "answered the second -- the comparison destroying one of its own operands"
+            ),
+            "moon_longitude_delta_arcseconds": (
+                "the difference the obvious comparison reports: two calls, one session"
+            ),
+            "moon_longitude_delta_arcseconds_isolated": (
+                "⭐ the same difference with each call taken from a reset session. Where "
+                "this is non-zero and the one above is zero, the obvious comparison "
+                "reported agreement it had not measured"
+            ),
             "entry_point": "the library function, for a flag_reporting row",
             "accepts_ephemeris_flag": "whether the call takes an ephemeris flag at all",
             "reports_answering_ephemeris": (
@@ -906,34 +918,62 @@ def substitution_demonstration(
     """Compare the two modes **without** asserting anything, and record what that reports.
 
     ⭐ This is the counter-measurement that justifies the whole mechanism. The same two
-    requests, compared naively, are run over the same grid; where the data files do not
-    cover the epoch both are answered by the same ephemeris and the difference is exactly
-    zero. ⛔ The zero is not agreement. It is the comparison not having happened.
+    requests are compared twice over the same grid: once the obvious way -- call one, call
+    the other, subtract -- and once with each call taken from a reset session.
+
+    ⛔ **The two comparisons do not agree, and the obvious one is the wrong one.** Where the
+    data files do not cover the epoch, both requests are answered by the same ephemeris and
+    the difference is exactly zero; the zero is not agreement, it is the comparison not
+    having happened. ⚠ And at the boundary it is worse than that: the *first* call of the
+    pair changes which ephemeris answers the second, so the act of computing the comparison
+    destroys one of its own operands.
     """
     moshier, swiss_file = MODES["moshier"], MODES["swiss_file"]
+    source_bits = swe.FLG_SWIEPH | swe.FLG_MOSEPH | swe.FLG_JPLEPH
     out: list[dict[str, Any]] = []
+
+    def sunrise(jd: float, mode_flag: int) -> tuple[int, float]:
+        code, times = swe.rise_trans(
+            jd, swe.SUN, swe.CALC_RISE | swe.BIT_DISC_CENTER,
+            (80.3319, 26.4499, 0.0), RISE_ATPRESS, RISE_ATTEMP, mode_flag,
+        )
+        return code, float(times[0])
+
     for epoch_id, stratum, jd in epochs:
         if stratum not in ("in_coverage", "outside_coverage", "coverage_edge"):
             continue
-        session.reset()
         try:
-            a, _ = swe.calc_ut(jd, swe.MOON, moshier.flag | swe.FLG_SPEED)
-            b, ret_b = swe.calc_ut(jd, swe.MOON, swiss_file.flag | swe.FLG_SPEED)
-            rise_a = swe.rise_trans(
-                jd, swe.SUN, swe.CALC_RISE | swe.BIT_DISC_CENTER,
-                (80.3319, 26.4499, 0.0), RISE_ATPRESS, RISE_ATTEMP, moshier.flag,
-            )
-            rise_b = swe.rise_trans(
-                jd, swe.SUN, swe.CALC_RISE | swe.BIT_DISC_CENTER,
-                (80.3319, 26.4499, 0.0), RISE_ATPRESS, RISE_ATTEMP, swiss_file.flag,
-            )
+            # --- the comparison as anyone would write it: one session, two calls ---------
+            session.reset()
+            naive_a, _ = swe.calc_ut(jd, swe.MOON, moshier.flag | swe.FLG_SPEED)
+            naive_b, naive_ret = swe.calc_ut(jd, swe.MOON, swiss_file.flag | swe.FLG_SPEED)
+            naive_rise_a = sunrise(jd, moshier.flag)
+            naive_rise_b = sunrise(jd, swiss_file.flag)
+
+            # --- the same comparison with each call taken from a reset session -----------
+            session.reset()
+            iso_a, _ = swe.calc_ut(jd, swe.MOON, moshier.flag | swe.FLG_SPEED)
+            session.reset()
+            iso_b, iso_ret = swe.calc_ut(jd, swe.MOON, swiss_file.flag | swe.FLG_SPEED)
+            session.reset()
+            iso_rise_a = sunrise(jd, moshier.flag)
+            session.reset()
+            iso_rise_b = sunrise(jd, swiss_file.flag)
         except Exception:
             continue
-        if rise_a[0] != 0 or rise_b[0] != 0:
+        # ⚠ All four searches must have found an event, or the row compares a time against
+        #   the 0.0 the library leaves in the slot when it found none.
+        if any(code != 0 for code, _ in (naive_rise_a, naive_rise_b, iso_rise_a, iso_rise_b)):
             continue
-        longitude_delta = _component_delta("longitude_tropical", 0, float(a[0]), float(b[0]))
-        rise_delta_seconds = (float(rise_b[1][0]) - float(rise_a[1][0])) * 86400.0
-        honoured = (ret_b & (swe.FLG_SWIEPH | swe.FLG_MOSEPH | swe.FLG_JPLEPH)) == swiss_file.flag
+
+        naive_delta = _component_delta(
+            "longitude_tropical", 0, float(naive_a[0]), float(naive_b[0])
+        )
+        iso_delta = _component_delta(
+            "longitude_tropical", 0, float(iso_a[0]), float(iso_b[0])
+        )
+        naive_honoured = (naive_ret & source_bits) == swiss_file.flag
+        iso_honoured = (iso_ret & source_bits) == swiss_file.flag
         out.append(
             {
                 "finding": "substitution_demonstration",
@@ -942,14 +982,22 @@ def substitution_demonstration(
                 "jd_ut": jd,
                 "jd_ut_bits": bits(jd),
                 "utc": calendar_ut(jd),
-                "data_file_request_honoured": honoured,
-                "moon_longitude_delta_degrees": longitude_delta,
-                "moon_longitude_delta_arcseconds": longitude_delta * 3600.0,
-                "sunrise_delta_seconds": rise_delta_seconds,
+                "data_file_request_honoured": naive_honoured,
+                "data_file_request_honoured_when_isolated": iso_honoured,
+                # ⭐ When these two disagree, the first call of the pair changed which
+                #    ephemeris answered the second.
+                "ordering_changed_the_answer": naive_honoured != iso_honoured,
+                "moon_longitude_delta_degrees": naive_delta,
+                "moon_longitude_delta_arcseconds": naive_delta * 3600.0,
+                "moon_longitude_delta_arcseconds_isolated": iso_delta * 3600.0,
+                "sunrise_delta_seconds": (naive_rise_b[1] - naive_rise_a[1]) * 86400.0,
+                "sunrise_delta_seconds_isolated": (
+                    iso_rise_b[1] - iso_rise_a[1]
+                ) * 86400.0,
                 "reading": (
                     "the two requests were answered by different ephemerides, so this "
                     "difference is a measurement"
-                    if honoured
+                    if naive_honoured
                     else "⛔ the data-file request was substituted, so both sides are the "
                     "SAME ephemeris and this difference is not a measurement of anything"
                 ),
