@@ -41,6 +41,22 @@ def test_resolves_the_offset_rather_than_recording_the_zone_alone():
     assert row["latitude"] == pytest.approx(26.4499)
 
 
+def test_the_coordinate_crosses_the_text_boundary_as_bits_not_only_as_decimal():
+    """⭐ An input is more determinism-bearing than an output.
+
+    An output is compared; an input is *replayed*. A JSON library measured mis-parsing
+    18.9 % of shortest-round-tripping doubles by up to 2 ULP would silently regenerate a
+    different chart from a decimal coordinate, and the difference would be attributed to the
+    engine. So the hex pattern is the value and the decimal beside it is display.
+    """
+    row = resolve(**_OK).as_row()
+    assert row["latitude_bits"] == "403a732ca57a786c"
+    assert row["longitude_bits"] == "4054153dd97f62b7"
+    # Whole-second offsets and ISO text cross exactly and need no companion.
+    assert isinstance(row["utc_offset_seconds"], int)
+    assert "utc_bits" not in row
+
+
 def test_refuses_an_offset_asserted_by_the_caller():
     """An aware datetime carries an offset nobody derived; the point is to derive it."""
     with pytest.raises(CivilResolutionError, match="naive local clock reading"):
@@ -160,6 +176,28 @@ def test_mapping_order_does_not_change_the_digest():
 
 def test_the_digest_moves_when_a_value_moves():
     assert digest(flatten({"a": 1.0})) != digest(flatten({"a": 1.0000000000000002}))
+
+
+def test_the_digest_is_taken_over_bits_not_over_the_display_decimal():
+    """⭐ A consumer must be able to check the digest without touching the decimal path.
+
+    The decimal is display. Hashing it would make the digest reproducible only by something
+    that also reproduces this writer's float formatting, and checkable only through the one
+    path that must never be load-bearing — so a consumer with a mis-parsing reader could
+    fail the digest while holding the right value.
+    """
+    leaves = flatten({"a": 0.1, "b": 3})
+    tampered = [dict(leaf) for leaf in leaves]
+    for leaf in tampered:
+        if "number" in leaf:
+            leaf["number"] = 99.0  # display changed, bits untouched
+    assert digest(tampered) == digest(leaves)
+
+    rebitted = [dict(leaf) for leaf in leaves]
+    for leaf in rebitted:
+        if "bits" in leaf:
+            leaf["bits"] = "0000000000000000"
+    assert digest(rebitted) != digest(leaves)
 
 
 # --------------------------------------------------------------------------------------

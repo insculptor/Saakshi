@@ -26,6 +26,8 @@ from functools import lru_cache
 from pathlib import Path
 from typing import Any
 
+from .fixture import bits
+
 
 class CivilResolutionError(Exception):
     """Raised when an input cannot be resolved to the form a fixture may carry."""
@@ -122,7 +124,19 @@ class CivilInstant:
     place_label: str | None = None  # ⛔ a label. Never an input to anything.
 
     def as_row(self) -> dict[str, Any]:
-        """The resolved-input block every row carries."""
+        """The resolved-input block every row carries.
+
+        ⭐ **The coordinate carries its bit pattern, and this matters more here than it does
+        for a recorded output.** An output only has to be *compared*; an input has to be
+        *replayed*, so a decimal that reparses one unit in the last place away silently
+        regenerates a different value and the difference is attributed to the engine.
+
+        ⚠ Not hypothetical: a widely-used JSON library was measured mis-parsing 18.9 % of
+        shortest-round-tripping doubles by up to 2 ULP, and it corrupted a parity measurement
+        by four and a half orders of magnitude before anyone suspected the parser. The
+        decimal below is display; the hex string is the value. Whole-second offsets and
+        ISO-8601 text are exact across that boundary and need no companion.
+        """
         out: dict[str, Any] = {
             "grid_id": self.grid_id,
             "stratum": self.stratum,
@@ -131,7 +145,9 @@ class CivilInstant:
             "utc_offset_seconds": self.utc_offset_seconds,
             "utc": self.utc,
             "latitude": self.latitude,
+            "latitude_bits": bits(self.latitude),
             "longitude": self.longitude,
+            "longitude_bits": bits(self.longitude),
         }
         if self.place_label is not None:
             out["place_label"] = self.place_label

@@ -120,13 +120,35 @@ def flatten(node: Any) -> list[dict[str, Any]]:
     return list(walk(node))
 
 
+#: Fields excluded from the digest because they are display, not value.
+#:
+#: ⭐ `number` is the decimal rendering of a double whose authoritative form is `bits`
+#: alongside it. Hashing the decimal would make the digest reproducible only by a consumer
+#: that also reproduces this writer's float formatting — and, worse, checkable only through
+#: the very decimal path that must never be load-bearing. A widely-used JSON library was
+#: measured mis-parsing 18.9 % of shortest-round-tripping doubles by up to 2 ULP; a consumer
+#: on that path would fail the digest while holding the correct value, or pass it while
+#: holding a wrong one.
+_DISPLAY_ONLY = frozenset({"number"})
+
+
 def digest(leaves: Sequence[Mapping[str, Any]]) -> str:
     """A content digest over the leaf set — `sha256:...`.
 
-    Computed from the canonical JSON of the leaves themselves, so it changes when a value
-    changes, when a leaf appears or disappears, and when one is renamed. ⚠ It is a digest of
-    *what was recorded*, which is what a consumer needs; it is not a digest of the sampled
-    engine's internal state, and it says nothing about how the value was produced.
+    Computed over the **authoritative** form of every leaf: bit patterns for doubles, and
+    the literal for everything that crosses a text boundary exactly (integers, strings,
+    flags). It changes when a value changes, when a leaf appears or disappears, and when one
+    is renamed.
+
+    ⚠ It is a digest of *what was recorded*, which is what a consumer needs; it is not a
+    digest of the sampled engine's internal state and says nothing about how the value was
+    produced.
     """
-    canonical = json.dumps(list(leaves), sort_keys=True, ensure_ascii=True, separators=(",", ":"))
+    authoritative = [
+        {key: value for key, value in leaf.items() if key not in _DISPLAY_ONLY}
+        for leaf in leaves
+    ]
+    canonical = json.dumps(
+        authoritative, sort_keys=True, ensure_ascii=True, separators=(",", ":")
+    )
     return "sha256:" + hashlib.sha256(canonical.encode("utf-8")).hexdigest()

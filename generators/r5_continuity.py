@@ -394,13 +394,19 @@ def main() -> int:
             "zone": "IANA key — explicable, but the offset below is the authority",
             "utc_offset_seconds": "⭐ resolved: what the rules said at this instant",
             "utc": "the resolved instant",
-            "latitude": "degrees north",
-            "longitude": "degrees east",
+            "latitude": "degrees north — ⚠ display; `latitude_bits` is the value",
+            "latitude_bits": "⭐ IEEE-754 bit pattern; the authoritative form of the input",
+            "longitude": "degrees east — ⚠ display; `longitude_bits` is the value",
+            "longitude_bits": "⭐ IEEE-754 bit pattern; the authoritative form of the input",
             "place_label": "⛔ a label; never an input",
             "section": "the sampled call, and its variation",
             "call": "the atom id this section belongs to",
             "leaf_count": "how many addressed values this row carries",
-            "value_digest": "sha256 over the canonical leaf set",
+            "value_digest": (
+                "sha256 over the canonical leaf set, taken over the AUTHORITATIVE form of "
+                "each leaf — bit patterns for doubles, literals for what crosses a text "
+                "boundary exactly. ⭐ So it is checkable without reading a decimal float"
+            ),
             "leaves": (
                 "one record per returned value: `path` is its address inside the returned "
                 "object, and the value is `number` + `bits`, `integer`, `text`, `flag` or "
@@ -442,6 +448,13 @@ def main() -> int:
             "sampled tree must not silently rename the evidence.",
             "A value the walker cannot represent is recorded by type name, never coerced. "
             "⛔ A stringified object would look like a value.",
+            "⛔ Every determinism-bearing double in this file — recorded values AND the "
+            "coordinate inputs — carries a hex bit pattern, and the decimal beside it is "
+            "display that must never be read. ⚠ A widely-used JSON library was measured "
+            "mis-parsing 18.9% of shortest-round-tripping doubles by up to 2 ULP and "
+            "corrupted a parity measurement by four and a half orders of magnitude before "
+            "anyone suspected the parser. ⭐ An INPUT matters more than an output here: an "
+            "output is compared, an input is replayed.",
         ],
     )
 
