@@ -62,6 +62,7 @@ mechanical facts: what was called, what came back, and under what versions.
 generators/          one script per fixture set; each is a recorder
   r2_kernel_states.py    geometric states from a pinned DE kernel, read twice
   publisher_testpo.py    the ephemeris publisher's own test-value set
+  r3_swiss.py            the same grid under each ephemeris source, source asserted per row
   r5_continuity.py       what an earlier implementation answered, before it stops running
 src/saakshi/         the shared library
   fixture.py             the fixture contract, fail-closed, five discriminated kinds
@@ -70,6 +71,7 @@ src/saakshi/         the shared library
   civil.py               resolved instants and coordinates; ⛔ refuses a half-resolved row
   leaves.py              flatten a returned object to addressed leaves
   surface.py             a sampled engine's call surface, declared as local data
+  swiss.py               which ephemeris actually answered; ⛔ refuses to attribute a value
 tests/               the contract's own negative tests
 config/              reserved names (local, not committed)
 out/                 generated fixtures (not committed; they are consumed elsewhere)
@@ -88,7 +90,35 @@ cp config/reserved-names.txt.example config/reserved-names.txt   # then add your
 
 python generators/r2_kernel_states.py --kernel <path to de440s.bsp> --out out/
 python generators/publisher_testpo.py --kernel <path to de440s.bsp> --out out/
+python generators/r3_swiss.py --ephe-path <directory of .se1 files> --out out/
 ```
+
+### Asking which ephemeris answered
+
+⛔ **An ephemeris library may substitute a different ephemeris than the one requested —
+silently, successfully, and returning an entirely ordinary value.** It does so when the
+requested one is unavailable or does not cover the date. So a recorder that writes down
+what came back, without establishing where it came from, produces a file that is
+well-formed and mislabelled; and a comparison between two such files reports exact zeros,
+which reads as agreement and means only that both sides were the same ephemeris.
+
+⚠ **"Assert the returned flag" is necessary and not sufficient.** Measured on the library
+this repository records: of four entry points, **one** reports the ephemeris that answered.
+One returns a flag that is the request handed back — it was observed returning a data-file
+flag with no data file available at all. Two return no statement of source whatsoever, and
+those two are the house cusps and the rise/set times.
+
+So `src/saakshi/swiss.py` distinguishes the two assertions a recorder can actually make,
+and every row records which one it relied on:
+
+* `reported` — the entry point said which ephemeris answered, and it was the one asked for.
+* `proxy_window` — it said nothing, so the source was established at **both ends** of the
+  interval the call may read, using an entry point that does report. ⚠ Bounded, not sound,
+  and weaker than a report; rows say so rather than presenting the two as equivalent.
+
+⭐ **A row whose source cannot be established is not written.** It is listed in the header
+as a substitution. That exclusion is the mechanism: it is what keeps an uncovered epoch
+from contributing a zero that would read as agreement.
 
 ### Sampling an engine for continuity
 
