@@ -27,6 +27,7 @@ import argparse
 import datetime as _dt
 import sys
 from pathlib import Path
+from typing import Any
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
@@ -226,6 +227,59 @@ def build_grid(limit: int | None) -> list[tuple[CivilInstant, int]]:
     return out
 
 
+def determinism_probe(surface: Surface, native: object) -> list[dict[str, object]]:
+    """Call every section twice on one input and report any section that did not agree.
+
+    ⭐ **A recorder cannot inspect a call for hidden state, but it can catch it.** Sampling
+    the same input twice costs one grid point and detects the entire class at once: a clock
+    read inside the callee, a random draw, an unordered iteration, a warm cache. Anything
+    that makes a corpus disagree with itself makes it disagree with every future comparison
+    too, for a reason that has nothing to do with either implementation.
+
+    ⚠ This is not theoretical. The first clean-room regeneration of this corpus differed
+    from the original, and the cause was a sampled call whose default argument meant *"now"*
+    — so every row carried the moment of sampling, and a flag on every period was a function
+    of when the recorder ran rather than of the input. ⛔ It looked reproducible. That is
+    precisely why a demonstration is required and an argument is not enough.
+
+    ⛔ There is no permissive mode. The remedy is always to pin the varying input in the
+    surface declaration, which is a fixture's job: an input nobody wrote down is an input
+    nobody can reproduce.
+
+    ⚠ **A detector, not a proof.** Two calls can agree by luck — a first version called each
+    section twice back to back and cleared 7 of 17 sections that were *all* clock-dependent,
+    simply because both calls landed inside the same microsecond. The two passes are
+    therefore separated by a full sweep of every other section, which makes a clock
+    difference near-certain; but a section this reports as stable is **not** thereby proven
+    stable, and one section it reports is enough to refuse.
+    """
+
+    def sweep() -> dict[str, list[dict[str, Any]]]:
+        out: dict[str, list[dict[str, Any]]] = {}
+        for atom in surface.atoms:
+            for section, kwargs in atom.variations():
+                call_args: list[object] = [native]
+                if atom.settings is not None and surface.settings_builder is not None:
+                    call_args.append(surface.settings_builder(**atom.settings))
+                try:
+                    out[section] = flatten(atom.call(*call_args, **kwargs))
+                except Exception:
+                    continue  # a refusal is recorded during sampling, not here
+        return out
+
+    first, second = sweep(), sweep()
+
+    findings: list[dict[str, object]] = []
+    for section, before in first.items():
+        after = second.get(section)
+        if after is None or digest(before) == digest(after):
+            continue
+        by_path = {leaf["path"]: leaf for leaf in after}
+        moved = [leaf["path"] for leaf in before if by_path.get(leaf["path"]) != leaf]
+        findings.append({"section": section, "leaves_moved": len(moved), "paths": moved[:5]})
+    return findings
+
+
 def _native_kwargs(surface: Surface, instant: CivilInstant) -> dict[str, object]:
     """Bind the builder's arguments to resolved inputs, and to nothing else."""
     available: dict[str, object] = {
@@ -278,6 +332,30 @@ def main() -> int:
     grid = build_grid(args.natives)
     nudged = sum(1 for _, nudge in grid if nudge)
     print(f"grid: {len(grid)} resolved instant(s), {nudged} moved clear of a transition")
+
+    # ⛔ Before anything is sampled. A corpus that disagrees with itself will disagree with
+    #    every future comparison too, and the reason will look like an engine difference.
+    probe_native = surface.native_builder(**_native_kwargs(surface, grid[0][0]))
+    unstable = determinism_probe(surface, probe_native)
+    if unstable:
+        print(
+            "REFUSED: a sampled call returned different values for the same input.",
+            file=sys.stderr,
+        )
+        for finding in unstable:
+            print(
+                f"    {finding['section']}: {finding['leaves_moved']} leaf/leaves moved "
+                f"-> {finding['paths']}",
+                file=sys.stderr,
+            )
+        print(
+            "    Pin the varying input in the surface declaration (an argument defaulting "
+            "to 'now' is the usual cause). An input nobody wrote down is an input nobody "
+            "can reproduce.",
+            file=sys.stderr,
+        )
+        return 1
+    print(f"determinism probe: {len(surface.section_names())} section(s) stable on one input")
 
     rows: list[dict[str, object]] = []
     per_section: dict[str, int] = {}

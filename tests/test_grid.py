@@ -96,3 +96,78 @@ def test_the_grid_is_deterministic():
     first = [(i.grid_id, i.utc) for i, _ in r5.build_grid(24)]
     second = [(i.grid_id, i.utc) for i, _ in r5.build_grid(24)]
     assert first == second
+
+
+# --------------------------------------------------------------------------------------
+# the determinism probe
+# --------------------------------------------------------------------------------------
+
+
+class _FakeAtom:
+    def __init__(self, atom_id, fn):
+        self.id, self.call, self.settings = atom_id, fn, None
+
+    def variations(self):
+        return [(self.id, {})]
+
+
+class _FakeSurface:
+    def __init__(self, atoms):
+        self.atoms, self.settings_builder = atoms, None
+
+    def section_names(self):
+        return [atom.id for atom in self.atoms]
+
+
+def test_the_probe_passes_a_call_that_depends_only_on_its_input():
+    surface = _FakeSurface([_FakeAtom("stable", lambda native: {"x": float(native)})])
+    assert r5.determinism_probe(surface, 3) == []
+
+
+def test_the_probe_catches_a_call_that_reads_a_clock():
+    """⭐ The defect that made the first regeneration differ.
+
+    A sampled call's argument defaulted to "now", so every row carried the moment of
+    sampling and a flag on every period was a function of when the recorder ran. It looked
+    reproducible — which is exactly why a demonstration is required and an argument is not.
+    """
+    ticks = iter(range(1000))
+
+    def reads_a_clock(_native):
+        return {"as_of": float(next(ticks))}
+
+    surface = _FakeSurface([_FakeAtom("unstable", reads_a_clock)])
+    (finding,) = r5.determinism_probe(surface, 0)
+    assert finding["section"] == "unstable"
+    assert finding["paths"] == ["as_of"]
+
+
+def test_the_probe_separates_its_two_passes():
+    """⚠ A detector, not a proof — but it must not clear a whole sweep by luck.
+
+    Back-to-back calls cleared 7 of 17 clock-dependent sections because both landed in the
+    same microsecond. Sweeping every section before repeating any makes that far less
+    likely, and this pins the ordering that provides the separation.
+    """
+    order: list[str] = []
+
+    def note(name):
+        def fn(_native):
+            order.append(name)
+            return {"n": 1.0}
+
+        return fn
+
+    surface = _FakeSurface([_FakeAtom("a", note("a")), _FakeAtom("b", note("b"))])
+    r5.determinism_probe(surface, 0)
+    assert order == ["a", "b", "a", "b"], "a section must not be repeated before the sweep ends"
+
+
+def test_a_call_that_refuses_is_not_reported_as_unstable():
+    """A refusal is a fact about the sampled implementation and is recorded during sampling."""
+
+    def refuses(_native):
+        raise RuntimeError("declined")
+
+    surface = _FakeSurface([_FakeAtom("refuses", refuses)])
+    assert r5.determinism_probe(surface, 0) == []
