@@ -91,3 +91,14 @@ A kernel path is supplied on the command line and the file's SHA-256 is checked 
 recorded pin before a single value is read: a content-addressed *name* records what
 somebody intended, and anything that can write to the directory can write a wrong file
 under a right-looking name.
+
+## Before pushing
+
+```bash
+python -m pytest -q                      # the contract's refusals
+python tools/check_public_tree.py        # no reserved name reaches a commit
+```
+
+⚠ The second scans **committed** content and **every reachable commit**, because a name
+removed in a later commit is still published by the earlier one. It exits non-zero when
+`config/reserved-names.txt` is missing rather than passing on an empty list.

@@ -29,6 +29,12 @@ jobs:
       - name: The fixture contract refuses what it must
         run: python -m pytest -q
 
+      - name: The leak check's matcher is alive
+        # ⭐ Runs WITHOUT a reserved-name list, and that is the point: the names are
+        #    private, the matcher is not, and it was the matcher that was silently dead.
+        #    A pattern that matches nothing makes the whole check green over an empty set.
+        run: python tools/check_public_tree.py --self-test
+
       - name: The contract is fail-closed with no local configuration
         # ⚠ CI has no config/reserved-names.txt, so only the built-in default applies.
         #    This asserts the tooling SAYS SO rather than reporting a full check.
