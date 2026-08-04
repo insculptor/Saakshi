@@ -26,6 +26,11 @@ dist/
 # are not. `config/reserved-names.txt.example` is committed and documents the format.
 config/reserved-names.txt
 
+# The R5 call surface. Same split, same reason: it names functions inside another tree, and
+# the shape of an unreleased tree leaks through its module paths as surely as through its
+# name. `config/predecessor-surface.toml.example` is committed and documents the format.
+config/predecessor-surface.toml
+
 # Cross-repository notes: paths, gate ids and hand-off detail for consumers that are not
 # public yet. ⛔ Never committed while any consumer is unreleased.
 docs/local/

@@ -1,0 +1,70 @@
+# The call surface of an engine sampled for continuity (R5).
+#
+# Copy to `predecessor-surface.toml` and fill in. ⛔ **The filled-in copy is not committed.**
+# It names functions inside another tree, and the shape of an unreleased tree leaks through
+# its module paths as surely as through its name. The mechanism belongs in the open; the
+# surface does not — the same split as `reserved-names.txt`.
+#
+# ⛔ **A recorder, never an explainer.** Everything here is a *name* and an *argument*.
+# Nothing here says what any call computes, and nothing that did would be accepted: code
+# consuming these fixtures is written clean-room from published specification, so a note
+# about another implementation's internals — even in a config file — becomes an
+# implementation source for it.
+
+[engine]
+# Where to import from. Prepended to `sys.path` at run time; ⛔ never installed, never a
+# dependency of this repository.
+root = "/path/to/the/engine/tree"
+
+# ⭐ What the fixture will say answered. Required, and it may not contain a reserved name:
+# a fixture must state what produced its values even when the name cannot be published, so
+# write a description, not a product name — e.g. "the earlier python implementation".
+label = "the earlier implementation"
+
+# The callable that turns a resolved grid point into whatever the sampled calls take first.
+# `module.path:attribute`.
+native_builder = "some.module:SomeInput"
+
+# ⭐ **The gate lives in this table.** It binds the builder's own argument names to the
+# recorder's *resolved* inputs — values already reduced to numbers and offsets. There is
+# deliberately no name for an unresolved input, so a surface cannot ask for one, so a
+# sampled call cannot depend on state a deployment happens to hold.
+#
+# Permitted sources:
+#   civil_local_naive · civil_local_iso · utc_aware · utc_iso · zone
+#   utc_offset_seconds · latitude · longitude · place_label
+#
+# ⚠ `zone` is permitted because a reading has to be explicable, but the *offset* is the
+# authority and is on every row regardless. ⛔ `place_label` is a label; binding it as an
+# input defeats the whole arrangement.
+[engine.native_fields]
+datetime_local = "civil_local_naive"
+timezone = "zone"
+latitude = "latitude"
+longitude = "longitude"
+
+# Optional. Only needed if some calls take a second "settings"-shaped argument.
+# settings_builder = "some.module:SomeSettings"
+
+
+# --- the calls -----------------------------------------------------------------------
+# One `[[atom]]` per sampled function. `id` is lower_snake_case and becomes the fixture's
+# `section`, so it obeys the same key law as every other identifier this repository writes.
+
+[[atom]]
+id = "some_snapshot"
+call = "some.module:some_snapshot"
+
+# Static keyword arguments, passed to every call of this atom.
+# [atom.kwargs]
+# depth = 1
+
+# ⭐ One varied axis, expanded to one section per value: `some_snapshot__first`, etc.
+# ⛔ One axis only. Two would multiply, and a grid whose size is not obvious from its own
+# declaration is exactly what an export manifest exists to bound.
+# [atom.vary]
+# mode = ["first", "second", "third"]
+
+# A settings object built for this atom only. Requires `settings_builder` above.
+# [atom.settings]
+# some_option = "a-value"

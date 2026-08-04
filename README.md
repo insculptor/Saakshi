@@ -62,10 +62,14 @@ mechanical facts: what was called, what came back, and under what versions.
 generators/          one script per fixture set; each is a recorder
   r2_kernel_states.py    geometric states from a pinned DE kernel, read twice
   publisher_testpo.py    the ephemeris publisher's own test-value set
+  r5_continuity.py       what an earlier implementation answered, before it stops running
 src/saakshi/         the shared library
   fixture.py             the fixture contract, fail-closed, five discriminated kinds
   kernels.py             locate and hash-verify a kernel pinned by digest
   provenance.py          generator identity; ⛔ refuses to stamp a dirty tree
+  civil.py               resolved instants and coordinates; ⛔ refuses a half-resolved row
+  leaves.py              flatten a returned object to addressed leaves
+  surface.py             a sampled engine's call surface, declared as local data
 tests/               the contract's own negative tests
 config/              reserved names (local, not committed)
 out/                 generated fixtures (not committed; they are consumed elsewhere)
@@ -85,6 +89,34 @@ cp config/reserved-names.txt.example config/reserved-names.txt   # then add your
 python generators/r2_kernel_states.py --kernel <path to de440s.bsp> --out out/
 python generators/publisher_testpo.py --kernel <path to de440s.bsp> --out out/
 ```
+
+### Sampling an engine for continuity
+
+One generator is different in kind: `r5_continuity.py` samples a *running implementation*
+rather than a data file, so that its answers survive it being switched off.
+
+```bash
+cp config/predecessor-surface.toml.example config/predecessor-surface.toml   # then fill in
+
+python generators/r5_continuity.py --natives 64 --report-only   # price the grid first
+python generators/r5_continuity.py --natives 64 --out out/
+```
+
+⚠ Run it with an interpreter that can **import the tree being sampled** — that tree's own
+dependencies are not this repository's and never will be.
+
+⭐ **Why this one has a deadline and the others do not.** A kernel or a published table can
+be read again next year. An implementation cannot be sampled once it stops running, and
+nobody gets to ask it a new question afterwards. Everything the recorder can turn into a
+number now, it does: each row carries the **resolved UTC offset** beside the local clock
+reading and the **resolved coordinate** instead of a place name, so reading the corpus later
+needs no timezone database, no place-name service, and nothing switched back on.
+
+⛔ Every such fixture is `reference_only`. What an implementation answered is evidence about
+that implementation — never about the sky, and never a tolerance anyone may adopt without
+measuring it themselves.
+
+### Acquired data
 
 Data files are **never committed here** and are never fetched from an unpinned location.
 A kernel path is supplied on the command line and the file's SHA-256 is checked against a
