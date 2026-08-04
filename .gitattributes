@@ -1,0 +1,13 @@
+# ⭐ Normalise line endings in the repository, always.
+#
+# Without this, a checkout on Windows and a checkout on Linux hold different bytes, and
+# anything that hashes a file — which is most of what this repository does — gets a
+# different answer depending on who ran it. A check whose verdict depends on the platform
+# is not a check.
+* text=auto eol=lf
+
+# Fixtures and acquired source material are byte-exact evidence. ⛔ Never transformed.
+*.jsonl  text eol=lf
+*.json   text eol=lf
+*.440    -text
+*.bsp    -text
