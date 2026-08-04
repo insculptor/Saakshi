@@ -111,13 +111,21 @@ def reserved_names() -> tuple[str, ...]:
 
 
 def describe_reserved_names() -> str:
+    """The one line every generator prints before writing anything.
+
+    ⚠ **ASCII only, deliberately.** This string is printed to a console, and a default
+    Windows console encoding cannot encode the marker glyphs used elsewhere in this
+    repository. A warning that raises `UnicodeEncodeError` instead of appearing does not
+    merely fail to warn — it aborts the generator, and it does so *only* on the path where
+    the local list is missing, which is the one path the warning exists for.
+    """
     loaded = _config_path().is_file()
     count = len(reserved_names())
     if loaded:
         return f"reserved-name check: {count} names in force (local list loaded)"
     return (
-        f"reserved-name check: {count} name(s) in force — ⚠ config/reserved-names.txt is "
-        "absent, so only the built-in default applies"
+        f"reserved-name check: WEAKENED - {count} name(s) in force; "
+        "config/reserved-names.txt is absent, so only the built-in default applies"
     )
 
 
