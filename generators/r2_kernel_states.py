@@ -7,11 +7,23 @@ development-ephemeris kernel pinned by digest.
 oracle of record; `jplephem`, a pure-Python BSD reader, is the cross-check. Where they
 disagree, the magnitude is recorded per row and summarised in the header.
 
-⚠ **That disagreement is not a tolerance band.** It is an empirical *floor* — how far
-apart two third-party readers of the same file already are. The band for any consumer's
-own reader is a separate measurement, taken against these rows, in that consumer's own
-tree. Recording the floor here makes that later measurement interpretable; it does not
-pre-empt it.
+⭐ **The band this file declares is that floor, and a band's SHAPE is the finding.** Three
+denominators were available and two of them are wrong:
+
+* **a distance** (kilometres) — wrong, because the disagreement scales with coordinate
+  magnitude. One number is a millimetre at Pluto's barycentre and absurdly loose for the
+  Moon;
+* **the component** — wrong, and less obviously so: a component passing near zero drives
+  its own ratio arbitrarily large while nothing has gone wrong;
+* ⭐ **the norm of the section's three components** — stable, dimensionless, and the shape
+  used here. ⚠ It is undefined for the segments this file carries as identically zero, and
+  those rows say so rather than dividing.
+
+⚠ **The declared band is generation context, not a judgement.** It records what two
+third-party readers of the same bytes already differ by; it is not the band a consumer
+should apply. That is set from the consumer's own budget and measured against these rows in
+the consumer's own tree — a mismatch between the two is something to report, never a reason
+to refuse this file.
 
 ⛔ **Recorder, never explainer.** This script calls two libraries and writes down what
 they returned. It contains no account of *how* either evaluates a record. Code that
@@ -89,6 +101,17 @@ PAIRS: list[tuple[int, int, str]] = [
 ]
 
 SECONDS_PER_DAY = 86400.0
+
+#: One unit in the last place, relative, for a double: 2**-52. ⭐ Used only to *report* a
+#: measured relative disagreement in a scale-free way. The band itself is declared as the
+#: measured fraction, because a fraction needs no agreement about what "a ULP" means.
+RELATIVE_ULP = 2.0**-52
+
+#: The sections, and the slice of the six-vector each one is.
+SECTIONS: tuple[tuple[str, str, slice], ...] = (
+    ("position", "km", slice(0, 3)),
+    ("velocity", "km/s", slice(3, 6)),
+)
 
 
 def _parent_map(spk: SPK) -> dict[int, int]:
@@ -245,6 +268,12 @@ def main() -> int:
     exact_states = 0
     total_states = 0
     delta_magnitudes: list[float] = []
+    # ⭐ The band is measured per section, because the two sections were measured to differ.
+    #    One band across both would be set by the worse of them and would silently claim the
+    #    better one is that loose.
+    worst_relative: dict[str, float] = {name: 0.0 for name, _, _ in SECTIONS}
+    worst_relative_row: dict[str, dict | None] = {name: None for name, _, _ in SECTIONS}
+    undefined_denominator: dict[str, int] = {name: 0 for name, _, _ in SECTIONS}
     # The chaining-strategy probe: same file, same reader, different composition point.
     worst_strategy_delta = 0.0
     worst_strategy_row: dict | None = None
@@ -293,26 +322,41 @@ def main() -> int:
                 "target": target,
                 "centre": centre,
             }
-            rows.append(
-                {
-                    **common,
-                    "section": "position",
-                    "unit": "km",
-                    "values": [float(v) for v in state[:3]],
-                    "values_bits": [bits(float(v)) for v in state[:3]],
-                    "cross_check_max_abs_delta": float(delta[:3].max()),
-                }
-            )
-            rows.append(
-                {
-                    **common,
-                    "section": "velocity",
-                    "unit": "km/s",
-                    "values": [float(v) for v in state[3:]],
-                    "values_bits": [bits(float(v)) for v in state[3:]],
-                    "cross_check_max_abs_delta": float(delta[3:].max()),
-                }
-            )
+            for name, unit, part in SECTIONS:
+                components = state[part]
+                abs_delta = float(delta[part].max())
+                norm = float(np.linalg.norm(components))
+                # ⛔ Not a guard against a crash — a statement about what can be judged.
+                #    The identically-zero segments have no scale, so a relative band says
+                #    nothing about them, and `null` is the honest value. Their absolute
+                #    delta is still recorded and is still checkable against zero.
+                if norm == 0.0:
+                    relative: float | None = None
+                    undefined_denominator[name] += 1
+                else:
+                    relative = abs_delta / norm
+                    if relative > worst_relative[name]:
+                        worst_relative[name] = relative
+                        worst_relative_row[name] = {
+                            "epoch_id": epoch_id,
+                            "target": target,
+                            "centre": centre,
+                            "chain_shape": shape,
+                            "max_rel_delta": relative,
+                            "max_rel_delta_in_ulp": relative / RELATIVE_ULP,
+                        }
+                rows.append(
+                    {
+                        **common,
+                        "section": name,
+                        "unit": unit,
+                        "values": [float(v) for v in components],
+                        "values_bits": [bits(float(v)) for v in components],
+                        "cross_check_max_abs_delta": abs_delta,
+                        "state_vector_norm": norm,
+                        "cross_check_max_rel_delta": relative,
+                    }
+                )
 
     header = Header(
         fixture_kind="numeric_pin",
@@ -353,17 +397,27 @@ def main() -> int:
                 "— the seed and the pair list above fix the grid exactly"
             ),
         },
-        # ⛔ `reference_only` — "committed but not compared" — and it is the honest value.
-        # `validation/budget.toml` carries K-b at `band = "unmeasured"`, which is fail-closed:
-        # no band exists yet, so no comparison can be judged. A consumer measures its own
-        # reader's residual against these rows and the band is set ONCE from that measurement;
-        # only then does this classification become `tolerance` with band and unit.
-        # ⛔ Writing `exact` here would assert bit-identity across independent
-        # implementations, which nothing has established and which two readers composing
-        # in different orders would be expected to break.
+        # ⛔ NOT `reference_only`. That value means "committed but not compared", and a file
+        # carrying it cannot pass whatever band is set for it — which makes it the wrong
+        # value for a fixture whose whole purpose is to be compared against.
+        #
+        # ⛔ And not `exact` either: that would assert bit-identity across independent
+        # implementations, which the run below measures to be false for roughly a quarter of
+        # the states.
+        #
+        # ⭐ So `tolerance`, with the band MEASURED on this run and per section. ⚠ It is
+        # generation context — what two third-party readers of these bytes already differ
+        # by — and not a judgement anyone must adopt. The consumer judges from its own
+        # budget; a disagreement with the number here is a line to report, not a load error.
+        # There is deliberately **no headroom**: the band is the worst observation, because
+        # adding margin to an observation is where a measurement quietly becomes an opinion.
         classification={
-            "position": {"class": "reference_only"},
-            "velocity": {"class": "reference_only"},
+            name: {
+                "class": "tolerance",
+                "band": worst_relative[name],
+                "unit": "relative_to_section_state_vector_norm",
+            }
+            for name, _, _ in SECTIONS
         },
         budget_row="K-b",
         row_schema={
@@ -381,6 +435,19 @@ def main() -> int:
             "cross_check_max_abs_delta": (
                 "max |CSPICE - jplephem| over this row's three components, in this row's "
                 "unit. ⛔ NOT a tolerance, and NOT a consumer's own residual"
+            ),
+            "state_vector_norm": (
+                "Euclidean norm of this row's three components, in this row's unit — the "
+                "denominator the declared band is relative to. ⭐ The norm rather than the "
+                "component, because a component passing near zero inflates its own ratio "
+                "while nothing has gone wrong"
+            ),
+            "cross_check_max_rel_delta": (
+                "`cross_check_max_abs_delta / state_vector_norm`, dimensionless — the shape "
+                "the band is declared in. ⚠ **null** where the norm is zero: the "
+                "identically-zero segments have no scale, so no relative statement about "
+                "them is possible. ⛔ Their absolute delta is still recorded and is still "
+                "checkable against zero, which is the only check they admit"
             ),
         },
         summary={
@@ -400,9 +467,49 @@ def main() -> int:
                 ),
                 "meaning": (
                     "two independent implementations reading the identical bytes. This is an "
-                    "empirical floor on what 'machine precision' means for this file. "
-                    "It is NOT K-b's band, which budget.toml records as `unmeasured`, and it "
-                    "is NOT a consumer's own residual, which can only be measured in that consumer's tree"
+                    "empirical floor on what 'machine precision' means for this file, and it "
+                    "is NOT a consumer's own residual, which can only be measured in that "
+                    "consumer's tree"
+                ),
+            },
+            "declared_band": {
+                "per_section": {
+                    name: {
+                        "band": worst_relative[name],
+                        "in_ulp": worst_relative[name] / RELATIVE_ULP,
+                        "worst_state": worst_relative_row[name],
+                        "rows_with_no_denominator": undefined_denominator[name],
+                    }
+                    for name, _, _ in SECTIONS
+                },
+                "unit": "relative_to_section_state_vector_norm",
+                "ulp_definition": RELATIVE_ULP,
+                "derivation": (
+                    "the largest relative disagreement observed on this grid, per section, "
+                    "with no headroom added. ⭐ Reported in ULP too because that is the "
+                    "scale-free reading, but declared as the fraction, which needs no "
+                    "agreement about what a ULP is"
+                ),
+                "why_this_denominator": (
+                    "⛔ a band in kilometres is the wrong SHAPE — the disagreement scales "
+                    "with coordinate magnitude, so one number is a millimetre at the outer "
+                    "barycentres and absurdly loose for the Moon. ⛔ A band relative to the "
+                    "COMPONENT is wrong too, and less visibly: a component passing near zero "
+                    "drives its own ratio arbitrarily large with nothing wrong. ⭐ The norm "
+                    "of the section's three components is the stable denominator"
+                ),
+                "status": (
+                    "⚠ GENERATION CONTEXT, not a judgement. It records what two third-party "
+                    "readers of these bytes already differ by. The band a consumer applies "
+                    "comes from that consumer's own budget, measured against these rows in "
+                    "that consumer's tree; a disagreement with this number is a line to "
+                    "report, ⛔ never a reason to refuse this file"
+                ),
+                "rows_with_no_denominator_note": (
+                    "the identically-zero segments. ⚠ They carry `cross_check_max_rel_delta` "
+                    "as null and are excluded from the band entirely — including them at a "
+                    "ratio of zero would tighten the reported floor with rows that were "
+                    "never capable of loosening it"
                 ),
             },
             "chaining_strategy_probe": {
@@ -431,6 +538,16 @@ def main() -> int:
             "The two `direct_identically_zero` pairs are Mercury and Venus relative "
             "to their own system barycentres, which this kernel carries as degree-1 segments "
             "over the whole span. A reader can get an exact zero wrong invisibly.",
+            "⭐ THE BAND IS DECLARED, MEASURED, AND STILL NOT AN INSTRUCTION. It is what two "
+            "third-party readers of these bytes differ by; the band a consumer applies is "
+            "that consumer's own, and a mismatch between the two is a reported line rather "
+            "than a load error. ⛔ A later tightening on the consumer's side can therefore "
+            "never make this file unloadable.",
+            "⚠ A relative band cannot judge the identically-zero rows, and this file does "
+            "not pretend otherwise: their `cross_check_max_rel_delta` is null and they are "
+            "excluded from the band. They are the rows where an exact-zero check is the only "
+            "check available, so a consumer that judges them by band alone judges them not "
+            "at all.",
         ],
     )
 
@@ -438,7 +555,7 @@ def main() -> int:
     #    directory would quietly overwrite one kernel's evidence with another's.
     out_path = Path(args.out) / "kernel" / pin.dataset.removesuffix(".bsp") / "r2-states.jsonl"
     written = write_jsonl(
-        out_path, header, rows, declared_sections=["position", "velocity"]
+        out_path, header, rows, declared_sections=[name for name, _, _ in SECTIONS]
     )
 
     print(f"wrote {written} rows -> {out_path}")
@@ -447,6 +564,12 @@ def main() -> int:
     if delta_magnitudes:
         arr = np.array(delta_magnitudes)
         print(f"cross-check: differing states median = {np.median(arr)!r}")
+    for name, _, _ in SECTIONS:
+        print(
+            f"band ({name}): {worst_relative[name]:.4e} "
+            f"= {worst_relative[name] / RELATIVE_ULP:.2f} ULP of the section norm; "
+            f"{undefined_denominator[name]} row(s) had no denominator"
+        )
     return 0
 
 

@@ -88,6 +88,36 @@ wrong without a residual showing up anywhere else.
 
 `de440.bsp` gives the same worst case, 9.5 × 10⁻⁷ km, with 871 of 1 323 bit-identical.
 
+### 2a. ⭐ "Relative" is not one question — and the wrong denominator moves the answer
+
+The table above divides each component's disagreement by **that component**. It is the
+obvious denominator and it is not the right one: a component passing near zero drives its
+own ratio arbitrarily large while nothing whatever has gone wrong. The publisher makes the
+same observation from the other direction, arguing in `testeph.f`'s own comment for an
+absolute test because *"sometimes the values will be near zero for particular
+components"*.
+
+⭐ **The stable denominator is the norm of the section's three components.** It does not
+pass through zero except where the whole state is zero, and there it is undefined rather
+than misleading. Measured that way on the same grid:
+
+| | Per component | Per section norm |
+|---|---|---|
+| Position | 1.5 ULP | **1.36 ULP** (3.01 × 10⁻¹⁶) |
+| Velocity | 2.6 ULP | **2.36 ULP** (5.25 × 10⁻¹⁶) |
+
+The two readings agree on the order of magnitude, which is the point: the finding is robust
+and the *shape* still matters, because it is the shape a band has to be written in. So the
+R2 fixture declares its band per section, relative to the section norm, at exactly the
+worst value observed — **no headroom**, because margin added to an observation is where a
+measurement quietly becomes an opinion.
+
+⚠ **98 rows per section have no denominator** — the identically-zero segments. They carry a
+null relative disagreement and are excluded from the band entirely. Including them at a
+ratio of zero would tighten the reported floor using rows that were never capable of
+loosening it, and an exact-zero check is the only check they admit. ⛔ A consumer that
+judges those rows by band alone has not judged them.
+
 ---
 
 ## 3. Where you compose a chain costs more than how you evaluate it
