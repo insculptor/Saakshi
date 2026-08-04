@@ -93,6 +93,24 @@ BODY_NUMBERING: dict[int, int] = {
     13: 3,  # Earth-Moon barycentre
 }
 
+#: Names, for a reader of the fixture. ⛔ Never used to resolve anything — the numbers do
+#: that, and a name in a lookup path is how a numbering drifts.
+BODY_NAMES: dict[int, str] = {
+    1: "Mercury",
+    2: "Venus",
+    3: "Earth",
+    4: "Mars system barycentre",
+    5: "Jupiter system barycentre",
+    6: "Saturn system barycentre",
+    7: "Uranus system barycentre",
+    8: "Neptune system barycentre",
+    9: "Pluto system barycentre",
+    10: "Moon",
+    11: "Sun",
+    12: "solar-system barycentre",
+    13: "Earth-Moon barycentre",
+}
+
 #: What the printed coordinate index means.
 COORDINATE = {
     1: ("position_au", "x", "au"),
@@ -321,18 +339,27 @@ def main() -> int:
             },
         },
         request={
+            # ⭐ A list of records, not an object keyed by the number. An integer-keyed
+            #    object forces every key to be a stringified int, which reads as data
+            #    hiding in the schema and diffs badly. The contract's key rule refused it,
+            #    which was the right call.
             "body_numbering": {
                 "note": (
                     "maps the publisher's test-file body numbers to the numbering its "
                     "binary kernels use. The two schemes are different and neither is "
                     "derivable from the other"
                 ),
-                "map": {str(k): v for k, v in BODY_NUMBERING.items()},
+                "entries": [
+                    {"published": published, "kernel": kernel, "body": name}
+                    for (published, kernel), name in zip(
+                        BODY_NUMBERING.items(), BODY_NAMES.values()
+                    )
+                ],
             },
-            "coordinate_index": {
-                str(k): {"section": s, "component": c, "unit": u}
-                for k, (s, c, u) in COORDINATE.items()
-            },
+            "coordinate_index": [
+                {"index": index, "section": section, "component": component, "unit": unit}
+                for index, (section, component, unit) in COORDINATE.items()
+            ],
             "filters_applied": (
                 "rows are included only where both bodies appear in the numbering map, the "
                 "coordinate index is a position or velocity component, and the epoch lies "
