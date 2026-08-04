@@ -79,6 +79,22 @@ budget would launder one claim into another, so the schema forbids it outright.
 collected before anyone has measured what band applies to it — and a band invented to look
 comfortable is exactly the failure the whole contract exists to prevent.
 
+⚠ **But it is not a resting place either.** A file classified `reference_only` cannot pass
+whatever band is later set for it, so leaving it there once a band *has* been measured
+turns "not yet compared" into "never compared".
+
+⭐ **A declared band is generation context, never an instruction.** It records what the
+generating instrument measured; the band a consumer applies comes from that consumer's own
+budget. A disagreement between the two is a line to report, ⛔ never a reason to refuse the
+file — so a later tightening on the consumer's side can never make an emitted fixture
+unloadable, and declaring a measured band here adopts nothing on anyone's behalf.
+
+⭐ **A band's shape is part of the measurement.** The R2 state fixture declares its band per
+section, relative to the norm of that section's three components — not in kilometres, which
+scales wrongly, and not relative to the component, which a near-zero component inflates.
+Where the norm is zero the relative disagreement is emitted as `null` and the row is
+excluded from the band, because a relative band cannot judge a quantity with no scale.
+
 ## Reserved names
 
 ⛔ A fixture **filename** or **JSON key** may never contain a project name. A key and a
@@ -94,20 +110,55 @@ in the open, the names of unreleased consumers do not. See
 generator prints how many names are in force before it writes anything, so a list that is
 not loaded is visible rather than silent.
 
-## `reference` has one gap, and it is declared in the file
+## `reference` names a source — except once, where it names a relationship
 
-`reference` admits `R1`–`R6` and `instrument`, and exactly one of them.
+`reference` admits `R1`–`R6`, `instrument` and `publisher_self_consistency`, and exactly
+one of them.
 
-A publisher's own test-value file does not fit. It is a *self-consistency measurement* —
-the publisher's integration against the publisher's own exported data — and no outside
-reference judged it. Filing it under the ephemeris-service reference would widen that
-reference's authority to cover a claim it was never given; calling it `instrument` would
-name a harness, which it is not.
+⭐ **`publisher_self_consistency` is the only value that constrains the shape of `oracle`
+rather than merely labelling it.** Every other value names a source a reader can go and
+consult. This one names a *relationship* — one artifact of a publisher's reproducing
+another — and a relationship is checkable only if both of its terms are named. So the
+oracle must carry:
 
-So the writer emits `"reference": "none"` **and requires the file to carry a
-`contract_deviation` block** naming the clause it does not satisfy and what would close
-it. A consumer trips over the value, reads why, and a human decides.
+| Member | Requires | Why that field |
+|---|---|---|
+| `publisher` | — | a self-consistency claim is about **one party's** two artifacts |
+| `test_artifact` | `identity`, `sha256`, `acquired`, `provenance_record` | the published values |
+| `subject_artifact` | `identity`, `data_profile`, `sha256` | the published data they reproduce from |
 
-⭐ The alternative was to pick the least-wrong existing value and move on. That would have
-put a false statement in the one block whose entire purpose is to stop false provenance
-claims — and it would have been invisible, which is what makes it worse than the gap.
+⛔ Any absence is refused at write time and is a load error downstream. **Half a pair is not
+a weaker claim; it is a different, unmade one.**
+
+⚠ Two of those members earn their place against the obvious objection that the digest
+already covers it.
+
+* `provenance_record` — a digest says the bytes read hash to a value. It says nothing about
+  where they came from, and a local file with the right name hashes just as convincingly.
+  The record names the address, the date and the instrument. ⛔ And it still cannot
+  establish that the publisher *published* anything: a server answering an address is a
+  different claim, and the record says so in its own words rather than leaving it to be
+  assumed away.
+* `data_profile` — "the same ephemeris" is distributed as several files of different spans,
+  and a self-consistency claim about one of them is not a claim about another.
+
+## `reference` has an escape hatch, and it may not be left open
+
+`"reference": "none"` is available for a claim the registry cannot yet express. A file
+using it **must** carry a `contract_deviation` block naming the clause it does not satisfy
+and what would close it. A consumer trips over the value, reads why, and a human decides.
+
+⭐ **This is the mechanism that produced `publisher_self_consistency`.** A generator emitted
+`none`, the consumer refused the file, and the value was minted by a reviewed change. The
+hatch stays open for the next such gap.
+
+⛔ **And it may only be claimed by a file that is actually non-conforming.** A fixture whose
+reference is in the registry may not carry a deviation block: a deviation that has been
+closed still reads as an open question, and it does so from the one block in the file that
+exists to be trusted. The writer refuses both halves — `none` without a deviation, and a
+deviation without `none`.
+
+⭐ The alternative, at the start, was to pick the least-wrong existing value and move on.
+That would have put a false statement in the one block whose entire purpose is to stop
+false provenance claims — and it would have been invisible, which is what makes it worse
+than the gap.

@@ -77,6 +77,100 @@ def test_reference_none_with_a_deviation_block_is_admitted():
     )
 
 
+def test_a_conforming_fixture_may_not_declare_a_deviation():
+    """⛔ The half of the hatch that was missing.
+
+    The block was written so a generator could raise a question the contract could not
+    answer. Once the question is answered the block must go: a closed deviation left in a
+    file sends the next reader to re-decide something already decided, and it does so from
+    the one place in the file that exists to be trusted.
+    """
+    with pytest.raises(FixtureContractError, match="contract_deviation"):
+        validate_header(
+            numeric(
+                reference="R2",
+                contract_deviation=[{"clause": "reference registry", "why": "stale"}],
+            ),
+            where="t",
+        )
+
+
+# --- the pair claim -------------------------------------------------------------------
+
+SELF_CONSISTENCY_ORACLE = {
+    "publisher": "JPL Solar System Dynamics",
+    "test_artifact": {
+        "identity": "testpo.440",
+        "sha256": "a" * 64,
+        "acquired": "2026-08-04",
+        "provenance_record": {"path": "kernel/x.jsonl", "sha256": "b" * 64},
+    },
+    "subject_artifact": {
+        "identity": "de440s.bsp",
+        "data_profile": "standard@1",
+        "sha256": "c" * 64,
+    },
+}
+
+
+def self_consistent(**over) -> Header:
+    oracle = json.loads(json.dumps(SELF_CONSISTENCY_ORACLE))
+    oracle.update(over.pop("oracle_over", {}))
+    return numeric(reference="publisher_self_consistency", oracle=oracle, **over)
+
+
+def test_publisher_self_consistency_is_in_the_registry():
+    validate_header(self_consistent(), where="t")
+
+
+@pytest.mark.parametrize("artifact", ["test_artifact", "subject_artifact"])
+def test_a_pair_claim_missing_half_its_pair_is_refused(artifact):
+    """⭐ Half a pair is not a weaker claim. It is a different, unmade one."""
+    with pytest.raises(FixtureContractError, match=f"oracle.{artifact}"):
+        validate_header(self_consistent(oracle_over={artifact: None}), where="t")
+
+
+def test_an_unnamed_publisher_is_refused():
+    with pytest.raises(FixtureContractError, match="oracle.publisher"):
+        validate_header(self_consistent(oracle_over={"publisher": ""}), where="t")
+
+
+@pytest.mark.parametrize(
+    "artifact,member",
+    [
+        ("test_artifact", "identity"),
+        ("test_artifact", "sha256"),
+        ("test_artifact", "acquired"),
+        ("test_artifact", "provenance_record"),
+        ("subject_artifact", "identity"),
+        ("subject_artifact", "data_profile"),
+        ("subject_artifact", "sha256"),
+    ],
+)
+def test_every_member_of_each_artifact_is_required(artifact, member):
+    oracle = json.loads(json.dumps(SELF_CONSISTENCY_ORACLE))
+    del oracle[artifact][member]
+    with pytest.raises(FixtureContractError, match=f"oracle.{artifact}.{member}"):
+        validate_header(self_consistent(oracle_over=oracle), where="t")
+
+
+def test_a_pair_claim_is_only_shape_checked_under_its_own_reference():
+    """⚠ The shape rule belongs to the value, not to every fixture.
+
+    A bare oracle under `R2` stays legal; the same bare oracle under the pair reference is
+    refused. Asserting both sides keeps the rule from quietly becoming universal.
+    """
+    validate_header(numeric(reference="R2", oracle={"toolkit": "CSPICE_N0067"}), where="t")
+    with pytest.raises(FixtureContractError, match="oracle.test_artifact"):
+        validate_header(
+            numeric(
+                reference="publisher_self_consistency",
+                oracle={"publisher": "JPL Solar System Dynamics"},
+            ),
+            where="t",
+        )
+
+
 def test_textual_kinds_are_r6_only():
     with pytest.raises(FixtureContractError, match="R6-only"):
         validate_header(

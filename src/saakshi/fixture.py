@@ -10,7 +10,10 @@ write time*, with an error naming the file, the kind and the field. Refusing at 
 would be enough to keep bad evidence out of a comparison; refusing at write time keeps it
 out of a commit.
 
-⚠ **One deliberate hole, flagged rather than papered over** — see `REFERENCE_UNBOUND`.
+⚠ **The escape hatch for a rule this contract cannot yet express** — see
+`REFERENCE_UNBOUND`. It is still here, and it is now *narrower*: a fixture that conforms
+may not carry a deviation block, because a deviation nobody can act on reads as an open
+question when the question is closed.
 """
 
 from __future__ import annotations
@@ -38,30 +41,45 @@ FIXTURE_KINDS = frozenset(
 #: The reference registry. ⛔ Exactly one per fixture — that single-valued field is what
 #: stops evidence of one kind being filed as authority of another.
 #:
-#: =============  ==================================================================
-#: ``R1``         the ephemeris publisher's service and development ephemerides
-#: ``R2``         the SPICE Toolkit, with an independent pure-Python cross-check
-#: ``R3``         the Swiss Ephemeris, committed fixtures only
-#: ``R4``         published external values: almanacs, vendor exports, printed tables
-#: ``R5``         the predecessor engine, for continuity only
-#: ``R6``         textual authority — what an identifiable source text states
-#: ``instrument`` a harness with no authority of its own
-#: =============  ==================================================================
-REFERENCES_CONTRACT = frozenset({"R1", "R2", "R3", "R4", "R5", "R6", "instrument"})
+#: ⭐ Every other value in this registry names **a source**. This one names a
+#: **relationship**, and it is the only one that constrains the shape of the `oracle` block
+#: rather than merely labelling it — see `_SELF_CONSISTENCY_ARTIFACTS`.
+#:
+#: A publisher's own test-value file is its integration checked against its own exported
+#: data. No outside reference judged it, so there is no outside source to name: filing it
+#: under the ephemeris-service reference would widen that reference's authority to cover a
+#: claim it was never given, and `instrument` is defined as a named harness, which this is
+#: not. The honest label is the relationship itself.
+PUBLISHER_SELF_CONSISTENCY = "publisher_self_consistency"
 
-#: ⚠ **A value the contract does not contain, admitted only under protest.**
+#: =================================  ================================================
+#: ``R1``                             the ephemeris publisher's service and development ephemerides
+#: ``R2``                             the SPICE Toolkit, with an independent pure-Python cross-check
+#: ``R3``                             the Swiss Ephemeris, committed fixtures only
+#: ``R4``                             published external values: almanacs, vendor exports, printed tables
+#: ``R5``                             the predecessor engine, for continuity only
+#: ``R6``                             textual authority — what an identifiable source text states
+#: ``instrument``                     a harness with no authority of its own
+#: ``publisher_self_consistency``     a publisher's own artifact checked against a second artifact of its own
+#: =================================  ================================================
+REFERENCES_CONTRACT = frozenset(
+    {"R1", "R2", "R3", "R4", "R5", "R6", "instrument", PUBLISHER_SELF_CONSISTENCY}
+)
+
+#: ⚠ **The value for a claim this registry cannot yet express.**
 #:
-#: A publisher's own test-value file — its integration checked against its own exported
-#: data — is a *self-consistency measurement*, not a comparison against an outside
-#: reference. Filing it under `R1` would widen that reference's authority to cover a claim
-#: it was never given; but `instrument` is defined as a named harness, which this is not
-#: either. ⛔ Writing `instrument` would be a **false statement about origin** in the one
-#: block whose entire purpose is to stop false provenance claims.
+#: Every file carrying it must also carry a ``contract_deviation`` block naming the clause
+#: it does not satisfy. A consumer trips over it, reads why, and a human decides — which is
+#: the correct outcome for a gap in a contract neither side may quietly widen.
 #:
-#: So the honest value is emitted, and every file carrying it must also carry a
-#: ``contract_deviation`` block naming the clause it does not satisfy. A consumer will then
-#: trip over it and a human will decide, which is the correct outcome for a gap in a
-#: contract neither side may quietly widen.
+#: ⭐ **This is the mechanism that produced `publisher_self_consistency`.** A generator
+#: emitted `none`, the consumer's loader refused the file, and the value was admitted by a
+#: reviewed change on the consumer's side. The hatch stays open for the next such gap.
+#:
+#: ⛔ But it may only ever appear on an artifact that is **actually** non-conforming: a
+#: fixture whose reference is in the registry may not carry a deviation block. A recorded
+#: deviation that no longer exists reads as an open question after it has been closed,
+#: which sends a human to re-decide something already decided.
 REFERENCE_UNBOUND = "none"
 
 #: The comparison classes a numeric fixture may declare.
@@ -158,6 +176,27 @@ _FORBIDDEN: dict[str, tuple[str, ...]] = {
 
 #: Kinds that can only ever carry textual authority.
 _R6_ONLY = frozenset({"worked_example", "textual_rule", "textual_fork"})
+
+#: ⭐ **A self-consistency claim is irreducibly about a PAIR**, so the reference value alone
+#: does not say what was measured. It names no outside source; what it does name is that
+#: one artifact of the publisher's reproduces another. Both must therefore be identified,
+#: and each in the way that makes *it* checkable:
+#:
+#: * ``test_artifact`` — the published values. Identified, digested, dated at acquisition,
+#:   and pointing at the ``provenance_record`` that attests how it was obtained. ⚠ That
+#:   record cannot prove the publisher published anything; it attests what this instrument
+#:   retrieved, from where, and when.
+#: * ``subject_artifact`` — the published data those values reproduce from. Identified,
+#:   digested, and carrying its **data profile**, because "the same ephemeris" is
+#:   distributed as several files of different spans and a claim about one is not a claim
+#:   about another.
+#:
+#: ⛔ Any absence is a refusal here, and a load error downstream. A pair claim missing half
+#: its pair is not a weaker version of the claim — it is a different, unmade one.
+_SELF_CONSISTENCY_ARTIFACTS: dict[str, tuple[str, ...]] = {
+    "test_artifact": ("identity", "sha256", "acquired", "provenance_record"),
+    "subject_artifact": ("identity", "data_profile", "sha256"),
+}
 
 
 # --------------------------------------------------------------------------------------
@@ -263,7 +302,7 @@ def validate_header(
     if ref not in REFERENCES_CONTRACT and ref != REFERENCE_UNBOUND:
         _fail(where, kind, "reference", f"unknown; must be one of {sorted(REFERENCES_CONTRACT)}")
 
-    # ⚠ The one hole, and it may never be silent.
+    # ⚠ The hatch, and it may never be silent.
     if ref == REFERENCE_UNBOUND and not header.contract_deviation:
         _fail(
             where,
@@ -272,6 +311,21 @@ def validate_header(
             f"{REFERENCE_UNBOUND!r} is not in the reference registry; a fixture using it "
             "must carry a `contract_deviation` block naming the clause it does not satisfy",
         )
+
+    # ⛔ ...and it may never be claimed by a file that conforms.
+    if ref != REFERENCE_UNBOUND and header.contract_deviation:
+        _fail(
+            where,
+            kind,
+            "contract_deviation",
+            f"reference {ref!r} is in the registry, so this fixture conforms and may not "
+            "declare a deviation. A deviation that has been closed still reads as an open "
+            f"question. ⭐ The block remains available on {REFERENCE_UNBOUND!r} for the next "
+            "rule this contract cannot yet express",
+        )
+
+    if ref == PUBLISHER_SELF_CONSISTENCY:
+        _validate_self_consistency_oracle(header.oracle, where=where, kind=kind)
 
     if kind in _R6_ONLY and ref not in ("R6", REFERENCE_UNBOUND):
         _fail(where, kind, "reference", f"kind {kind!r} is R6-only, got {ref!r}")
@@ -300,6 +354,45 @@ def validate_header(
         _validate_locus(header.locus, where=where, kind=kind)
 
     _scan_keys(header.as_json(), where=where, path="header", reserved=reserved)
+
+
+def _validate_self_consistency_oracle(
+    oracle: Mapping[str, Any], *, where: str, kind: str
+) -> None:
+    """Both halves of the pair, or it is not a self-consistency claim.
+
+    ⭐ This is the one reference value whose *shape* is checked rather than only its
+    spelling. Every other value names a source a reader can go and consult; this one names
+    a relationship, and a relationship is only checkable if both of its terms are named.
+    """
+    if not oracle.get("publisher"):
+        _fail(
+            where,
+            kind,
+            "oracle.publisher",
+            "a self-consistency claim is a claim about ONE party's two artifacts, so that "
+            "party must be named",
+        )
+    for artifact, members in _SELF_CONSISTENCY_ARTIFACTS.items():
+        block = oracle.get(artifact)
+        if not isinstance(block, Mapping):
+            _fail(
+                where,
+                kind,
+                f"oracle.{artifact}",
+                f"required by reference {PUBLISHER_SELF_CONSISTENCY!r} and absent — the "
+                "claim is that one artifact reproduces the other, and half a pair states "
+                "nothing",
+            )
+            return  # pragma: no cover - _fail always raises
+        for member in members:
+            if not block.get(member):
+                _fail(
+                    where,
+                    kind,
+                    f"oracle.{artifact}.{member}",
+                    "required and absent or empty",
+                )
 
 
 def _validate_classification(
