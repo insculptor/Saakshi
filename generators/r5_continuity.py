@@ -37,7 +37,7 @@ from saakshi.civil import (  # noqa: E402
     tzdb_identity,
 )
 from saakshi.fixture import Header, describe_reserved_names, write_jsonl  # noqa: E402
-from saakshi.leaves import digest, flatten  # noqa: E402
+from saakshi.leaves import digest, flatten, verify_bits  # noqa: E402
 from saakshi.provenance import generator_for, host_record, today  # noqa: E402
 from saakshi.surface import DEFAULT_SURFACE, Surface, load  # noqa: E402
 
@@ -306,6 +306,10 @@ def main() -> int:
                     )
                     continue
                 leaves = flatten(value)
+                # ⛔ Per row, at write time: the pattern and the decimal are the same
+                #    number, or nothing is written. A consumer reading one form and a
+                #    consumer reading the other must never hold different values.
+                verify_bits(leaves, where=f"{instant.grid_id}/{section}")
                 row: dict[str, object] = {
                     **instant.as_row(),
                     "section": section,

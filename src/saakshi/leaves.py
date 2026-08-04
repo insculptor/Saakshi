@@ -120,6 +120,52 @@ def flatten(node: Any) -> list[dict[str, Any]]:
     return list(walk(node))
 
 
+def verify_bits(leaves: Sequence[Mapping[str, Any]], *, where: str) -> None:
+    """Refuse a leaf set whose bit pattern and decimal disagree.
+
+    ⭐ **The invariant the whole arrangement rests on.** These files declare that the hex
+    pattern is the value and the decimal beside it is display. If the two ever disagree, a
+    consumer reading the decimal and a consumer reading the bits hold *different numbers*
+    from the same row and neither has any way to notice — which is worse than a missing
+    value, because both look correct.
+
+    ⚠ Checked per row rather than once at the end, and it raises rather than dropping the
+    row: a skipped row is a hole in a corpus that reports its own coverage by counting.
+
+    ⛔ Also refuses a non-finite pattern. A hex form can express NaN and ±infinity where JSON
+    decimal cannot, so the two sides could not round-trip even in principle — and a fixture
+    is not the place to discover that a value was never a number.
+    """
+    import struct
+
+    for index, leaf in enumerate(leaves):
+        if "bits" not in leaf:
+            continue
+        pattern = leaf["bits"]
+        if not isinstance(pattern, str) or len(pattern) != 16:
+            raise LeafError(f"{where}: leaf[{index}] {leaf.get('path')!r}: malformed bits {pattern!r}")
+        try:
+            (decoded,) = struct.unpack(">d", bytes.fromhex(pattern))
+        except ValueError as exc:
+            raise LeafError(
+                f"{where}: leaf[{index}] {leaf.get('path')!r}: bits {pattern!r} are not hex"
+            ) from exc
+        if decoded != decoded or decoded in (float("inf"), float("-inf")):
+            raise LeafError(
+                f"{where}: leaf[{index}] {leaf.get('path')!r}: {pattern!r} is not finite. "
+                "JSON decimal cannot express it, so the two forms could never agree"
+            )
+        recorded = leaf.get("number")
+        # ⚠ Compared through `bits`, not `==`: `-0.0 == 0.0` is true, and preserving the
+        #    sign of zero is one of the reasons the hex form exists at all.
+        if not isinstance(recorded, float) or bits(recorded) != pattern:
+            raise LeafError(
+                f"{where}: leaf[{index}] {leaf.get('path')!r}: the decimal {recorded!r} and "
+                f"the pattern {pattern!r} are different numbers. The pattern is the value "
+                "and the decimal is display; they may never disagree"
+            )
+
+
 #: Fields excluded from the digest because they are display, not value.
 #:
 #: ⭐ `number` is the decimal rendering of a double whose authoritative form is `bits`

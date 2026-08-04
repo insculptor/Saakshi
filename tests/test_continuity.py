@@ -14,7 +14,7 @@ from pathlib import Path
 import pytest
 
 from saakshi.civil import CivilResolutionError, resolve, tzdb_identity
-from saakshi.leaves import LeafError, digest, flatten
+from saakshi.leaves import LeafError, digest, flatten, verify_bits
 from saakshi.surface import RESOLVED_FIELDS, SurfaceError, load
 
 # --------------------------------------------------------------------------------------
@@ -167,6 +167,47 @@ def test_a_cycle_is_refused_rather_than_walked_forever():
     node["self"] = node
     with pytest.raises(LeafError, match="refusing to walk on"):
         flatten(node)
+
+
+def test_what_the_walker_writes_passes_its_own_round_trip():
+    verify_bits(flatten({"a": 0.1, "b": [1.5, -2.75], "c": "text"}), where="t")
+
+
+def test_a_decimal_that_disagrees_with_its_pattern_is_refused():
+    """⭐ The invariant the whole arrangement rests on.
+
+    If the two forms disagree, a consumer reading the decimal and one reading the bits hold
+    different numbers from the same row, and neither can tell. That is worse than a missing
+    value, because both look correct.
+    """
+    leaves = flatten(1.5)
+    leaves[0]["number"] = 2.5
+    with pytest.raises(LeafError, match="different numbers"):
+        verify_bits(leaves, where="t")
+
+
+def test_the_sign_of_zero_survives_the_check():
+    """⚠ `-0.0 == 0.0` is true, so the comparison goes through the pattern, not through `==`.
+
+    Preserving the sign of zero is one of the reasons the hex form exists at all.
+    """
+    (leaf,) = flatten(-0.0)
+    assert leaf["bits"] == "8000000000000000"
+    verify_bits([leaf], where="t")
+    leaf["number"] = 0.0  # a different number that compares equal
+    with pytest.raises(LeafError, match="different numbers"):
+        verify_bits([leaf], where="t")
+
+
+def test_a_non_finite_pattern_is_refused():
+    """⛔ A hex form can express what JSON decimal cannot, so the two could never agree."""
+    with pytest.raises(LeafError, match="not finite"):
+        verify_bits([{"path": "a", "number": 0.0, "bits": "7ff0000000000000"}], where="t")
+
+
+def test_a_malformed_pattern_is_refused():
+    with pytest.raises(LeafError, match="malformed bits"):
+        verify_bits([{"path": "a", "number": 1.0, "bits": "abc"}], where="t")
 
 
 def test_mapping_order_does_not_change_the_digest():
