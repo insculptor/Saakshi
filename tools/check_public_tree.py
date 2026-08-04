@@ -29,6 +29,11 @@ import subprocess
 import sys
 from pathlib import Path
 
+# The console this runs on is not guaranteed to be UTF-8, and a check must never fail
+# because it could not print its own verdict.
+if hasattr(sys.stdout, "reconfigure"):  # pragma: no cover - platform dependent
+    sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+
 ROOT = Path(__file__).resolve().parents[1]
 NAMES_FILE = ROOT / "config" / "reserved-names.txt"
 
@@ -38,7 +43,11 @@ NAMES_FILE = ROOT / "config" / "reserved-names.txt"
 EXTRA_PATTERNS = [
     (r"\badr-\d", "an internal decision-record identifier"),
     (r"\brfc-\d", "an internal proposal identifier"),
-    (r"§", "a section reference into an internal document"),
+    # ⚠ `§` followed by a digit, not a bare `§`. The bare form matched this file's own
+    #   pattern list — a scan flagging the code that enforces it. ⛔ The fix is the
+    #   matcher, never an exemption for the file: an exemption would also have silenced a
+    #   real leak that happened to land here.
+    (r"§\s*\d", "a section reference into an internal document"),
 ]
 
 
