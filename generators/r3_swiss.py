@@ -279,6 +279,8 @@ def sample_mode(mode: Mode, epochs: list[tuple[str, str, float]]) -> dict[str, A
             )
         except EphemerisSubstitution as exc:
             substituted("ayanamsha", epoch_id, where, exc)
+        except Exception as exc:
+            refused("ayanamsha", epoch_id, where, exc)
         else:
             echoed, value = swe.get_ayanamsa_ex_ut(jd, mode.flag)
             keep(
@@ -321,6 +323,10 @@ def sample_mode(mode: Mode, epochs: list[tuple[str, str, float]]) -> dict[str, A
                 except EphemerisSubstitution as exc:
                     substituted("house_cusps", epoch_id, where, exc)
                     substituted("house_angles", epoch_id, where, exc)
+                    continue
+                except Exception as exc:
+                    refused("house_cusps", epoch_id, where, exc)
+                    refused("house_angles", epoch_id, where, exc)
                     continue
                 try:
                     cusps, ascmc = swe.houses_ex(jd, latitude, longitude, hsys, mode.flag)
@@ -374,8 +380,11 @@ def sample_mode(mode: Mode, epochs: list[tuple[str, str, float]]) -> dict[str, A
                         refused("rise_set", epoch_id, where, exc)
                         continue
                     if code != 0:
-                        # ⚠ No event in the interval searched -- at these latitudes that is
-                        #   the answer, not a failure.
+                        # ⚠ No event in the interval searched -- above the polar circle
+                        #   that is the answer, not a failure.
+                        # ⛔ The time slot is 0.0 here, not a sentinel: an ordinary-looking
+                        #   Julian day in 4713 BC. A caller that reads the value without
+                        #   reading the return code gets a number, not an error.
                         refusals.append(
                             {
                                 "section": "rise_set",
@@ -383,10 +392,24 @@ def sample_mode(mode: Mode, epochs: list[tuple[str, str, float]]) -> dict[str, A
                                 "where": where,
                                 "error": "no_event",
                                 "detail": f"return code {code}",
+                                "time_slot_on_no_event": float(times[0]),
                             }
                         )
                         continue
                     event_jd = float(times[0])
+                    if event_jd < jd:
+                        # The search runs forward from the instant given. An event before it
+                        # is not an event this call found, whatever the return code said.
+                        refusals.append(
+                            {
+                                "section": "rise_set",
+                                "epoch_id": epoch_id,
+                                "where": where,
+                                "error": "event_before_search_start",
+                                "detail": f"returned {event_jd!r} for a search from {jd!r}",
+                            }
+                        )
+                        continue
                     # ⭐ The window is the interval the call may have read: from the instant
                     #    it was given to just past the event it found. Both ends must report
                     #    the requested source, because either end alone was measured to be
@@ -401,6 +424,9 @@ def sample_mode(mode: Mode, epochs: list[tuple[str, str, float]]) -> dict[str, A
                         )
                     except EphemerisSubstitution as exc:
                         substituted("rise_set", epoch_id, where, exc)
+                        continue
+                    except Exception as exc:
+                        refused("rise_set", epoch_id, where, exc)
                         continue
                     keep(
                         _values_row(
@@ -506,6 +532,40 @@ def compare_modes(left: dict[str, Any], right: dict[str, Any]) -> dict[str, Any]
 # --------------------------------------------------------------------------------------
 # Writing
 # --------------------------------------------------------------------------------------
+
+
+def attribution_by_stratum(
+    sampled: dict[str, Any], epochs: list[tuple[str, str, float]]
+) -> dict[str, Any]:
+    """Where in the grid values could be attributed, and where they could not.
+
+    ⭐ Recorded because the asymmetry is measured rather than expected. Outside the data
+    files' coverage most calls are substituted -- but not all of them: at least one body
+    needs no data file and is reported as answered by the requested source at every epoch.
+    A reader who assumed "outside coverage" and "unattributable" were the same set would be
+    wrong about that body, and the count here says so without anyone having to name it.
+    """
+    strata = {eid: stratum for eid, stratum, _ in epochs}
+    out: dict[str, dict[str, Any]] = {}
+    for row in sampled["rows"]:
+        entry = out.setdefault(
+            strata[str(row["epoch_id"])],
+            {"written": 0, "substituted": 0, "refused": 0, "bodies_written": set()},
+        )
+        entry["written"] += 1
+        if "body" in row:
+            entry["bodies_written"].add(str(row["body"]))
+    for name, key in (("substitutions", "substituted"), ("refusals", "refused")):
+        for record in sampled[name]:
+            entry = out.setdefault(
+                strata[str(record["epoch_id"])],
+                {"written": 0, "substituted": 0, "refused": 0, "bodies_written": set()},
+            )
+            entry[key] += 1
+    return {
+        stratum: {**entry, "bodies_written": sorted(entry["bodies_written"])}
+        for stratum, entry in sorted(out.items())
+    }
 
 
 def _oracle(mode: Mode, ephe: dict[str, Any] | None) -> dict[str, Any]:
@@ -692,6 +752,7 @@ def write_mode_fixture(
                 ),
             },
             "coverage_edges": edges,
+            "attribution_by_stratum": attribution_by_stratum(sampled, epochs),
             "mode_comparison": comparison,
             "host": host_record(),
         },
