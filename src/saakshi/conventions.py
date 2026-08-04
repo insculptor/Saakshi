@@ -726,48 +726,147 @@ STEP_THRESHOLD_SECONDS = 1e-4
 
 
 def leap_second_table(first_year: int, last_year: int) -> list[dict[str, Any]]:
-    """Extract the library's own table by walking the conversion, not by reading a file."""
+    """Extract the library's own table by walking the conversion, not by reading a file.
+
+    ⚠ **Every step found is recorded, including the ones that are not leap seconds.** The
+    scan does not know in advance which era it is in, and filtering to whole seconds would
+    hide the two eras where the conversion is not a leap-second conversion at all — one
+    before the table's first entry and one, measured here, well after its last.
+    """
     rows: list[dict[str, Any]] = []
     previous: tuple[int, int, int, float] | None = None
+    whole_steps: list[str] = []
     for year in range(first_year, last_year + 1):
         for month, day in INSERTION_DATES:
             value = tt_minus_utc(year, month, day)
             if previous is not None:
                 step = value - previous[3]
                 if abs(step) > STEP_THRESHOLD_SECONDS:
+                    is_whole = abs(abs(step) - 1.0) < 1e-4
+                    date = f"{year:04d}-{month:02d}-{day:02d}"
+                    if is_whole:
+                        whole_steps.append(date)
                     rows.append(
                         {
                             "section": "leap_step",
-                            "effective_from": f"{year:04d}-{month:02d}-{day:02d}",
+                            "effective_from": date,
+                            "regime": _regime(date, whole_steps),
                             "unit": "second",
                             "values": [previous[3], value],
                             "values_bits": [bits_of(previous[3]), bits_of(value)],
                             "value_labels": ["before", "after"],
                             "step_seconds": step,
-                            "is_whole_second": abs(abs(step) - 1.0) < 1e-4,
+                            "is_whole_second": is_whole,
                         }
                     )
             previous = (year, month, day, value)
     return rows
 
 
+def _regime(date: str, whole_steps_so_far: list[str]) -> str:
+    """Which of the three eras a step falls in, decided from the steps already seen.
+
+    ⛔ Named from the data rather than from a constant. A hard-coded first and last
+    insertion date would keep classifying correctly long after the installed table stopped
+    matching it, which is the failure this whole file is about.
+    """
+    if not whole_steps_so_far:
+        return "before_the_first_whole_second_step"
+    if whole_steps_so_far[-1] == date:
+        return "within_the_table"
+    return "after_the_last_whole_second_step_seen_so_far"
+
+
+def _calendar(jd: float) -> tuple[int, int, int]:
+    year, month, day, _hour = swe.revjul(jd)
+    return int(year), int(month), int(day)
+
+
+def constant_offset_handover(
+    after_date: tuple[int, int, int], search_years: int
+) -> dict[str, Any] | None:
+    """The day the conversion stops holding the table's offset and starts drifting.
+
+    ⭐ **This is a bound nothing announces.** Past its last insertion the conversion holds
+    one constant offset — for years, exactly, to the bit. Then, on a day the library names
+    nowhere, it hands over to a smoothly varying model and the offset begins to move. The
+    handover itself is a discontinuity of about a second that is **not** a leap second.
+
+    ⛔ Located by bisection on "is the offset still the constant", from a day known to be
+    inside the flat region, and both endpoints re-verified. Returns `None` where no handover
+    lies inside the searched span — which is a finding too, not an absence of one.
+    """
+    year, month, day = after_date
+    start_jd = swe.julday(year, month, day, 0.0)
+    constant = tt_minus_utc(year, month, day)
+
+    def flat(jd: float) -> bool:
+        return abs(tt_minus_utc(*_calendar(jd)) - constant) <= STEP_THRESHOLD_SECONDS
+
+    if not flat(start_jd):
+        return None
+    end_jd = start_jd + search_years * 365.25
+    if flat(end_jd):
+        return None
+
+    inside, outside = start_jd, end_jd
+    while outside - inside > 1.0:
+        middle = inside + (outside - inside) // 2
+        if middle in (inside, outside):
+            break
+        if flat(middle):
+            inside = middle
+        else:
+            outside = middle
+    if not flat(inside) or flat(outside):
+        raise BoundaryNotStable(
+            "the offset-handover search produced a pair that does not have the property it "
+            "assigned them, so no handover date may be reported from it"
+        )
+
+    last_flat = _calendar(inside)
+    first_moved = _calendar(outside)
+    before = tt_minus_utc(*last_flat)
+    after = tt_minus_utc(*first_moved)
+    return {
+        "section": "table_bound",
+        "bound": "constant_offset_handover",
+        "date": "%04d-%02d-%02d" % first_moved,
+        "last_date_holding_the_constant": "%04d-%02d-%02d" % last_flat,
+        "unit": "second",
+        "values": [before, after],
+        "values_bits": [bits_of(before), bits_of(after)],
+        "value_labels": ["last_constant_offset", "first_moved_offset"],
+        "step_seconds": after - before,
+        "is_whole_second": abs(abs(after - before) - 1.0) < 1e-4,
+        "note": (
+            "⛔ THE OFFSET IS NOT CONSTANT FOREVER. Past the last insertion the conversion "
+            "holds one value exactly — and then, on this day, hands over to a model that "
+            "drifts. ⭐ The handover is a jump of about a second that is not a leap second, "
+            "is announced nowhere, and falls in the middle of the range a long-dated "
+            "calculation would cross"
+        ),
+    }
+
+
 def leap_table_bounds(
     first_year: int, last_year: int, steps: list[dict[str, Any]]
 ) -> list[dict[str, Any]]:
-    """Where the table starts, where it stops, and what happens past the end.
+    """Where the table starts, where it stops, and what the conversion does past the end.
 
-    ⭐ **The end of the table is the finding.** Past its last entry the conversion continues
-    to answer, with a constant offset and no statement that it has run out of table — so a
-    civil instant far in the future is converted as though no further leap second will ever
-    be inserted, which is a prediction the library is in no position to make and does not
-    label as one.
+    ⭐ **The end of the table is the finding, and it has two ends.** Past its last insertion
+    the conversion goes on answering with a fixed offset and no statement that it has run
+    out of table — a prediction that no further second will ever be inserted, which the
+    library is in no position to make and does not label as one. ⚠ And that fixed offset is
+    itself temporary: see :func:`constant_offset_handover`.
     """
     whole = [row for row in steps if row["is_whole_second"]]
     first_whole = whole[0]["effective_from"] if whole else None
     last_whole = whole[-1]["effective_from"] if whole else None
     at_start = tt_minus_utc(first_year, 1, 1)
+    just_after = whole[-1]["values"][1] if whole else None
     at_end = tt_minus_utc(last_year, 1, 1)
-    return [
+    rows: list[dict[str, Any]] = [
         {
             "section": "table_bound",
             "bound": "first_whole_second_step",
@@ -776,9 +875,9 @@ def leap_table_bounds(
             "values": [at_start],
             "values_bits": [bits_of(at_start)],
             "note": (
-                "⚠ steps before this one are not whole seconds. The scan records them as "
-                "found rather than filtering them out, because a fractional step is a fact "
-                "about how the library treats the era before the table's own regime"
+                "⚠ the steps before this one are not whole seconds. They are recorded as "
+                "found rather than filtered out, because a fractional step is a fact about "
+                "how the library treats the era before the table's own regime"
             ),
         },
         {
@@ -786,15 +885,19 @@ def leap_table_bounds(
             "bound": "last_whole_second_step",
             "date": last_whole,
             "unit": "second",
-            "values": [at_end],
-            "values_bits": [bits_of(at_end)],
+            "values": [v for v in (just_after, at_end) if v is not None],
+            "values_bits": [
+                bits_of(v) for v in (just_after, at_end) if v is not None
+            ],
+            "value_labels": ["offset_just_after_the_last_insertion", "offset_at_scan_end"],
             "note": (
-                "⛔ the conversion answers past this date with this constant offset and no "
-                "warning. ⭐ A table with a last entry has a runway, and the library does "
-                "not report how much of it is left"
+                "⛔ the conversion answers past this date without a word about having run "
+                "out of table. ⭐ Compare the two values: they are NOT the same, so the "
+                "answer past the table is not simply the table's last offset held forever"
             ),
         },
     ]
+    return rows
 
 
 def second_sixty_acceptance(dates: tuple[tuple[int, int, int], ...]) -> list[dict[str, Any]]:

@@ -50,6 +50,7 @@ from saakshi.conventions import (  # noqa: E402
     global_state_records,
     house_system_survey,
     leap_override_probe,
+    constant_offset_handover,
     leap_second_table,
     leap_table_bounds,
     polar_house_probe,
@@ -131,6 +132,12 @@ RISE_DATES: tuple[tuple[str, str, int, int, int], ...] = (
 #: The years the leap-second scan walks. ⚠ It starts before the first insertion and runs
 #: well past the last, because both ends are findings.
 LEAP_FIRST_YEAR, LEAP_LAST_YEAR = 1961, 2060
+
+#: ⭐ Where the search for the *other* end begins: a date measured to be inside the region
+#: where the conversion holds one constant offset, safely past the last insertion. The
+#: search runs forward from here for the span below.
+HANDOVER_SEARCH_FROM = (2020, 1, 1)
+HANDOVER_SEARCH_YEARS = 60
 
 #: Dates the sixty-first second is offered on: two the table is expected to know, and two it
 #: cannot — one in the past, one in the future.
@@ -624,6 +631,9 @@ def write_leap_seconds(
     steps = leap_second_table(LEAP_FIRST_YEAR, LEAP_LAST_YEAR)
     rows: list[dict[str, Any]] = list(steps)
     rows.extend(leap_table_bounds(LEAP_FIRST_YEAR, LEAP_LAST_YEAR, steps))
+    handover = constant_offset_handover(HANDOVER_SEARCH_FROM, HANDOVER_SEARCH_YEARS)
+    if handover is not None:
+        rows.append(handover)
     rows.extend(second_sixty_acceptance(SECOND_SIXTY_DATES))
 
     # ⛔ The override probe writes a file, and it writes it in a directory of its own —
@@ -687,7 +697,18 @@ def write_leap_seconds(
                 "⚠ whether the step is one second. The era before the table's own regime "
                 "steps by fractions, and those rows are kept rather than filtered"
             ),
-            "bound": "first_whole_second_step | last_whole_second_step",
+            "bound": (
+                "first_whole_second_step | last_whole_second_step | "
+                "constant_offset_handover"
+            ),
+            "regime": (
+                "⭐ which of the three eras a step falls in — decided from the steps already "
+                "seen rather than from a hard-coded date, so it stays correct against a "
+                "table this scan has never met"
+            ),
+            "last_date_holding_the_constant": (
+                "the last day the offset was still the table's, for the handover row"
+            ),
             "date": "the date of that bound, or of the second-sixty offer",
             "accepted": (
                 "⭐ whether the conversion accepted the sixty-first second of that minute"
@@ -706,10 +727,17 @@ def write_leap_seconds(
             "the conversion actually exhibits, found by walking it — so this file records "
             "what the installed build believes rather than what any published list says.",
             "⛔ THE TABLE HAS A LAST ENTRY AND THE LIBRARY DOES NOT SAY SO. Past it the "
-            "conversion keeps answering, with a constant offset, for as far ahead as it is "
-            "asked. That is a prediction that no further second will ever be inserted. ⭐ A "
-            "table with a runway needs an alarm on the runway, and the library provides "
-            "neither the alarm nor the length.",
+            "conversion keeps answering, with a constant offset, as though no further "
+            "second will ever be inserted. ⭐ A table with a runway needs an alarm on the "
+            "runway, and the library provides neither the alarm nor the length.",
+            "⛔ AND THAT CONSTANT IS ITSELF TEMPORARY — THIS IS THE ROW TO READ TWICE. The "
+            "held offset lasts exactly, to the bit, for over a decade past the last "
+            "insertion, and then on one measured day it hands over to a smoothly drifting "
+            "model. ⭐ The handover is a discontinuity of about a second which is NOT a leap "
+            "second, is announced nowhere, and sits in the middle of the range any "
+            "long-dated calendar computation crosses. ⚠ Two civil instants a day apart "
+            "across it convert with a second between them for a reason that is neither "
+            "astronomy nor timekeeping.",
             "⭐ BUT IT FAILS LOUDLY IN THE ONE PLACE IT COULD FAIL QUIETLY. Offered the "
             "sixty-first second of a minute the table does not know, the conversion refuses "
             "outright instead of absorbing it. So a real future insertion arrives in an old "
@@ -732,10 +760,36 @@ def write_leap_seconds(
             "whole_second_steps": len(whole),
             "first_whole_second_step": whole[0]["effective_from"] if whole else None,
             "last_whole_second_step": whole[-1]["effective_from"] if whole else None,
-            "fractional_steps_before_the_regime": len(fractional),
+            # ⚠ Counted per regime, and named for what they are. An earlier version of this
+            #   block called every fractional step one from "before the regime" — and the
+            #   rows themselves said otherwise, because the era AFTER the table's last entry
+            #   produces them too. A summary that contradicts its own rows is worse than no
+            #   summary; this one is derived from the rows' own regime field.
+            "fractional_steps_by_regime": [
+                {
+                    "regime": regime,
+                    "count": sum(
+                        1 for row in fractional if row["regime"] == regime
+                    ),
+                }
+                for regime in sorted({str(row["regime"]) for row in fractional})
+            ],
+            "constant_offset_handover": (
+                None
+                if handover is None
+                else {
+                    "date": handover["date"],
+                    "last_date_holding_the_constant": handover[
+                        "last_date_holding_the_constant"
+                    ],
+                    "step_seconds": handover["step_seconds"],
+                }
+            ),
             "meaning": (
-                "⭐ the count and the two ends are the whole finding: a fixed number of "
-                "insertions, a first, a last, and nothing after the last but silence"
+                "⭐ a fixed number of insertions with a first and a last — and then TWO more "
+                "eras, not one. Past the last insertion the offset is held exactly constant "
+                "for years, and then handed over to a drifting model on a date the library "
+                "names nowhere, with a jump of about a second that is not a leap second"
             ),
         },
         out_dir=out_dir,

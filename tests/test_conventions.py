@@ -39,6 +39,7 @@ from saakshi.conventions import (  # noqa: E402
     STANDARD_TEMPERATURE,
     STEP_THRESHOLD_SECONDS,
     _angular_delta,
+    constant_offset_handover,
     global_state_records,
     house_system_survey,
     leap_second_table,
@@ -131,6 +132,40 @@ def test_the_table_has_a_last_entry_and_the_bound_names_it():
     assert last["date"] is not None
     # ⭐ The finding itself: the scan runs decades past that date and finds nothing more.
     assert int(str(last["date"])[:4]) < 2060
+
+
+def test_a_fractional_step_after_the_table_is_not_labelled_as_being_before_it():
+    """⛔ The mistake this labelling was caught making, pinned.
+
+    The summary first called every fractional step one from the era *before* the table's
+    first entry. The rows said otherwise: the era after its last entry produces them too.
+    A summary that contradicts the rows it summarises is worse than none.
+    """
+    steps = leap_second_table(1961, 2060)
+    fractional = [row for row in steps if not row["is_whole_second"]]
+    regimes = {str(row["regime"]) for row in fractional}
+    assert "before_the_first_whole_second_step" in regimes
+    assert "after_the_last_whole_second_step_seen_so_far" in regimes, (
+        "the scan must reach an era past the table's last entry that steps by fractions; "
+        "if it does not, the scan's span no longer covers the finding"
+    )
+
+
+def test_the_held_offset_is_temporary_and_the_handover_is_located():
+    """⭐ Past the last insertion the offset is held exactly — and then it is not."""
+    handover = constant_offset_handover((2020, 1, 1), 60)
+    assert handover is not None, (
+        "no handover was found in the searched span, so either the library changed or the "
+        "span no longer contains it — both are findings and neither is a pass"
+    )
+    before, after = handover["values"]
+    assert abs(after - before) > STEP_THRESHOLD_SECONDS
+    assert handover["last_date_holding_the_constant"] < handover["date"]
+
+
+def test_a_search_window_entirely_inside_the_flat_region_reports_no_handover():
+    """⚠ `None` means 'not in this span', and must never be manufactured from a flat span."""
+    assert constant_offset_handover((2020, 1, 1), 2) is None
 
 
 def test_a_second_sixty_the_table_does_not_know_is_refused_not_absorbed():
