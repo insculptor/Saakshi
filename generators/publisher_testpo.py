@@ -138,6 +138,13 @@ COORDINATE = {
     6: ("velocity_au_per_day", "z", "au/day"),
 }
 
+#: The sections a row can belong to, and the unit each one carries — both **derived from
+#: `COORDINATE`**, never restated. ⭐ A declared band's unit has to be the same string the
+#: rows themselves carry, and the only way to guarantee that is for there to be one place
+#: the string exists. A second copy is a second thing to keep in step.
+SECTIONS: tuple[str, ...] = tuple(dict.fromkeys(s for s, _, _ in COORDINATE.values()))
+SECTION_UNITS: dict[str, str] = {s: u for s, _, u in COORDINATE.values()}
+
 J2000_JD = 2451545.0
 SECONDS_PER_DAY = 86400.0
 
@@ -346,9 +353,14 @@ def main() -> int:
 
     rows: list[dict] = []
     excluded: dict[str, int] = {}
-    residuals: list[float] = []
-    worst: dict | None = None
-    over_tolerance = 0
+    # ⭐ Tracked PER SECTION, not once over everything. The band declared below is per
+    #    section because the sections are in different units — position in au, velocity in
+    #    au/day — so the larger of the two is not a wider band, it is a number with no unit.
+    #    ⚠ This is the same objection that forces the companion R2 file's per-section band,
+    #    arriving here through dimensions rather than through magnitude.
+    residuals: dict[str, list[float]] = {section: [] for section in SECTIONS}
+    worst: dict[str, dict | None] = {section: None for section in SECTIONS}
+    over_tolerance: dict[str, int] = {section: 0 for section in SECTIONS}
 
     def exclude(reason: str) -> None:
         excluded[reason] = excluded.get(reason, 0) + 1
@@ -382,12 +394,13 @@ def main() -> int:
         else:
             reproduced = float(state[index]) * SECONDS_PER_DAY / AU_KM
         residual = abs(reproduced - entry["value"])
-        residuals.append(residual)
+        residuals[section].append(residual)
         if residual >= PUBLISHER_TOLERANCE["value"]:
-            over_tolerance += 1
-        if worst is None or residual > worst["residual"]:
-            worst = {
+            over_tolerance[section] += 1
+        if worst[section] is None or residual > worst[section]["residual"]:
+            worst[section] = {
                 "residual": residual,
+                "unit": unit,
                 "calendar_date": entry["calendar_date"],
                 "publisher_target": entry["publisher_target"],
                 "publisher_centre": entry["publisher_centre"],
@@ -417,7 +430,22 @@ def main() -> int:
             }
         )
 
-    array = np.array(residuals) if residuals else np.zeros(1)
+    # ⛔ The largest residual over an empty set is not a tight band, it is 0.0 — which the
+    #    contract reads as a claim that every row in that section reproduces exactly. A
+    #    section this run never observed cannot be given a band, so the run is refused
+    #    rather than written with one nothing supports.
+    unobserved = [section for section in SECTIONS if not residuals[section]]
+    if unobserved:
+        raise SystemExit(
+            f"no rows checked for section(s) {unobserved}: refusing to declare a band "
+            "over an empty set"
+        )
+
+    band = {section: max(residuals[section]) for section in SECTIONS}
+    array = {section: np.array(residuals[section]) for section in SECTIONS}
+    rows_checked = sum(len(values) for values in residuals.values())
+    rows_over_tolerance = sum(over_tolerance.values())
+
     header = Header(
         fixture_kind="numeric_pin",
         reference=PUBLISHER_SELF_CONSISTENCY,
@@ -537,16 +565,29 @@ def main() -> int:
             ),
             "regenerate": "generators/publisher_testpo.py --kernel <de440s.bsp> --out <dir>",
         },
-        # ⚠ `reference_only` — "committed, not yet compared" — and it is UNCHANGED in this
-        # pass only because changing it was not asked for. ⛔ The reasoning it used to rest
-        # on is gone: it said that recording the publisher's tolerance would amount to
-        # adopting it, and a fixture's own band is now generation context that the consumer
-        # judges past. So the argument that moved the companion R2 file off `reference_only`
-        # applies here too, and until someone takes that decision this file cannot pass a
-        # band. See the note at the end of this header.
+        # ⛔ NOT `reference_only`. That value means "committed but not compared", and a file
+        # carrying it cannot pass whatever band is set for it — the wrong value for a fixture
+        # whose whole purpose is to be compared against. It used to rest on the argument that
+        # recording the publisher's tolerance would amount to adopting it; a fixture's own
+        # band is generation context the consumer judges past, so that objection is gone and
+        # the argument that moved the companion R2 file applies here unchanged.
+        #
+        # ⛔ And not `exact`: a bit-identical claim is false for the rows that reproduce to a
+        # ULP rather than to zero.
+        #
+        # ⭐ So `tolerance`, band MEASURED on this run, per section, with no headroom. ⚠ The
+        # unit is the row's own unit — absolute, in what the publisher printed — on the
+        # publisher's own stated reasoning that a fractional test is unsuitable where a
+        # component passes near zero. ⚠ And it is a PROXY: see `summary.declared_band`.
         classification={
-            "position_au": {"class": "reference_only"},
-            "velocity_au_per_day": {"class": "reference_only"},
+            section: {
+                "class": "tolerance",
+                "band": band[section],
+                # ⭐ The row's own unit string, taken from the same table the rows are, so a
+                #    band can never come to be declared in a unit no row carries.
+                "unit": SECTION_UNITS[section],
+            }
+            for section in SECTIONS
         },
         budget_row="K-a",
         row_schema={
@@ -563,7 +604,9 @@ def main() -> int:
             "value_printed": "the same value as the decimal string the publisher printed",
             "reproduction_abs_delta": (
                 "|this kernel via CSPICE - value|, in `unit`. ⚠ A measurement recorded "
-                "beside the pin, ⛔ never the pin itself and never a tolerance"
+                "beside the pin, ⛔ never the pin itself. ⚠ The section's declared band is "
+                "the largest of these over the section; a single row's delta is not a band "
+                "and is not a tolerance the row must meet"
             ),
         },
         summary={
@@ -571,18 +614,103 @@ def main() -> int:
             "rows_emitted": len(rows),
             "excluded_by_reason": excluded,
             "reproduction": {
-                "rows_checked": len(residuals),
-                "at_or_over_publisher_tolerance": over_tolerance,
-                "max_abs_delta": float(array.max()),
-                "median_abs_delta": float(statistics.median(residuals)) if residuals else 0.0,
-                "mean_abs_delta": float(array.mean()),
-                "worst": worst,
+                "rows_checked": rows_checked,
+                # ⚠ KEPT, and kept across both sections: "0 of the rows checked reach the
+                #   number the publisher itself warns at" is a reported observation about
+                #   this run, and it is the observation the consumer's gate was owed. ⭐ A
+                #   count is dimensionless, so summing it over two units is legitimate where
+                #   summing a residual over them is not.
+                "at_or_over_publisher_tolerance": rows_over_tolerance,
+                "publisher_tolerance_applied": PUBLISHER_TOLERANCE["value"],
+                "per_section": {
+                    section: {
+                        "rows_checked": len(residuals[section]),
+                        "at_or_over_publisher_tolerance": over_tolerance[section],
+                        "unit": SECTION_UNITS[section],
+                        "max_abs_delta": float(array[section].max()),
+                        "median_abs_delta": float(statistics.median(residuals[section])),
+                        "mean_abs_delta": float(array[section].mean()),
+                        "worst": worst[section],
+                    }
+                    for section in SECTIONS
+                },
+                "why_no_aggregate_magnitudes": (
+                    "⛔ there is deliberately no max, median or mean across both sections. "
+                    "Position is in au and velocity in au/day, so the larger of the two is "
+                    "not a wider statistic — it is a number with no unit, and an earlier "
+                    "version of this file reported exactly that"
+                ),
                 "meaning": (
                     "the supplied kernel, read by the SPICE Toolkit, against the "
                     "publisher's printed values. ⚠ It establishes that this repackaged "
                     "binary file carries the same ephemeris as the published test set, "
                     "and that the body-numbering map is right. ⛔ It says nothing about "
                     "any other reader"
+                ),
+            },
+            "declared_band": {
+                "per_section": {
+                    section: {
+                        "band": band[section],
+                        "unit": SECTION_UNITS[section],
+                        "worst_row": worst[section],
+                        "rows_measured": len(residuals[section]),
+                        # ⭐ Stated, not left to the reader to divide. The two numbers are
+                        #    otherwise easy to read as rival thresholds.
+                        "publisher_tolerance_over_band": (
+                            PUBLISHER_TOLERANCE["value"] / band[section]
+                            if band[section] > 0.0
+                            else None
+                        ),
+                    }
+                    for section in SECTIONS
+                },
+                "derivation": (
+                    "the largest residual observed on this run, per section, with NO "
+                    "headroom added — margin added to an observation is where a measurement "
+                    "quietly becomes an opinion. The residual is |this kernel read by the "
+                    "SPICE Toolkit - the publisher's printed value|, in the unit the "
+                    "publisher printed"
+                ),
+                "why_per_section": (
+                    "⚠ Forced, not chosen. Position is in au and velocity in au/day, so one "
+                    "band across both is dimensionally incoherent: it would be set by "
+                    "whichever section happened to be worse and would silently claim the "
+                    "other is that loose, in a unit it does not have"
+                ),
+                "why_absolute_rather_than_relative": (
+                    "⚠ The companion R2 file declares a RELATIVE band, and the difference is "
+                    "not an inconsistency. There, every row carries the norm of its own three "
+                    "components, so a denominator exists in the row. Here the pin is a single "
+                    "printed component and the file carries no scale to divide it by. ⭐ The "
+                    "publisher argues for the absolute form from the other side, in its test "
+                    "program's own comment: a fractional test is unsuitable because the "
+                    "values are sometimes near zero for particular components"
+                ),
+                "relation_to_publisher_tolerance": (
+                    "⭐ The publisher's 1e-13 and this measured floor are not rivals and are "
+                    "not the same kind of number. `publisher_tolerance_over_band` above is "
+                    "the ratio between them; it is about one decade, so the publisher's "
+                    "stated tolerance IS a floor of this order plus a chosen margin over it. "
+                    "⛔ The publisher's number is unchanged by this band and is recorded "
+                    "verbatim, with its source, in `oracle.test_artifact.publisher_tolerance`"
+                ),
+                "proxy_limit": (
+                    "⚠ THE LIMIT ON THIS BAND, AND IT IS THE ONE THAT MATTERS. The floor was "
+                    "measured between ONE toolkit and the publisher's printed values. The "
+                    "reader that will be judged against these rows is a THIRD implementation, "
+                    "which this run did not observe at all — so the band is a proxy for that "
+                    "reader's floor, not a measurement of it. ⭐ Zero headroom is the right "
+                    "choice for a band that REPORTS a floor and the wrong choice for one that "
+                    "gates: a third implementation differing by two ULP where this one "
+                    "differs by one has not malfunctioned, and a band with no headroom cannot "
+                    "tell that apart from a defect"
+                ),
+                "status": (
+                    "⚠ GENERATION CONTEXT, not a judgement. The band a consumer applies comes "
+                    "from that consumer's own budget, measured against these rows in that "
+                    "consumer's tree; a disagreement with the number here is a line to "
+                    "report, ⛔ never a reason to refuse this file"
                 ),
             },
             "host": host_record(),
@@ -596,15 +724,19 @@ def main() -> int:
             "⛔ This file is evidence that a reader reads correctly. It is NOT evidence "
             "about how accurately the ephemeris models the solar system: the publisher is "
             "on both sides of the comparison.",
-            "⭐ THE CLASSIFICATION IS AN OPEN QUESTION, RAISED HERE RATHER THAN DECIDED. "
-            "`reference_only` means committed but not compared, so this file cannot pass "
-            "any band that is set for it. Its companion R2 file has moved to `tolerance` "
-            "with a measured band, on the argument that a fixture's own band is generation "
-            "context rather than an adopted judgement. That argument applies to this file "
-            "unchanged, and the measurement it would use is already in `summary`: 0 of the "
-            "rows checked reach the publisher's own stated tolerance. ⛔ Changing it was "
-            "not in the scope of the pass that produced this file, so it was left alone "
-            "rather than altered quietly.",
+            "⭐ THE BAND IS THE MEASURED FLOOR, PER SECTION, WITH NO HEADROOM. It is the "
+            "largest residual this run observed between the supplied kernel read by the "
+            "SPICE Toolkit and the publisher's printed values, in the unit the publisher "
+            "printed — per section, because position is in au and velocity in au/day and "
+            "one band across both would have no unit. `summary.declared_band` carries the "
+            "derivation in full.",
+            "⚠ THE BAND IS A PROXY, AND SAYS SO. It was measured between one toolkit and "
+            "the publisher's values; the reader that will be judged against these rows is a "
+            "third implementation this run never observed. ⭐ Zero headroom is right for a "
+            "band that REPORTS a floor and wrong for one that GATES — a third reader "
+            "differing by two ULP where this one differs by one has not malfunctioned, and a "
+            "band with no headroom cannot tell that from a defect. ⛔ Read it as the floor "
+            "this instrument found, not as a threshold to gate on unchanged.",
         ],
     )
 
@@ -624,12 +756,16 @@ def main() -> int:
 
     print(f"wrote {written} rows -> {out_path}")
     print(f"excluded: {excluded}")
+    for section in SECTIONS:
+        ratio = PUBLISHER_TOLERANCE["value"] / band[section]
+        print(
+            f"band ({section}): {band[section]:.4e} {SECTION_UNITS[section]} "
+            f"over {len(residuals[section])} rows, no headroom; "
+            f"the publisher's {PUBLISHER_TOLERANCE['value']:.0e} is {ratio:.1f}x it"
+        )
     print(
-        f"reproduction: max |delta| = {array.max():.3e} {PUBLISHER_TOLERANCE['applies_to']}"
-    )
-    print(
-        f"reproduction: {over_tolerance}/{len(residuals)} rows at or over the publisher's "
-        f"{PUBLISHER_TOLERANCE['value']:.0e}"
+        f"reproduction: {rows_over_tolerance}/{rows_checked} rows at or over the "
+        f"publisher's {PUBLISHER_TOLERANCE['value']:.0e}"
     )
     return 0
 
