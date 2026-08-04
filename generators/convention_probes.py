@@ -733,11 +733,11 @@ def write_leap_seconds(
             "⛔ AND THAT CONSTANT IS ITSELF TEMPORARY — THIS IS THE ROW TO READ TWICE. The "
             "held offset lasts exactly, to the bit, for over a decade past the last "
             "insertion, and then on one measured day it hands over to a smoothly drifting "
-            "model. ⭐ The handover is a discontinuity of about a second which is NOT a leap "
-            "second, is announced nowhere, and sits in the middle of the range any "
-            "long-dated calendar computation crosses. ⚠ Two civil instants a day apart "
-            "across it convert with a second between them for a reason that is neither "
-            "astronomy nor timekeeping.",
+            "model. ⭐ Two civil instants a day apart across that day convert with about a "
+            "second between them, and nothing announces it. ⚠ The row carries the date it "
+            "falls on and the dates every insertion in this table falls on, so a reader can "
+            "judge for themselves whether it is an insertion — this file does not assert "
+            "the negative, it hands over the two facts the judgement needs.",
             "⭐ BUT IT FAILS LOUDLY IN THE ONE PLACE IT COULD FAIL QUIETLY. Offered the "
             "sixty-first second of a minute the table does not know, the conversion refuses "
             "outright instead of absorbing it. So a real future insertion arrives in an old "

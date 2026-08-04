@@ -839,12 +839,21 @@ def constant_offset_handover(
         "value_labels": ["last_constant_offset", "first_moved_offset"],
         "step_seconds": after - before,
         "is_whole_second": abs(abs(after - before) - 1.0) < 1e-4,
+        # ⭐ The two discriminators are recorded rather than the conclusion drawn from them.
+        #   A reader who disagrees with the reading can check both without rerunning
+        #   anything, and a later library that moves the handover onto an insertion date
+        #   would make the disagreement visible instead of silently invalidating a sentence.
+        "falls_on_an_insertion_date": (first_moved[1], first_moved[2]) in INSERTION_DATES,
+        "insertion_dates_in_this_table": [
+            "%02d-%02d" % (month, day) for month, day in INSERTION_DATES
+        ],
         "note": (
             "⛔ THE OFFSET IS NOT CONSTANT FOREVER. Past the last insertion the conversion "
             "holds one value exactly — and then, on this day, hands over to a model that "
-            "drifts. ⭐ The handover is a jump of about a second that is not a leap second, "
-            "is announced nowhere, and falls in the middle of the range a long-dated "
-            "calculation would cross"
+            "drifts. ⚠ Whether the handover is itself an inserted second is left to the two "
+            "fields beside it: the date it falls on, against the dates every insertion in "
+            "this table falls on, and whether the step is a whole second. ⭐ Either way it "
+            "is announced nowhere and sits inside the range a long-dated calculation crosses"
         ),
     }
 
