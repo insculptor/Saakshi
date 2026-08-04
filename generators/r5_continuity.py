@@ -126,6 +126,60 @@ def _resolve_or_nudge(
     )
 
 
+#: The golden ratio's fractional part. Ordering indices by `frac(j * PHI)` is a standard
+#: low-discrepancy sequence: **every prefix is spread over the whole range**, which is the
+#: one property a truncated grid needs and an even stride does not have.
+_PHI = 0.6180339887498949
+
+
+def _spread(count: int) -> list[int]:
+    """Indices `0..count-1`, ordered so that any prefix covers the whole range."""
+    return sorted(range(count), key=lambda j: (j * _PHI) % 1.0)
+
+
+def _bounded_subset(plan: list, limit: int) -> list:
+    """Take `limit` points, guaranteeing every stratum appears and each one is spanned.
+
+    ⚠ **An even stride is wrong here, and it failed silently.** The enumeration is
+    year-major over a fixed number of sites, so a stride is an arithmetic progression that
+    can alias against the site count — at one limit it selected four of sixteen sites and
+    reached neither the polar nor the equatorial ones, while still returning exactly the
+    requested number of rows. A sample that is the right size and the wrong shape is the
+    hardest kind to notice.
+
+    So the selection is explicit about the property it owes: round-robin across strata, each
+    stratum drawn in low-discrepancy order, then restored to enumeration order so the file
+    reads naturally. Grid ids come from the enumeration, not the selection, so a point means
+    the same thing at every limit and two runs of different sizes compare row for row.
+    """
+    by_stratum: dict[str, list] = {}
+    for entry in plan:
+        by_stratum.setdefault(entry[1], []).append(entry)
+
+    queues = {
+        stratum: [entries[j] for j in _spread(len(entries))]
+        for stratum, entries in by_stratum.items()
+    }
+    order = list(by_stratum)  # first-appearance order — deterministic
+
+    picked: list = []
+    cursor = 0
+    while len(picked) < limit:
+        progressed = False
+        for stratum in order:
+            queue = queues[stratum]
+            if cursor < len(queue):
+                picked.append(queue[cursor])
+                progressed = True
+                if len(picked) == limit:
+                    break
+        if not progressed:  # every stratum exhausted
+            break
+        cursor += 1
+
+    return sorted(picked, key=lambda entry: entry[0])
+
+
 def build_grid(limit: int | None) -> list[tuple[CivilInstant, int]]:
     """The stratified grid, deterministic and in a fixed order.
 
@@ -134,8 +188,15 @@ def build_grid(limit: int | None) -> list[tuple[CivilInstant, int]]:
     see what it covers without running anything. `GRID_SEED` is recorded as the identity of
     *this* enumeration, so a future change to it is visible in the fixture rather than
     silent.
+
+    ⚠ **A truncated grid must still be a stratified one.** Enumerating year-major and then
+    cutting at `limit` produced a "sample" that was three-quarters one stratum, because a
+    short run never reached the later years at all — a bounded run that quietly covers one
+    corner is worse than an unbounded one, since its row count looks like coverage. The
+    subset is therefore taken at an even stride across the whole enumeration, so any
+    `limit` spans every year, every site and every stratum.
     """
-    out: list[tuple[CivilInstant, int]] = []
+    plan: list[tuple[str, str, _dt.datetime, tuple[str, float, float, str]]] = []
     index = 0
     for year_i, year in enumerate(YEARS):
         for site_i, site in enumerate(SITES):
@@ -143,18 +204,25 @@ def build_grid(limit: int | None) -> list[tuple[CivilInstant, int]]:
             hour, minute = CLOCK_TIMES[(year_i + site_i) % len(CLOCK_TIMES)]
             month = 1 + ((year_i * 5 + site_i * 7) % 12)
             day = 1 + ((year_i * 11 + site_i * 13) % 28)
-            civil = _dt.datetime(year, month, day, hour, minute)
-            grid_id = f"g{index:04d}"
-            instant, nudge = _resolve_or_nudge(
-                grid_id=grid_id,
-                stratum=_stratum(zone, latitude, year),
-                civil=civil,
-                site=site,
+            plan.append(
+                (
+                    f"g{index:04d}",
+                    _stratum(zone, latitude, year),
+                    _dt.datetime(year, month, day, hour, minute),
+                    site,
+                )
             )
-            out.append((instant, nudge))
             index += 1
-            if limit is not None and len(out) >= limit:
-                return out
+
+    if limit is not None and 0 < limit < len(plan):
+        plan = _bounded_subset(plan, limit)
+
+    out: list[tuple[CivilInstant, int]] = []
+    for grid_id, stratum, civil, site in plan:
+        instant, nudge = _resolve_or_nudge(
+            grid_id=grid_id, stratum=stratum, civil=civil, site=site
+        )
+        out.append((instant, nudge))
     return out
 
 
