@@ -18,7 +18,18 @@ import sys
 from pathlib import Path
 
 import pytest
-import swisseph as swe
+
+#: ⛔ Skips the whole module where the ephemeris library is absent, at import time, because
+#: the parametrised cases below evaluate its constants during **collection** — a guard
+#: applied any later would already have failed.
+#:
+#: ⚠ A skipped module is a hole in the evidence, so `conftest.py` announces the reduction in
+#: the report header and the summary, and refuses to run at all where the caller declared a
+#: different environment. The skip is the correct behaviour; going quiet about it is not.
+swe = pytest.importorskip(
+    "swisseph",
+    reason="this module calls the ephemeris library; it cannot run where it is not installed",
+)
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 

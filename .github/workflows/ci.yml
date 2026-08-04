@@ -24,10 +24,24 @@ jobs:
         # ⭐ Not requirements.txt. The fixture contract has no third-party dependency, and
         #    installing the ephemeris libraries here would mean CI could not tell the
         #    difference between "the schema is sound" and "the oracles are installed".
-        run: python -m pip install pytest==8.4.2
+        #
+        # ⚠ `tzdata` is the one exception, and it is a data package rather than an oracle:
+        #    without it the civil-resolution tests are unrunnable wherever the platform has
+        #    no system timezone database, so the suite would pass or fail by operating
+        #    system. ⛔ It does NOT pin the answer here — `zoneinfo` searches the system path
+        #    first and this runner has one, so the packaged rules are a fallback that a
+        #    Linux runner never reaches. That asymmetry is measured, not assumed, and it is
+        #    the reason a resolved offset is written into a row instead of a zone name.
+        run: python -m pip install pytest==8.4.2 tzdata==2024.2
 
       - name: The fixture contract refuses what it must
-        run: python -m pytest -q
+        # ⭐ The declaration is checked, not assumed. `absent` says this environment has no
+        #    ephemeris library, so the oracle half of the suite is skipped — and the suite
+        #    refuses to run if that is ever untrue, which is what stops a later `pip install`
+        #    from quietly changing what a green badge here means.
+        env:
+          ORACLE_LIBRARIES: absent
+        run: python -m pytest -q -rs
 
       - name: The leak check's matcher is alive
         # ⭐ Runs WITHOUT a reserved-name list, and that is the point: the names are
