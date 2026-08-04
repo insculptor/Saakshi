@@ -91,7 +91,22 @@ cp config/reserved-names.txt.example config/reserved-names.txt   # then add your
 python generators/r2_kernel_states.py --kernel <path to de440s.bsp> --out out/
 python generators/publisher_testpo.py --kernel <path to de440s.bsp> --out out/
 python generators/r3_swiss.py --ephe-path <directory of .se1 files> --out out/
+python generators/convention_probes.py --ephe-path <directory of .se1 files> --out out/
 ```
+
+### Asking what a library assumes when nobody says
+
+`convention_probes.py` asks five questions whose answers a caller inherits without passing
+anything: the offset applied to reach the dynamical time scale, what a default position
+already has applied to it, **which atmosphere a rise/set call uses when both atmospheric
+arguments are zero**, which leap seconds the conversion knows and where its table ends, and
+which house methods refuse above the polar circle.
+
+⭐ **Two of the five answers are the opposite of the assumption a careful caller would
+make**, so each is established by interrogation rather than by reading documentation — and
+the decisive one is settled as a **bit-identity** between a call that passes nothing and a
+call that states an atmosphere explicitly, rather than as an approximate agreement. See
+`docs/measurements/2026-08-04-conventions.md`.
 
 ### Asking which ephemeris answered
 
