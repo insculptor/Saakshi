@@ -1,0 +1,17 @@
+# Reserved names — one per line, `#` starts a comment.
+#
+# ⛔ None of these may appear in a fixture FILENAME or in a fixture JSON KEY.
+# ✅ They are permitted in fixture VALUES: `generator.repo` must name this repository,
+#    because a value records origin and is not an identifier.
+#
+# The reason for the rule: a fixture key and a fixture filename are permanent identifiers.
+# Anything that consumes this evidence will carry them for as long as the evidence exists,
+# and a project can be renamed. An identifier that encodes a renameable name turns a
+# rename into a data migration.
+#
+# ⚠ Copy this file to `config/reserved-names.txt` and add the names of every consumer.
+#    That file is NOT committed — the mechanism belongs in the open, the names of
+#    unreleased projects do not. With no local file only the default below applies, and
+#    every generator prints that fact before it writes anything.
+
+saakshi

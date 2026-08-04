@@ -1,0 +1,18 @@
+# Exact pins. A generator's own versions enter the provenance block of every fixture it
+# writes, so a floating pin would make the recorded oracle identity unreproducible.
+#
+# ⛔ Nothing here ever enters a consumer's dependency tree. That is the point of this repo.
+
+# --- R2: the SPICE Toolkit, and the independent pure-Python cross-check -------------------
+spiceypy==8.2.0          # bundles CSPICE; ⛔ CSPICE itself is never redistributed by us
+jplephem==2.23           # BSD-2-Clause, pure Python — the second, independent reader
+numpy==2.5.1
+
+# --- R1: the Horizons sampler, and publisher file acquisition ----------------------------
+requests==2.34.2
+
+# --- R3: the Swiss Ephemeris generators (AGPL; the reason this repository is AGPL) --------
+pyswisseph==2.10.3.2
+
+# --- development --------------------------------------------------------------------------
+pytest==8.4.2

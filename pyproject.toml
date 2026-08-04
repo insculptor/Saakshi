@@ -1,0 +1,23 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "saakshi"
+version = "0.1.0"
+description = "The measurement instrument: generators that query restricted and external sources and record what they said."
+requires-python = ">=3.11"
+license = "AGPL-3.0-or-later"
+readme = "README.md"
+
+# ⛔ This distribution is never published and never installed as a dependency of anything.
+# It exists so `python -m` and `pytest` resolve the package from `src/`.
+# Only this repository's OUTPUT travels.
+classifiers = ["Private :: Do Not Upload"]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src"]

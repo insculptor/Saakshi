@@ -1,0 +1,31 @@
+# Generated fixtures. They are the product, and they are consumed elsewhere, not here.
+# Keeping them out of this tree stops a stale copy here from ever being mistaken for the
+# committed evidence.
+out/
+
+# Acquired source material. Never committed: kernels are the publisher's redistributable
+# files identified by digest, and publisher test files are re-fetchable from a recorded
+# URL. A fixture is plain text, so a binary has no place in this tree in any case.
+cache/
+*.bsp
+*.bpc
+*.tpc
+*.se1
+
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.pytest_cache/
+.mypy_cache/
+*.egg-info/
+build/
+dist/
+
+# The reserved-name list. The mechanism is public; the names of unreleased consumers
+# are not. `config/reserved-names.txt.example` is committed and documents the format.
+config/reserved-names.txt
+
+# Cross-repository notes: paths, gate ids and hand-off detail for consumers that are not
+# public yet. ⛔ Never committed while any consumer is unreleased.
+docs/local/
