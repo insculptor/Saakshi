@@ -1,0 +1,45 @@
+name: ci
+
+on:
+  push:
+    branches: [master, main]
+  pull_request:
+
+# ⛔ This workflow performs NO oracle I/O. It never calls an ephemeris service, never
+#    downloads a kernel and never runs a generator. Generators are run deliberately, by a
+#    person, against a file whose digest is checked — a fixture produced by a scheduled job
+#    nobody read is not evidence.
+
+jobs:
+  contract:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install the contract's own dependencies only
+        # ⭐ Not requirements.txt. The fixture contract has no third-party dependency, and
+        #    installing the ephemeris libraries here would mean CI could not tell the
+        #    difference between "the schema is sound" and "the oracles are installed".
+        run: python -m pip install pytest==8.4.2
+
+      - name: The fixture contract refuses what it must
+        run: python -m pytest -q
+
+      - name: The contract is fail-closed with no local configuration
+        # ⚠ CI has no config/reserved-names.txt, so only the built-in default applies.
+        #    This asserts the tooling SAYS SO rather than reporting a full check.
+        run: |
+          python - <<'PY'
+          import sys; sys.path.insert(0, "src")
+          from saakshi.fixture import describe_reserved_names, reserved_names
+          text = describe_reserved_names()
+          print(text)
+          assert reserved_names(), "the reserved-name list must never be empty"
+          assert "absent" in text, (
+              "with no local list, the tooling must say the check is reduced"
+          )
+          PY
