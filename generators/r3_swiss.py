@@ -39,12 +39,14 @@ from saakshi.swiss import (  # noqa: E402
     MODES,
     EphemerisSubstitution,
     Mode,
+    Session,
     assert_reported,
     assert_window,
     calendar_ut,
     coverage_edges,
     entry_point_records,
     ephe_set_identity,
+    state_dependence,
     verify_ephe_set,
 )
 
@@ -202,8 +204,18 @@ def _values_row(
     }
 
 
-def sample_mode(mode: Mode, epochs: list[tuple[str, str, float]]) -> dict[str, Any]:
-    """Call every entry point at every grid point, and attribute or refuse each result."""
+def sample_mode(
+    mode: Mode, epochs: list[tuple[str, str, float]], session: Session
+) -> dict[str, Any]:
+    """Call every entry point at every grid point, and attribute or refuse each result.
+
+    ⛔ **The library's state is reset before each recorded call group**, so a row is a
+    function of its own request rather than of where the generator had got to. Measured:
+    without the reset, the ephemeris that answers a given instant changes after a single
+    unrelated call, and sweeping a range in the two directions moved the boundary ten days.
+    Within a group the calls run in one session on purpose -- a proxy must observe the same
+    state as the call it stands for.
+    """
     rows: list[dict[str, Any]] = []
     substitutions: list[dict[str, Any]] = []
     refusals: list[dict[str, Any]] = []
@@ -245,6 +257,7 @@ def sample_mode(mode: Mode, epochs: list[tuple[str, str, float]]) -> dict[str, A
         ):
             for body, body_name in BODIES:
                 where = f"{mode.id}/{section}/{epoch_id}/{body_name}"
+                session.reset()
                 try:
                     xx, returned = swe.calc_ut(
                         jd, body, mode.flag | swe.FLG_SPEED | extra
@@ -273,6 +286,7 @@ def sample_mode(mode: Mode, epochs: list[tuple[str, str, float]]) -> dict[str, A
 
         # --- the ayanamsha: an entry point whose returned flag is the request ------------
         where = f"{mode.id}/ayanamsha/{epoch_id}"
+        session.reset()
         try:
             assertion = assert_window(
                 mode, body=swe.SUN, jd_start=jd, jd_end=jd, where=where
@@ -316,6 +330,7 @@ def sample_mode(mode: Mode, epochs: list[tuple[str, str, float]]) -> dict[str, A
 
             for hsys, hsys_name in HOUSE_SYSTEMS:
                 where = f"{mode.id}/houses/{epoch_id}/{site_id}/{hsys_name}"
+                session.reset()
                 try:
                     assertion = assert_window(
                         mode, body=swe.SUN, jd_start=jd, jd_end=jd, where=where
@@ -366,6 +381,7 @@ def sample_mode(mode: Mode, epochs: list[tuple[str, str, float]]) -> dict[str, A
             for body, body_name in RISE_BODIES:
                 for rsmi, event in RISE_EVENTS:
                     where = f"{mode.id}/rise_set/{epoch_id}/{site_id}/{body_name}/{event}"
+                    session.reset()
                     try:
                         code, times = swe.rise_trans(
                             jd,
@@ -568,11 +584,12 @@ def attribution_by_stratum(
     }
 
 
-def _oracle(mode: Mode, ephe: dict[str, Any] | None) -> dict[str, Any]:
+def _oracle(mode: Mode, ephe: dict[str, Any] | None, session: Session) -> dict[str, Any]:
     oracle: dict[str, Any] = {
         "implementation": "Swiss Ephemeris",
         "library_version": swe.version,
         "called_via": {"binding": "pyswisseph", "version": BINDING_VERSION},
+        "session": session.identity(),
         "ephemeris_requested": mode.source,
         "ephemeris_requested_note": mode.label,
         "source_assertion": (
@@ -667,6 +684,7 @@ def write_mode_fixture(
     comparison: dict[str, Any],
     edges: dict[str, Any],
     ephe: dict[str, Any] | None,
+    session: Session,
     out_dir: Path,
     script: Path,
 ) -> tuple[Path, int]:
@@ -678,7 +696,7 @@ def write_mode_fixture(
         generator=generator_for(script),
         generated=today(),
         title=f"Swiss Ephemeris values, {mode.source} requested and asserted on every row",
-        oracle=_oracle(mode, ephe),
+        oracle=_oracle(mode, ephe, session),
         request={
             "grid": "stratified, placed relative to the measured coverage edges",
             "grid_seed": GRID_SEED,
@@ -767,6 +785,8 @@ def write_audit_fixture(
     *,
     edges: dict[str, Any],
     demonstration: list[dict[str, Any]],
+    state_rows: list[dict[str, Any]],
+    session: Session,
     out_dir: Path,
     script: Path,
     ephe: dict[str, Any],
@@ -788,6 +808,7 @@ def write_audit_fixture(
             **{k: v for k, v in edges.items()},
         }
     )
+    rows.extend(state_rows)
     rows.extend(demonstration)
 
     header = Header(
@@ -804,13 +825,15 @@ def write_audit_fixture(
                 "each entry point was called under conditions where the requested "
                 "ephemeris was known to be unavailable, and what came back was read"
             ),
+            "session": session.identity(),
             "data_files": ephe,
         },
         attests=(
             "which entry points of the ephemeris library report the ephemeris that actually "
             "answered a call, which merely echo the flag they were handed, and which return "
-            "no statement of source at all -- together with a measured demonstration of what "
-            "a comparison looks like when the substitution goes unchecked"
+            "no statement of source at all; that the answering ephemeris depends on the "
+            "preceding call and not only on the call's own arguments; and what a comparison "
+            "reports when the substitution goes unchecked"
         ),
         authority={
             "held_by": "the library itself, as observed",
@@ -823,7 +846,18 @@ def write_audit_fixture(
         },
         record_date=today(),
         row_schema={
-            "finding": "flag_reporting | coverage_edge | substitution_demonstration",
+            "finding": (
+                "flag_reporting | coverage_edge | state_dependence | "
+                "substitution_demonstration"
+            ),
+            "sweep": (
+                "for a state_dependence row: the order the same instants were visited in, "
+                "and whether the library's state was reset between them"
+            ),
+            "first_substituted_jd_ut": (
+                "⭐ where that sweep first saw a substitution. The three sweeps disagree, "
+                "and the disagreement is the finding"
+            ),
             "entry_point": "the library function, for a flag_reporting row",
             "accepts_ephemeris_flag": "whether the call takes an ephemeris flag at all",
             "reports_answering_ephemeris": (
@@ -841,6 +875,13 @@ def write_audit_fixture(
             "necessary and not sufficient: one entry point here returns a flag that is the "
             "request handed back, and two return no flag at all. Among the silent ones are "
             "the house cusps and the rise/set times.",
+            "⛔ AND THE FLAG MUST BE READ PER CALL, because the ephemeris that answers is "
+            "not a function of the call's arguments. The same instant, body and flags were "
+            "answered by the data files in a fresh session, by the substituted ephemeris "
+            "after one unrelated call outside coverage, and by the data files again after "
+            "one call inside it. Sweeping a range upwards and downwards moved the apparent "
+            "boundary by ten days. ⚠ So a recorder that decides once which instants are "
+            "covered, and then trusts that decision, is wrong across that whole interval.",
             "⛔ An unchecked comparison between two ephemerides degenerates exactly where it "
             "matters most -- outside the data files' coverage both requests are answered by "
             "the same substituted ephemeris, so the difference is identically zero and reads "
@@ -859,7 +900,9 @@ def write_audit_fixture(
 # --------------------------------------------------------------------------------------
 
 
-def substitution_demonstration(epochs: list[tuple[str, str, float]]) -> list[dict[str, Any]]:
+def substitution_demonstration(
+    epochs: list[tuple[str, str, float]], session: Session
+) -> list[dict[str, Any]]:
     """Compare the two modes **without** asserting anything, and record what that reports.
 
     ⭐ This is the counter-measurement that justifies the whole mechanism. The same two
@@ -872,6 +915,7 @@ def substitution_demonstration(epochs: list[tuple[str, str, float]]) -> list[dic
     for epoch_id, stratum, jd in epochs:
         if stratum not in ("in_coverage", "outside_coverage", "coverage_edge"):
             continue
+        session.reset()
         try:
             a, _ = swe.calc_ut(jd, swe.MOON, moshier.flag | swe.FLG_SPEED)
             b, ret_b = swe.calc_ut(jd, swe.MOON, swiss_file.flag | swe.FLG_SPEED)
@@ -935,9 +979,11 @@ def main() -> int:
     ephe = ephe_set_identity(args.ephe_path, pins)
 
     # ⛔ Before any data-file request. Without this the library answers every one of them
-    #    analytically, successfully, and without saying so.
-    swe.set_ephe_path(str(args.ephe_path))
-    swe.set_sid_mode(swe.SIDM_LAHIRI, 0, 0)
+    #    analytically, successfully, and without saying so. ⚠ The sidereal mode belongs to
+    #    the same state, and closing the library drops it -- so both live in one object that
+    #    re-applies them together.
+    session = Session(ephe_path=str(args.ephe_path), sidereal_mode=swe.SIDM_LAHIRI)
+    session.reset()
 
     swiss_file = MODES["swiss_file"]
     edges = coverage_edges(
@@ -945,16 +991,42 @@ def main() -> int:
         body=swe.MOON,
         jd_low=swe.julday(1000, 1, 1, 0.0),
         jd_high=swe.julday(3000, 1, 1, 0.0),
+        session=session,
     )
     print(
         "coverage measured: "
         f"{edges['lower_edge_calendar_ut']} .. {edges['upper_edge_calendar_ut']}"
     )
 
+    state_rows = state_dependence(
+        swiss_file,
+        body=swe.MOON,
+        jd_first_outside=float(edges["upper_edge_last_outside_jd_ut"]),
+        session=session,
+    )
+    sweeps = {
+        str(row["sweep"]): row.get("first_substituted_jd_ut")
+        for row in state_rows
+        if row["sweep"] != "single_intervening_call"
+    }
+    print("state dependence: first substitution seen at " + ", ".join(
+        f"{name}={value!r}" for name, value in sorted(sweeps.items())
+    ))
+    flip = next(row for row in state_rows if row["sweep"] == "single_intervening_call")
+    print(
+        "state dependence: one instant answered by the request "
+        f"fresh={flip['answered_by_request_when_fresh']} "
+        f"after_outside_call={flip['answered_by_request_after_a_call_outside_coverage']} "
+        f"after_inside_call={flip['answered_by_request_after_a_call_inside_coverage']}"
+    )
+
     epochs = build_epochs(edges)
     print(f"epochs: {len(epochs)}   bodies: {len(BODIES)}   sites: {len(SITES)}")
 
-    sampled = {mode_id: sample_mode(MODES[mode_id], epochs) for mode_id in ("moshier", "swiss_file")}
+    sampled = {
+        mode_id: sample_mode(MODES[mode_id], epochs, session)
+        for mode_id in ("moshier", "swiss_file")
+    }
     for mode_id, result in sampled.items():
         print(
             f"{mode_id}: {len(result['rows'])} row(s), "
@@ -971,7 +1043,7 @@ def main() -> int:
             f"worst {entry['max_abs_delta']!r}"
         )
 
-    demonstration = substitution_demonstration(epochs)
+    demonstration = substitution_demonstration(epochs, session)
     unchecked_zeros = sum(
         1
         for row in demonstration
@@ -992,6 +1064,7 @@ def main() -> int:
             comparison=comparison,
             edges=edges,
             ephe=ephe if mode.needs_data_files else None,
+            session=session,
             out_dir=args.out,
             script=script,
         )
@@ -1000,6 +1073,8 @@ def main() -> int:
     path, written = write_audit_fixture(
         edges=edges,
         demonstration=demonstration,
+        state_rows=state_rows,
+        session=session,
         out_dir=args.out,
         script=script,
         ephe=ephe,

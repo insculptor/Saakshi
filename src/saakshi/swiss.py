@@ -359,21 +359,87 @@ def ephe_set_identity(directory: Path, pins: Iterable[KernelPin]) -> dict[str, A
 
 
 # --------------------------------------------------------------------------------------
+# ⛔ The answering ephemeris is not a function of the call's arguments
+# --------------------------------------------------------------------------------------
+
+
+@dataclass(frozen=True)
+class Session:
+    """The library's global state, and the means of putting it back to a known one.
+
+    ⛔ **This exists because which ephemeris answers a call was measured to depend on what
+    was computed before it.** Not on a monotone history — on the immediately preceding call:
+    the same instant answered by the data files in a fresh process was answered by the
+    substituted ephemeris after one unrelated call fifty days outside coverage, and by the
+    data files again after one call well inside. Sweeping a range upwards and downwards put
+    the boundary ten days apart.
+
+    ⭐ So a recorded value is only a function of its own request if the state is put back
+    first. Resetting before each recorded call group costs about 0.08 ms and buys a fixture
+    whose rows do not depend on the order the generator happened to visit them in.
+
+    ⚠ **Closing the library resets the sidereal mode too**, and silently: an ayanamsha read
+    after a reset that did not re-apply it was measured 0.88 degrees away, which is a
+    plausible-looking number in the same range as the right one. Every field this class
+    holds is re-applied on every reset for that reason — a reset that restores some of the
+    state is worse than none, because the part it drops is invisible.
+    """
+
+    ephe_path: str
+    sidereal_mode: int
+
+    def reset(self) -> None:
+        swe.close()
+        swe.set_ephe_path(self.ephe_path)
+        swe.set_sid_mode(self.sidereal_mode, 0, 0)
+
+    def identity(self) -> dict[str, Any]:
+        return {
+            "isolation": (
+                "the library's state is closed and re-established before each recorded call "
+                "group"
+            ),
+            "why": (
+                "⛔ which ephemeris answers a call was measured to depend on the preceding "
+                "call, not only on the call's own arguments"
+            ),
+            "state_re_applied": ["data file path", "sidereal mode"],
+            "sidereal_mode_number": self.sidereal_mode,
+            "note": (
+                "closing the library resets the sidereal mode as well; a reset that does not "
+                "re-apply it moves every sidereal value by about 0.88 degrees"
+            ),
+        }
+
+
+# --------------------------------------------------------------------------------------
 # Where the data files stop answering — measured, never assumed
 # --------------------------------------------------------------------------------------
 
 
-def coverage_edges(mode: Mode, *, body: int, jd_low: float, jd_high: float) -> dict[str, Any]:
-    """Find, by bisection on the returned flag, where the requested ephemeris stops answering.
+def coverage_edges(
+    mode: Mode, *, body: int, jd_low: float, jd_high: float, session: Session
+) -> dict[str, Any]:
+    """Find where the requested ephemeris stops answering, from a reset state each time.
 
     ⭐ The returned flag is used here as an *instrument*: the boundary is located by asking
     the library which ephemeris answered, not by reading a published coverage range. A
     different data-file set therefore yields different edges, which is correct — the edge is
-    a property of the files supplied, and hard-coding one would be an assumption that
-    outlives the file it describes.
+    a property of the files supplied, and hard-coding one would outlive the file it
+    describes.
+
+    ⛔ **Every probe is taken from a reset state, and this is not a refinement.** Probed
+    warm, the predicate is not a function of the instant at all: bisecting it converged on
+    different answers in different runs, and one of them returned a "last outside" point
+    that answered as inside. A bisection needs a predicate; without the reset there is none.
+
+    ⚠ The postcondition is checked rather than assumed. A boundary search that reports an
+    interval it has not re-verified is the same defect as a fixture that records a value
+    without recording where it came from.
     """
 
     def answered(jd: float) -> bool:
+        session.reset()
         try:
             _, returned = swe.calc_ut(jd, body, mode.flag | swe.FLG_SPEED)
         except Exception:
@@ -399,9 +465,27 @@ def coverage_edges(mode: Mode, *, body: int, jd_low: float, jd_high: float) -> d
         )
     low_out, low_in = bisect(jd_low, middle)
     high_out, high_in = bisect(jd_high, middle)
+
+    # ⛔ Re-verify. Each of these four points is a claim, and each is cheap to check.
+    for jd, expected, name in (
+        (low_in, True, "lower_edge_first_inside"),
+        (low_out, False, "lower_edge_last_outside"),
+        (high_in, True, "upper_edge_first_inside"),
+        (high_out, False, "upper_edge_last_outside"),
+    ):
+        if answered(jd) != expected:
+            raise EphemerisSubstitution(
+                f"{name} at jd {jd!r} does not have the property the search assigned it "
+                f"(expected answered={expected}). The predicate is not stable, so no "
+                "boundary may be reported from it."
+            )
+
     return {
         "body": body,
-        "located_by": "bisection on the returned ephemeris flag",
+        "located_by": (
+            "bisection on the returned ephemeris flag, every probe taken from a reset "
+            "library state, endpoints re-verified"
+        ),
         "lower_edge_last_outside_jd_ut": low_out,
         "lower_edge_first_inside_jd_ut": low_in,
         "upper_edge_first_inside_jd_ut": high_in,
@@ -409,7 +493,97 @@ def coverage_edges(mode: Mode, *, body: int, jd_low: float, jd_high: float) -> d
         "lower_edge_calendar_ut": calendar_ut(low_in),
         "upper_edge_calendar_ut": calendar_ut(high_in),
         "search_range_jd_ut": [jd_low, jd_high],
+        "scope": (
+            "this edge is the one body's. The data files do not share a boundary, so a "
+            "different body has a different edge"
+        ),
     }
+
+
+def state_dependence(
+    mode: Mode, *, body: int, jd_first_outside: float, session: Session, span_days: int = 22
+) -> list[dict[str, Any]]:
+    """Measure how far the answering ephemeris moves with call order alone.
+
+    ⭐ Three sweeps over the same instants, differing only in the order they are visited and
+    whether the state is reset — plus a three-call demonstration that a single unrelated
+    call flips the answer for an instant that did not change.
+
+    ⛔ This is the measurement that makes the per-row assertion non-negotiable. A recorder
+    that decides once which instants are covered, and then trusts that decision, is wrong
+    for every instant inside the interval these three sweeps disagree on.
+    """
+    start = jd_first_outside - span_days / 2.0
+    instants = [start + float(i) for i in range(span_days)]
+
+    def warm(jd: float) -> bool:
+        try:
+            _, returned = swe.calc_ut(jd, body, mode.flag | swe.FLG_SPEED)
+        except Exception:
+            return False
+        return (returned & SOURCE_MASK) == mode.flag
+
+    def first_substituted(values: list[tuple[float, bool]]) -> float | None:
+        for jd, ok in values:
+            if not ok:
+                return jd
+        return None
+
+    session.reset()
+    ascending = [(jd, warm(jd)) for jd in instants]
+    session.reset()
+    descending = list(reversed([(jd, warm(jd)) for jd in reversed(instants)]))
+    cold: list[tuple[float, bool]] = []
+    for jd in instants:
+        session.reset()
+        cold.append((jd, warm(jd)))
+
+    rows: list[dict[str, Any]] = []
+    for label, values in (
+        ("ascending_warm", ascending),
+        ("descending_warm", descending),
+        ("cold_per_call", cold),
+    ):
+        edge = first_substituted(values)
+        rows.append(
+            {
+                "finding": "state_dependence",
+                "sweep": label,
+                "body": body,
+                "instants": len(values),
+                "first_substituted_jd_ut": edge,
+                "first_substituted_calendar_ut": calendar_ut(edge) if edge else None,
+                "answered_by_request": sum(1 for _, ok in values if ok),
+            }
+        )
+
+    # ⭐ The three-call demonstration. One instant, three readings, nothing about the
+    #    instant changing between them.
+    probe = jd_first_outside - 2.0
+    session.reset()
+    fresh = warm(probe)
+    warm(jd_first_outside + 48.0)
+    after_far = warm(probe)
+    warm(2451545.0)
+    after_near = warm(probe)
+    rows.append(
+        {
+            "finding": "state_dependence",
+            "sweep": "single_intervening_call",
+            "body": body,
+            "probe_jd_ut": probe,
+            "probe_calendar_ut": calendar_ut(probe),
+            "answered_by_request_when_fresh": fresh,
+            "answered_by_request_after_a_call_outside_coverage": after_far,
+            "answered_by_request_after_a_call_inside_coverage": after_near,
+            "meaning": (
+                "⛔ the same instant, the same body, the same flags, three different "
+                "sessions of one process. The ephemeris that answers is not a function of "
+                "the call's arguments"
+            ),
+        }
+    )
+    return rows
 
 
 def calendar_ut(jd: float) -> str:

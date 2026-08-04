@@ -29,8 +29,10 @@ from saakshi.swiss import (  # noqa: E402
     REPORTING,
     SOURCE_MASK,
     EphemerisSubstitution,
+    Session,
     assert_reported,
     assert_window,
+    coverage_edges,
     entry_point_records,
     source_name,
     verify_ephe_set,
@@ -301,3 +303,102 @@ def test_the_source_mask_covers_exactly_the_three_source_bits():
     assert SOURCE_MASK == swe.FLG_JPLEPH | swe.FLG_SWIEPH | swe.FLG_MOSEPH
     assert SOURCE_MASK & swe.FLG_SPEED == 0
     assert SOURCE_MASK & swe.FLG_SIDEREAL == 0
+
+
+# --------------------------------------------------------------------------------------
+# The session, and the boundary search that depends on it
+# --------------------------------------------------------------------------------------
+
+
+def test_a_reset_re_applies_every_piece_of_state_it_holds(tmp_path, monkeypatch):
+    """⚠ Closing the library drops the sidereal mode as well as the data path. A reset that
+    restored only the path was measured moving every sidereal value by about 0.88 degrees --
+    a plausible number in the same range as the right one."""
+    calls: list[tuple[str, object]] = []
+    monkeypatch.setattr(swe, "close", lambda: calls.append(("close", None)))
+    monkeypatch.setattr(swe, "set_ephe_path", lambda p: calls.append(("path", p)))
+    monkeypatch.setattr(
+        swe, "set_sid_mode", lambda m, a, b: calls.append(("sid", m))
+    )
+    Session(ephe_path=str(tmp_path), sidereal_mode=swe.SIDM_LAHIRI).reset()
+    assert [name for name, _ in calls] == ["close", "path", "sid"]
+    assert calls[1][1] == str(tmp_path)
+    assert calls[2][1] == swe.SIDM_LAHIRI
+
+
+def test_the_boundary_search_refuses_a_predicate_that_is_not_stable(monkeypatch, tmp_path):
+    """⛔ The measured failure: probed without a reset, the search returned a 'last outside'
+    point that answered as inside. A boundary search that does not re-verify its own
+    endpoints reports an interval it has not established."""
+    monkeypatch.setattr(swe, "close", lambda: None)
+    monkeypatch.setattr(swe, "set_ephe_path", lambda p: None)
+    monkeypatch.setattr(swe, "set_sid_mode", lambda m, a, b: None)
+
+    seen: set[float] = set()
+
+    def unstable(jd, planet, flags):
+        # ⭐ The real shape of the failure, modelled exactly: asking about the same instant
+        #    a second time gives a different answer, because the answer was never a function
+        #    of the instant. Re-verification is what catches it.
+        inside = 100.0 <= jd <= 200.0
+        if jd in seen:
+            inside = not inside
+        seen.add(jd)
+        return (0.0,) * 6, (swe.FLG_SWIEPH if inside else swe.FLG_MOSEPH)
+
+    monkeypatch.setattr(swe, "calc_ut", unstable)
+    session = Session(ephe_path=str(tmp_path), sidereal_mode=swe.SIDM_LAHIRI)
+    with pytest.raises(EphemerisSubstitution) as excinfo:
+        coverage_edges(
+            MODES["swiss_file"], body=swe.SUN, jd_low=0.0, jd_high=300.0, session=session
+        )
+    assert "not stable" in str(excinfo.value)
+
+
+def test_a_range_with_no_covered_midpoint_is_refused_rather_than_bisected(
+    monkeypatch, tmp_path
+):
+    monkeypatch.setattr(swe, "close", lambda: None)
+    monkeypatch.setattr(swe, "set_ephe_path", lambda p: None)
+    monkeypatch.setattr(swe, "set_sid_mode", lambda m, a, b: None)
+    monkeypatch.setattr(
+        swe, "calc_ut", lambda jd, planet, flags: ((0.0,) * 6, swe.FLG_MOSEPH)
+    )
+    with pytest.raises(EphemerisSubstitution) as excinfo:
+        coverage_edges(
+            MODES["swiss_file"],
+            body=swe.SUN,
+            jd_low=0.0,
+            jd_high=300.0,
+            session=Session(ephe_path=str(tmp_path), sidereal_mode=swe.SIDM_LAHIRI),
+        )
+    assert "no covered interval" in str(excinfo.value)
+
+
+def test_a_stable_predicate_yields_endpoints_that_survive_re_verification(
+    monkeypatch, tmp_path
+):
+    monkeypatch.setattr(swe, "close", lambda: None)
+    monkeypatch.setattr(swe, "set_ephe_path", lambda p: None)
+    monkeypatch.setattr(swe, "set_sid_mode", lambda m, a, b: None)
+    monkeypatch.setattr(
+        swe,
+        "calc_ut",
+        lambda jd, planet, flags: (
+            (0.0,) * 6,
+            swe.FLG_SWIEPH if 100.0 <= jd <= 200.0 else swe.FLG_MOSEPH,
+        ),
+    )
+    edges = coverage_edges(
+        MODES["swiss_file"],
+        body=swe.SUN,
+        jd_low=0.0,
+        jd_high=300.0,
+        session=Session(ephe_path=str(tmp_path), sidereal_mode=swe.SIDM_LAHIRI),
+    )
+    assert edges["lower_edge_last_outside_jd_ut"] < 100.0 <= edges[
+        "lower_edge_first_inside_jd_ut"
+    ]
+    assert edges["upper_edge_first_inside_jd_ut"] <= 200.0 < edges[
+        "upper_edge_last_outside_jd_ut"
+    ]
