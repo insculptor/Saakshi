@@ -60,12 +60,16 @@ mechanical facts: what was called, what came back, and under what versions.
 
 ```
 generators/          one script per fixture set; each is a recorder
+  r1_horizons.py         geometric states from the publisher's live service
+  r1_drift.py            whether that service still answers as a fixture says; ⛔ never gates
   r2_kernel_states.py    geometric states from a pinned DE kernel, read twice
   publisher_testpo.py    the ephemeris publisher's own test-value set
   r3_swiss.py            the same grid under each ephemeris source, source asserted per row
   r5_continuity.py       what an earlier implementation answered, before it stops running
 src/saakshi/         the shared library
   fixture.py             the fixture contract, fail-closed, five discriminated kinds
+  acquisition.py         retrieval as evidence; ⛔ a cache read is not an acquisition
+  service.py             what a service response is made of; ⛔ a resource is not its payload
   kernels.py             locate and hash-verify a kernel pinned by digest
   provenance.py          generator identity; ⛔ refuses to stamp a dirty tree
   civil.py               resolved instants and coordinates; ⛔ refuses a half-resolved row
@@ -90,6 +94,7 @@ cp config/reserved-names.txt.example config/reserved-names.txt   # then add your
 
 python generators/r2_kernel_states.py --kernel <path to de440s.bsp> --out out/
 python generators/publisher_testpo.py --kernel <path to de440s.bsp> --out out/
+python generators/r1_horizons.py --kernel <path to de440s.bsp> --out out/
 python generators/r3_swiss.py --ephe-path <directory of .se1 files> --out out/
 python generators/convention_probes.py --ephe-path <directory of .se1 files> --out out/
 ```
@@ -101,6 +106,48 @@ stamping today's date on them produces a record that is false in the one field i
 establish. A retained copy is used as a **second** observation to check the first against;
 if the two disagree the run is refused, because one address having served two artifacts is
 not something a recorder may resolve on its own.
+
+### Sampling a service, where the resource is not the response
+
+⛔ **A published file can be fetched again byte-identically. A service cannot.** Its response
+is a *rendering*, carrying material that exists because a request happened rather than
+because an answer did — and byte-for-byte reproducibility is a write-time guarantee here.
+
+⚠ This is sharper than it sounds: the *"one address has served two different artifacts"*
+refusal above, pointed at a service unchanged, fires on the **second** request every time. So
+the fix is not to weaken it. It is to say what the **resource** is, and let the digest, the
+cache and the refusal all run over that.
+
+⭐ **A response turns out to have three parts, not two**, and the middle one is what a
+two-way split gets wrong in both directions:
+
+* **the transaction envelope** — moves on every request. Measured: two identical requests
+  differ in exactly one line. ⛔ Never recorded. This is the response `Date` header's problem
+  arriving *inside the body*, where no header allow-list reaches it.
+* ⭐ **the service's own state** — which solution answered, which auxiliary files were
+  loaded, which interface replied. Moves on the *service's* schedule. Discard it as volatile
+  and the file no longer says what answered; digest it as resource and the artifact stops
+  regenerating the day the service updates a file nobody here controls. So it is recorded
+  **as data** and excluded from the **digest**.
+* **the resource** — what is left, and what the digest is over.
+
+⭐ The reproducibility claim therefore becomes conditional and states its condition:
+*these bytes regenerate for as long as the recorded service state holds.* ⛔ A conditional
+guarantee with nothing watching the condition is a guarantee nobody checks — which is the
+drift job:
+
+```bash
+python generators/r1_drift.py --fixture out/service/r1-values.jsonl --out out/
+```
+
+⛔ **It detects and proposes. It never gates** — it exits 0 on every outcome, adopts no band
+and edits no fixture. A job that failed a build the day a public service updated a data file
+is a job somebody switches off, and the fixture it would have failed is still exactly good
+evidence of what the service said when it was asked.
+
+⭐ The finding it exists for is the one the numbers cannot show: a response whose values are
+unchanged and whose **solution identifier** has moved. The rows still verify, and they are a
+different claim. See `docs/measurements/2026-08-04-service-sampling.md`.
 
 ### Asking what a library assumes when nobody says
 
