@@ -149,24 +149,73 @@ def _epochs(spk: SPK) -> list[tuple[str, str, float]]:
     return out
 
 
-def _state_via_jplephem(
-    spk: SPK, parents: dict[int, int], body: int, et: float
-) -> np.ndarray:
-    """State of `body` relative to the root, in km and km/s.
+def _split_epoch(et: float) -> tuple[float, float]:
+    """Seconds past J2000 -> a two-part Julian date that loses nothing.
 
-    ⭐ Composed as a sum of the file's own segments — the only arithmetic here is vector
+    ⚠ **This is not a detail.** Writing the obvious `jd = 2451545.0 + et / 86400.0` makes
+    the division round: at an arbitrary epoch three centuries from J2000 the rounding is
+    ~4e-12 days, and the fastest body in the file moves ~2e-5 km in that time. Measured on
+    this grid, the naive form produced a worst-case disagreement of **2.0e-5 km** between
+    two readers that, given the epoch this way, agree **bit for bit**.
+
+    ⭐ The lesson generalises past this script: a recorder that converts units before
+    handing a value to the thing it is measuring is measuring its own arithmetic. The
+    integral day is exactly representable and adds to 2451545.0 exactly; only the
+    sub-day remainder is rounded, and it is small enough for that to vanish.
+    """
+    whole_days = math.floor(et / SECONDS_PER_DAY)
+    remainder_seconds = et - whole_days * SECONDS_PER_DAY
+    return 2451545.0 + whole_days, remainder_seconds / SECONDS_PER_DAY
+
+
+def _leg(spk: SPK, centre: int, target: int, et: float) -> np.ndarray:
+    jd, jd_fraction = _split_epoch(et)
+    position, velocity = spk[centre, target].compute_and_differentiate(jd, jd_fraction)
+    return np.concatenate([position, velocity / SECONDS_PER_DAY])
+
+
+def _chain_to_root(parents: dict[int, int], body: int) -> list[int]:
+    """`body`, then each centre in turn, ending at the root."""
+    chain = [body]
+    while chain[-1] != 0:
+        chain.append(parents[chain[-1]])
+    return chain
+
+
+def _state_via_jplephem(
+    spk: SPK, parents: dict[int, int], target: int, centre: int, et: float
+) -> np.ndarray:
+    """State of `target` relative to `centre`, composed at the nearest common ancestor.
+
+    ⭐ Composed as a sum of the file's own segments — the only arithmetic is vector
     addition, which follows from what a relative position *is*.
     """
+    target_chain = _chain_to_root(parents, target)
+    centre_chain = _chain_to_root(parents, centre)
+    common = next(body for body in target_chain if body in centre_chain)
+
     total = np.zeros(6)
-    current = body
-    while current != 0:
-        centre = parents[current]
-        position, velocity = spk[centre, current].compute_and_differentiate(
-            2451545.0, et / SECONDS_PER_DAY
-        )
-        total[:3] += position
-        total[3:] += velocity / SECONDS_PER_DAY  # jplephem differentiates per day
-        current = centre
+    for body in target_chain[: target_chain.index(common)]:
+        total += _leg(spk, parents[body], body, et)
+    for body in centre_chain[: centre_chain.index(common)]:
+        total -= _leg(spk, parents[body], body, et)
+    return total
+
+
+def _state_via_root(
+    spk: SPK, parents: dict[int, int], target: int, centre: int, et: float
+) -> np.ndarray:
+    """The same state, but always composed through the root.
+
+    ⚠ Kept only as a **probe**, never as a fixture value. For a pair whose nearest common
+    ancestor is not the root it differs from the composition above by the cancellation of
+    two barycentric vectors, and measuring that difference is the point.
+    """
+    total = np.zeros(6)
+    for body in _chain_to_root(parents, target)[:-1]:
+        total += _leg(spk, parents[body], body, et)
+    for body in _chain_to_root(parents, centre)[:-1]:
+        total -= _leg(spk, parents[body], body, et)
     return total
 
 
@@ -196,16 +245,30 @@ def main() -> int:
     exact_states = 0
     total_states = 0
     delta_magnitudes: list[float] = []
+    # The chaining-strategy probe: same file, same reader, different composition point.
+    worst_strategy_delta = 0.0
+    worst_strategy_row: dict | None = None
 
     for epoch_id, stratum, et in epochs:
         for target, centre, shape in PAIRS:
             state, _light_time = sp.spkgeo(target, et, "J2000", centre)
             state = np.asarray(state, dtype=float)
 
-            cross = _state_via_jplephem(spk, parents, target, et) - _state_via_jplephem(
-                spk, parents, centre, et
-            )
+            cross = _state_via_jplephem(spk, parents, target, centre, et)
             delta = np.abs(state - cross)
+
+            strategy_delta = float(
+                np.abs(cross - _state_via_root(spk, parents, target, centre, et)).max()
+            )
+            if strategy_delta > worst_strategy_delta:
+                worst_strategy_delta = strategy_delta
+                worst_strategy_row = {
+                    "epoch_id": epoch_id,
+                    "target": target,
+                    "centre": centre,
+                    "chain_shape": shape,
+                    "max_abs_delta": strategy_delta,
+                }
             row_delta = float(delta.max())
             total_states += 1
             if row_delta == 0.0:
@@ -328,12 +391,34 @@ def main() -> int:
                 "states_differing": total_states - exact_states,
                 "max_abs_delta_any_component": worst_delta,
                 "worst_state": worst_row,
+                "epoch_handling": (
+                    "the epoch is handed to the cross-check reader as an exact integral "
+                    "Julian day plus a sub-day fraction. ⚠ Converting seconds to days in "
+                    "one division instead produced a worst-case disagreement of 2.0e-5 km "
+                    "on this same grid — the recorder's own rounding, not a difference "
+                    "between the readers"
+                ),
                 "meaning": (
                     "two independent implementations reading the identical bytes. This is an "
                     "empirical floor on what 'machine precision' means for this file. "
                     "It is NOT K-b's band, which budget.toml records as `unmeasured`, and it "
                     "is NOT a consumer's own residual, which can only be measured in that consumer's tree"
                 ),
+            },
+            "chaining_strategy_probe": {
+                "max_abs_delta": worst_strategy_delta,
+                "worst_state": worst_strategy_row,
+                "unit": "km or km/s, whichever component was worst",
+                "meaning": (
+                    "the SAME reader on the SAME bytes, composing the same state two ways: "
+                    "at the nearest common ancestor, versus always through the root. For a "
+                    "pair whose common ancestor is not the root, the second subtracts two "
+                    "large barycentric vectors and loses digits to cancellation. ⭐ A "
+                    "consumer implementing chaining faces this choice, so the cost is "
+                    "recorded. ⛔ It is a property of the arithmetic, not of either reader, "
+                    "and it is not a tolerance"
+                ),
+                "values_emitted_use": "the nearest common ancestor",
             },
             "host": host_record(),
         },
