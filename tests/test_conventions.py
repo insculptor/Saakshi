@@ -30,6 +30,15 @@ from saakshi.conventions import (  # noqa: E402
     APPARENT_VARIANTS,
     ATMOSPHERES,
     GLOBAL_STATE,
+    AFTER_STRATUM,
+    BEFORE_STRATUM,
+    Boundary,
+    BracketIncomplete,
+    bracket_epochs,
+    boundary_character,
+    classify_boundaries,
+    mid_interval_epochs,
+    unbounded_interval_coverage,
     HOUSE_SYSTEM_CONTROLS,
     HOUSE_SYSTEM_LETTERS,
     OMITTED_ATPRESS,
@@ -294,3 +303,153 @@ def test_a_key_of_the_shape_that_was_nearly_written_is_still_refused():
     for bad in ({"disc_centre|omitted": 1.0}, {"P": {"last": 1.0}}):
         with pytest.raises(FixtureContractError):
             _scan_keys({"summary": bad}, where="probe", path="header")
+
+
+# --------------------------------------------------------------------------------------
+# ⭐ The bracketed switchovers — a derived grid, and the ways it could stop measuring
+# --------------------------------------------------------------------------------------
+
+BOUNDARIES = (
+    Boundary("switch_a", 1948, 1, 1),
+    Boundary("switch_b", 1955, 1, 1),
+    Boundary("switch_c", 1974, 1, 1),
+)
+
+
+def _flag_row(epoch_id, *, agree, unflagged, offset=0.0):
+    """A `flag_dependence` row with a chosen discrete character and arbitrary values."""
+    labels = ["jpl_file", "moshier", "swiss_file"]
+    patterns = {label: ("aaaa" if label in agree else f"bb{label[:2]}") for label in labels}
+    return {
+        "section": "flag_dependence",
+        "epoch_id": epoch_id,
+        "value_labels": labels,
+        "values": [offset for _ in labels],
+        "values_bits": [patterns[label] for label in labels],
+        "unflagged_entry_point": offset,
+        "unflagged_equals": list(unflagged),
+    }
+
+
+def _rows(**character):
+    rows = []
+    for boundary in BOUNDARIES:
+        for suffix in ("before", "after"):
+            agree, unflagged = character[f"{boundary.boundary_id}_{suffix}"]
+            rows.append(_flag_row(f"{boundary.boundary_id}_{suffix}", agree=agree,
+                                  unflagged=unflagged))
+    return rows
+
+
+SAME = (("moshier", "swiss_file", "jpl_file"), ("moshier",))
+DIFFERENT = (("moshier",), ("swiss_file",))
+
+
+def test_a_bracket_is_a_day_either_side_and_never_the_date_itself():
+    """⚠ A reading taken ON the date says which side the behaviour is on for neither side."""
+    epochs = bracket_epochs((Boundary("switch_a", 1948, 1, 1),))
+    assert [stratum for _e, stratum, _jd in epochs] == [BEFORE_STRATUM, AFTER_STRATUM]
+    before, after = (jd for _e, _s, jd in epochs)
+    date = swe.julday(1948, 1, 1, 0.0)
+    assert (date - before, after - date) == (1.0, 1.0)
+
+
+def test_a_date_nothing_changes_across_does_not_survive():
+    character = {f"{b.boundary_id}_{s}": SAME for b in BOUNDARIES for s in ("before", "after")}
+    verdicts = classify_boundaries(BOUNDARIES, _rows(**character))
+    assert [v["survives"] for v in verdicts] == [False, False, False]
+    assert mid_interval_epochs(BOUNDARIES, verdicts) == []
+
+
+def test_a_date_the_agreement_pattern_changes_across_survives():
+    character = {f"{b.boundary_id}_{s}": SAME for b in BOUNDARIES for s in ("before", "after")}
+    character["switch_b_after"] = DIFFERENT
+    character["switch_c_before"] = DIFFERENT
+    verdicts = classify_boundaries(BOUNDARIES, _rows(**character))
+    assert [v["boundary_id"] for v in verdicts if v["survives"]] == ["switch_b", "switch_c"]
+
+
+def test_only_the_intervals_real_switchovers_enclose_are_sampled():
+    """⭐ The grid is derived. A mid-interval epoch between two dates that turned out not to
+    be boundaries would be a sample of an interval that does not exist."""
+    character = {f"{b.boundary_id}_{s}": SAME for b in BOUNDARIES for s in ("before", "after")}
+    character["switch_b_after"] = DIFFERENT
+    character["switch_c_before"] = DIFFERENT
+    verdicts = classify_boundaries(BOUNDARIES, _rows(**character))
+
+    epochs = mid_interval_epochs(BOUNDARIES, verdicts)
+    assert [eid for eid, _s, _jd in epochs] == ["mid_switch_b_to_switch_c"]
+    midpoint = epochs[0][2]
+    assert swe.julday(1955, 1, 1, 0.0) < midpoint < swe.julday(1974, 1, 1, 0.0)
+
+
+def test_a_missing_bracket_is_refused_rather_than_judged():
+    """⛔ A boundary judged from one end is judged from no ends — the same shape as a
+    comparison that reports zero because the second call never happened."""
+    character = {f"{b.boundary_id}_{s}": SAME for b in BOUNDARIES for s in ("before", "after")}
+    rows = [r for r in _rows(**character) if r["epoch_id"] != "switch_b_after"]
+    with pytest.raises(BracketIncomplete, match="switch_b"):
+        classify_boundaries(BOUNDARIES, rows)
+
+
+def test_the_character_is_discrete_so_ordinary_drift_cannot_look_like_a_switchover():
+    """⭐ The offset moves across every date in the calendar. A rule cut from the value
+    would report all four dates as boundaries and discriminate nothing."""
+    drifted = _flag_row("x", agree=("moshier", "swiss_file", "jpl_file"), unflagged=("moshier",))
+    same_character = dict(drifted, values_bits=["aaaa", "aaaa", "aaaa"])
+    assert boundary_character(drifted) == boundary_character(same_character)
+
+
+def test_an_unbounded_interval_with_nothing_in_it_is_refused():
+    """⚠ These two have no midpoint to take, so the check is that something already measured
+    lies inside them. An interval with no reading in it is one the grid has not covered."""
+    character = {f"{b.boundary_id}_{s}": SAME for b in BOUNDARIES for s in ("before", "after")}
+    character["switch_b_after"] = DIFFERENT
+    verdicts = classify_boundaries(BOUNDARIES, _rows(**character))
+
+    covering = [("year_1900", "s", swe.julday(1900, 1, 1, 0.0)),
+                ("year_2100", "s", swe.julday(2100, 1, 1, 0.0))]
+    coverage = unbounded_interval_coverage(BOUNDARIES, verdicts, covering)
+    assert [c["interval"] for c in coverage] == ["before_the_earliest", "after_the_latest"]
+    assert coverage[0]["covered_by"] == ["year_1900"]
+
+    with pytest.raises(BracketIncomplete, match="before_the_earliest"):
+        unbounded_interval_coverage(BOUNDARIES, verdicts, covering[1:])
+
+
+def test_the_switchover_verdicts_carry_no_key_the_contract_would_refuse():
+    character = {f"{b.boundary_id}_{s}": SAME for b in BOUNDARIES for s in ("before", "after")}
+    character["switch_b_after"] = DIFFERENT
+    verdicts = classify_boundaries(BOUNDARIES, _rows(**character))
+    _scan_keys({"switchovers": {"verdicts": verdicts}}, where="probe", path="header")
+
+
+def test_every_verdict_carries_the_limit_of_the_test_that_produced_it():
+    """⛔ `survives = false` means NOT OBSERVABLE from outside, never NOT THERE. A reader who
+    takes the second reading has turned a bounded negative into an unbounded one."""
+    character = {f"{b.boundary_id}_{s}": SAME for b in BOUNDARIES for s in ("before", "after")}
+    for verdict in classify_boundaries(BOUNDARIES, _rows(**character)):
+        limit = verdict["limit"].lower()
+        assert "cannot observe" in limit
+        assert "never one that is not there" in limit
+
+
+def test_the_step_across_a_bracket_is_recorded_and_not_judged():
+    """⭐ The discrete test cannot see a switchover between two models that share a
+    flag-dependence character. ⛔ The answer is not to invent a threshold to catch those —
+    that is a band by another name — but to write the number out for a reader who has one."""
+    from saakshi.conventions import boundary_step
+
+    before = _flag_row("x_before", agree=("moshier",), unflagged=("moshier",), offset=1.0)
+    after = _flag_row("x_after", agree=("moshier",), unflagged=("moshier",), offset=2.0)
+    step = boundary_step(before, after)
+
+    assert step["seconds_by_source"] == {
+        "jpl_file": 86400.0,
+        "moshier": 86400.0,
+        "swiss_file": 86400.0,
+    }
+    assert step["seconds_unflagged"] == 86400.0
+    # ⚠ The caveat travels with the number, because the number alone reads as a verdict.
+    assert "NOT evidence of a discontinuity" in step["meaning"]
+    assert "drift" in step["meaning"]

@@ -43,10 +43,18 @@ from saakshi.conventions import (  # noqa: E402
     HOUSE_SYSTEM_LETTERS,
     LEAP_SECOND_ENTRY_POINT,
     RISE_DEFINITIONS,
+    SURVIVAL_LIMIT,
+    SURVIVAL_TEST,
+    Boundary,
+    BracketIncomplete,
     apparent_variants,
     atmosphere_equivalence,
+    bracket_epochs,
+    classify_boundaries,
     delta_t_flag_dependence,
     delta_t_readings,
+    mid_interval_epochs,
+    unbounded_interval_coverage,
     global_state_records,
     house_system_survey,
     leap_override_probe,
@@ -88,6 +96,19 @@ DELTA_T_EPOCHS: tuple[tuple[str, str, int, int, int], ...] = (
     ("year_1900", "before_the_modern_record", 1900, 1, 1),
     ("year_2000", "reference_epoch", 2000, 1, 1),
     ("year_2100", "beyond_any_measurement", 2100, 1, 1),
+)
+
+#: ⭐ The dates the predecessor's own documentation makes conflicting statements about. Each
+#: is bracketed rather than sampled: see the section on switchovers in `saakshi.conventions`
+#: for why three round-number epochs cannot discriminate between the conflicting accounts.
+#:
+#: ⛔ These are the dates the *documentation* disputes, not dates this repository asserts are
+#: real. Whether any of them is observable at all is the measurement.
+DELTA_T_BOUNDARIES: tuple[Boundary, ...] = (
+    Boundary("switch_1948_01_01", 1948, 1, 1),
+    Boundary("switch_1955_01_01", 1955, 1, 1),
+    Boundary("switch_1955_12_01", 1955, 12, 1),
+    Boundary("switch_1974_01_01", 1974, 1, 1),
 )
 
 #: Epochs for the position and house questions. ⚠ **Not J2000 alone**: at the reference
@@ -293,15 +314,65 @@ _REFERENCE_ONLY_NOTE = (
 # --------------------------------------------------------------------------------------
 
 
-def write_delta_t(
-    *, session: Session, ephe: dict[str, Any], out_dir: Path, script: Path
-) -> tuple[Path, int]:
-    epochs = _epochs(DELTA_T_EPOCHS)
+#: The two entry points the offset is read through, on every epoch in the grid. ⛔ Both, not
+#: whichever is convenient: they were measured to disagree, so a grid taken through one of
+#: them records half of what it looks like it records.
+DELTA_T_ENTRY_POINTS = ("deltat_ex", "deltat")
+
+DELTA_T_MODES = ("moshier", "swiss_file")
+
+
+def _delta_t_rows(
+    epochs: list[tuple[str, str, float]], session: Session
+) -> list[dict[str, Any]]:
+    """Every epoch, through both entry points, or a refusal naming what is missing.
+
+    ⛔ **The completeness check is not belt-and-braces.** `delta_t_readings` drops an epoch
+    whose ephemeris it cannot assert, which is right — an unattributable reading must not be
+    written. But a *dropped* row and a row that was never asked for are indistinguishable
+    downstream, and the boundary verdicts below are comparisons between two epochs: lose one
+    silently and the verdict becomes a statement about nothing while still looking like a
+    verdict.
+    """
     rows: list[dict[str, Any]] = []
-    for mode_id in ("moshier", "swiss_file"):
+    for mode_id in DELTA_T_MODES:
         rows.extend(delta_t_readings(epochs, MODES[mode_id], session))
     rows.extend(delta_t_flag_dependence(epochs, MODES, session))
 
+    expected = {eid for eid, _stratum, _jd in epochs}
+    for section, per_epoch in (("delta_t", len(DELTA_T_MODES)), ("flag_dependence", 1)):
+        seen: dict[str, int] = {}
+        for row in rows:
+            if row["section"] == section:
+                seen[row["epoch_id"]] = seen.get(row["epoch_id"], 0) + 1
+        short = sorted(e for e in expected if seen.get(e, 0) != per_epoch)
+        if short:
+            raise BracketIncomplete(
+                f"section {section!r} is missing readings at {short} — expected "
+                f"{per_epoch} per epoch. An epoch whose source could not be asserted is "
+                "dropped by design, and a grid built on comparisons cannot tolerate it"
+            )
+    return rows
+
+
+def write_delta_t(
+    *, session: Session, ephe: dict[str, Any], out_dir: Path, script: Path
+) -> tuple[Path, int]:
+    # ⭐ Two stages, because the second grid is a function of what the first measured. The
+    #   century pins and the brackets are taken together; only then is it known which
+    #   disputed dates are real, and therefore which intervals need a reading of their own.
+    century = _epochs(DELTA_T_EPOCHS)
+    brackets = bracket_epochs(DELTA_T_BOUNDARIES)
+    rows = _delta_t_rows(century + brackets, session)
+
+    verdicts = classify_boundaries(
+        DELTA_T_BOUNDARIES, [r for r in rows if r["section"] == "flag_dependence"]
+    )
+    intervals = mid_interval_epochs(DELTA_T_BOUNDARIES, verdicts)
+    coverage = unbounded_interval_coverage(DELTA_T_BOUNDARIES, verdicts, century)
+    rows.extend(_delta_t_rows(intervals, session))
+
+    epochs = century + brackets + intervals
     spread = [row for row in rows if row["section"] == "flag_dependence"]
     moved = [row for row in spread if row["spread_seconds"] != 0.0]
     return _write(
@@ -313,7 +384,22 @@ def write_delta_t(
                 {"epoch_id": eid, "stratum": stratum, "jd_ut": jd, "jd_ut_bits": bits(jd)}
                 for eid, stratum, jd in epochs
             ],
-            "entry_points": ["deltat_ex", "deltat"],
+            "entry_points": list(DELTA_T_ENTRY_POINTS),
+            "disputed_switchovers": [
+                {
+                    "boundary_id": b.boundary_id,
+                    "date": f"{b.year:04d}-{b.month:02d}-{b.day:02d}",
+                    "jd_ut": b.jd,
+                    "jd_ut_bits": bits(b.jd),
+                }
+                for b in DELTA_T_BOUNDARIES
+            ],
+            "grid_derivation": (
+                "⚠ the mid-interval epochs are DERIVED, not declared: which of the disputed "
+                "dates is real is measured first, and only the intervals real ones enclose "
+                "are sampled. The rule is in `summary.switchovers.test` and the epochs it "
+                "produced are all listed above"
+            ),
             "regenerate": "generators/convention_probes.py --ephe-path <dir> --out <dir>",
         },
         oracle=_oracle(None, ephe, session),
@@ -345,15 +431,39 @@ def write_delta_t(
             "⚠ The entry point returns DAYS. A duration recorded in the wrong unit is the "
             "easiest reproduction failure to make and the hardest to see in a table, so both "
             "forms are written and the day value is the authoritative one.",
-            "⛔ The third epoch is beyond any measurement of this quantity: the library "
+            "⛔ The 2100 epoch is beyond any measurement of this quantity: the library "
             "answers, and its answer is a model's extrapolation. Published models disagree "
             "with each other far more at that epoch than any of the differences recorded "
             "here — this file pins what THIS library returns and makes no claim about which "
             "extrapolation is right.",
+            "⭐ WHY THE CENTURY EPOCHS ARE NOT ENOUGH, AND WHAT THE BRACKETS ADD. 1900, 2000 "
+            "and 2100 sit in three different eras and touch no disputed switchover, so each "
+            "of them is consistent with every conflicting account of where the switchovers "
+            "are. A reading consistent with both sides of a disputed question has not "
+            "discriminated between them. Each disputed date is therefore measured one day "
+            "before and one day after, and every interval the real ones enclose is measured "
+            "in its middle.",
+            "⛔ THE DATE ITSELF IS NOT MEASURED, DELIBERATELY. What is in question is which "
+            "side of the date a behaviour lies on, and a reading taken on the date answers "
+            "that for neither side.",
+            SURVIVAL_LIMIT
+            + ". ⚠ So `survives = false` bounds what this instrument can see, and says "
+            "nothing about what the library does.",
             _BITS_NOTE,
             _REFERENCE_ONLY_NOTE,
         ],
         summary={
+            "switchovers": {
+                "test": SURVIVAL_TEST,
+                "limit": SURVIVAL_LIMIT,
+                "verdicts": verdicts,
+                "observed": sorted(v["boundary_id"] for v in verdicts if v["survives"]),
+                "not_observed": sorted(
+                    v["boundary_id"] for v in verdicts if not v["survives"]
+                ),
+                "intervals_sampled_in_the_middle": [eid for eid, _s, _jd in intervals],
+                "unbounded_intervals": coverage,
+            },
             "epochs_where_the_flag_changed_the_answer": [
                 {
                     "epoch_id": row["epoch_id"],

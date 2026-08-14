@@ -35,6 +35,7 @@ from typing import Any
 
 import swisseph as swe
 
+from .fixture import redact_environment
 from .swiss import (
     EphemerisSubstitution,
     Mode,
@@ -257,6 +258,224 @@ def delta_t_flag_dependence(
             }
         )
     return rows
+
+
+# ======================================================================================
+# 1a. The switchover dates the documentation disputes, bracketed
+# ======================================================================================
+
+#: ⭐ **WHY THREE ROUND-NUMBER EPOCHS CANNOT SETTLE THIS.** 1900, 2000 and 2100 fall in three
+#: different eras and touch no documented switchover between them. Every one of them is
+#: therefore consistent with *every* conflicting account of where the switchovers are, and a
+#: measurement consistent with both readings of a disputed question has not discriminated
+#: between them. ⛔ A grid answers a question only if some possible answer would have made it
+#: come out differently.
+#:
+#: So each disputed date is bracketed — one day before, one day after — and the intervals
+#: between the dates that turn out to be real get a measurement of their own.
+
+
+class BracketIncomplete(Exception):
+    """A disputed date is missing one or both of its bracketing measurements.
+
+    ⛔ Raised, never reported. A boundary judged from one end is judged from no ends: the
+    comparison the whole probe rests on is *between* the two, so a missing half turns the
+    verdict into a statement about nothing. ⚠ This is the same failure as a comparison that
+    returns zero because the second call never happened.
+    """
+
+
+@dataclass(frozen=True)
+class Boundary:
+    """A date the predecessor's documentation makes conflicting statements about."""
+
+    boundary_id: str
+    year: int
+    month: int
+    day: int
+
+    @property
+    def jd(self) -> float:
+        return float(swe.julday(self.year, self.month, self.day, 0.0))
+
+    @property
+    def before_id(self) -> str:
+        return f"{self.boundary_id}_before"
+
+    @property
+    def after_id(self) -> str:
+        return f"{self.boundary_id}_after"
+
+
+BEFORE_STRATUM = "one day before a disputed switchover"
+AFTER_STRATUM = "one day after a disputed switchover"
+MID_STRATUM = "mid-interval between two switchovers that were observed to be real"
+
+#: ⭐ **THE SURVIVAL TEST, AND WHY IT IS DISCRETE.** The offset itself moves across every
+#: date in the calendar, so a rule cut from the value would report all four dates as
+#: boundaries and discriminate nothing. What can change *at* a switchover and nowhere else is
+#: which of the requested sources answer alike — a dimensionless, threshold-free observation.
+#:
+#: ⛔ **AND ITS LIMIT, WHICH BELONGS BESIDE EVERY VERDICT IT PRODUCES.** This sees a change in
+#: *which sources agree*, not a change in *model*. A switchover between two models that
+#: happen to share a flag-dependence character is invisible to it, so `survives = false`
+#: means **not observable from outside**, never *not there*. ⚠ A reader who takes the second
+#: reading has turned a bounded negative into an unbounded one.
+SURVIVAL_TEST = (
+    "the discrete character of the answer — which requested sources agree bit for bit, and "
+    "which of them the unflagged entry point equals — differs between the day before and "
+    "the day after"
+)
+
+SURVIVAL_LIMIT = (
+    "⛔ a boundary that does not survive is one this probe cannot OBSERVE from outside, "
+    "never one that is not there: two models sharing a flag-dependence character are "
+    "indistinguishable to this test"
+)
+
+
+def bracket_epochs(boundaries: tuple[Boundary, ...]) -> list[tuple[str, str, float]]:
+    """Two epochs per disputed date, one day either side of it.
+
+    ⚠ The date itself is deliberately not measured. What is in question is which side of it
+    a given behaviour lies on, and a reading taken *on* the date answers that for neither.
+    """
+    epochs: list[tuple[str, str, float]] = []
+    for boundary in boundaries:
+        epochs.append((boundary.before_id, BEFORE_STRATUM, boundary.jd - 1.0))
+        epochs.append((boundary.after_id, AFTER_STRATUM, boundary.jd + 1.0))
+    return epochs
+
+
+def boundary_character(flag_row: dict[str, Any]) -> dict[str, Any]:
+    """The part of one reading that a switchover can change and ordinary time cannot."""
+    groups: dict[str, list[str]] = {}
+    for label, pattern in zip(flag_row["value_labels"], flag_row["values_bits"]):
+        groups.setdefault(pattern, []).append(label)
+    return {
+        "sources_that_agree": sorted(sorted(members) for members in groups.values()),
+        "unflagged_equals": list(flag_row["unflagged_equals"]),
+    }
+
+
+#: ⚠ What the step across a bracket is, and what it is not.
+STEP_MEANING = (
+    "the change in the offset over the two days spanning the disputed date, per requested "
+    "source and for the unflagged entry point. ⛔ It is NOT evidence of a discontinuity on "
+    "its own: the offset moves across every two days in the calendar, so this number "
+    "contains ordinary drift as well as anything the date itself contributes. It is "
+    "recorded unjudged because the reader who has a budget to judge it against is not this "
+    "one"
+)
+
+
+def boundary_step(before: dict[str, Any], after: dict[str, Any]) -> dict[str, Any]:
+    """The numeric channel, measured and deliberately not adjudicated.
+
+    ⭐ The character test above is discrete and threshold-free, and it therefore cannot see
+    a switchover between two models that share a flag-dependence character. Rather than
+    invent a threshold to catch those — a band by another name — the step is written out and
+    left to a consumer that has one.
+    """
+    per_source = {
+        label: (a - b) * SECONDS_PER_DAY
+        for label, b, a in zip(before["value_labels"], before["values"], after["values"])
+    }
+    return {
+        "seconds_by_source": dict(sorted(per_source.items())),
+        "seconds_unflagged": (
+            after["unflagged_entry_point"] - before["unflagged_entry_point"]
+        )
+        * SECONDS_PER_DAY,
+        "meaning": STEP_MEANING,
+    }
+
+
+def classify_boundaries(
+    boundaries: tuple[Boundary, ...], flag_rows: list[dict[str, Any]]
+) -> list[dict[str, Any]]:
+    """One verdict per disputed date: did anything observable change across it?"""
+    by_epoch = {row["epoch_id"]: row for row in flag_rows}
+    verdicts: list[dict[str, Any]] = []
+    for boundary in boundaries:
+        missing = [e for e in (boundary.before_id, boundary.after_id) if e not in by_epoch]
+        if missing:
+            raise BracketIncomplete(
+                f"{boundary.boundary_id}: no reading at {', '.join(missing)}. A boundary "
+                "judged from one end is judged from no ends"
+            )
+        before_row, after_row = by_epoch[boundary.before_id], by_epoch[boundary.after_id]
+        before = boundary_character(before_row)
+        after = boundary_character(after_row)
+        verdicts.append(
+            {
+                "boundary_id": boundary.boundary_id,
+                "date": f"{boundary.year:04d}-{boundary.month:02d}-{boundary.day:02d}",
+                "bracketed_by": [boundary.before_id, boundary.after_id],
+                "character_before": before,
+                "character_after": after,
+                "survives": before != after,
+                "step_across": boundary_step(before_row, after_row),
+                "test": SURVIVAL_TEST,
+                "limit": SURVIVAL_LIMIT,
+            }
+        )
+    return verdicts
+
+
+def mid_interval_epochs(
+    boundaries: tuple[Boundary, ...], verdicts: list[dict[str, Any]]
+) -> list[tuple[str, str, float]]:
+    """One epoch in the middle of each interval two consecutive real switchovers enclose.
+
+    ⚠ **Derived, not declared.** Which epochs these are is a function of what the brackets
+    measured, so the grid cannot be read off this file's constants — the file records the
+    rule and the resulting epochs both.
+    """
+    survived = {v["boundary_id"] for v in verdicts if v["survives"]}
+    kept = [b for b in boundaries if b.boundary_id in survived]
+    epochs: list[tuple[str, str, float]] = []
+    for earlier, later in zip(kept, kept[1:]):
+        midpoint = earlier.jd + (later.jd - earlier.jd) / 2.0
+        epochs.append(
+            (f"mid_{earlier.boundary_id}_to_{later.boundary_id}", MID_STRATUM, midpoint)
+        )
+    return epochs
+
+
+def unbounded_interval_coverage(
+    boundaries: tuple[Boundary, ...],
+    verdicts: list[dict[str, Any]],
+    covering: list[tuple[str, str, float]],
+) -> list[dict[str, Any]]:
+    """The two intervals that run off the ends, and which existing epoch falls in each.
+
+    ⭐ An interval with no reading in it is an unmeasured interval, so an uncovered one is a
+    refusal rather than a note. ⚠ These two have no midpoint to take, so the check is that
+    something already measured lies inside them — a claim a reader can verify from the epoch
+    list without trusting this sentence.
+    """
+    survived = {v["boundary_id"] for v in verdicts if v["survives"]}
+    kept = [b for b in boundaries if b.boundary_id in survived]
+    if not kept:
+        return []
+
+    coverage: list[dict[str, Any]] = []
+    for label, edge, inside in (
+        ("before_the_earliest", kept[0], lambda jd, at: jd < at),
+        ("after_the_latest", kept[-1], lambda jd, at: jd > at),
+    ):
+        found = [eid for eid, _stratum, jd in covering if inside(jd, edge.jd)]
+        if not found:
+            raise BracketIncomplete(
+                f"the interval {label} surviving boundary {edge.boundary_id} holds no "
+                "measurement at all, and an interval with no reading in it is one this "
+                "grid has not covered"
+            )
+        coverage.append(
+            {"interval": label, "boundary": edge.boundary_id, "covered_by": sorted(found)}
+        )
+    return coverage
 
 
 # ======================================================================================
@@ -930,7 +1149,7 @@ def second_sixty_acceptance(dates: tuple[tuple[int, int, int], ...]) -> list[dic
             record.update(
                 {
                     "accepted": False,
-                    "refusal": f"{type(exc).__name__}: {str(exc)[:200]}",
+                    "refusal": f"{type(exc).__name__}: {redact_environment(str(exc))[:200]}",
                     "values": [],
                 }
             )
@@ -1213,7 +1432,7 @@ def polar_house_probe(
                         jd, latitude, longitude, letter.encode(), mode.flag
                     )
                 except Exception as exc:
-                    refusals[letter] = f"{type(exc).__name__}: {str(exc)[:160]}"
+                    refusals[letter] = f"{type(exc).__name__}: {redact_environment(str(exc))[:160]}"
                     continue
                 answers[letter] = tuple(float(c) for c in cusps)
 
@@ -1361,7 +1580,7 @@ def refusal_message(
                 call()
             except Exception as exc:
                 record[f"{entry_point}_outcome"] = "refused"
-                record[f"{entry_point}_message"] = str(exc)[:200]
+                record[f"{entry_point}_message"] = redact_environment(str(exc))[:200]
             else:
                 record[f"{entry_point}_outcome"] = "answered"
                 record[f"{entry_point}_message"] = ""
