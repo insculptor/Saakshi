@@ -85,6 +85,24 @@ REFERENCE_UNBOUND = "none"
 #: The comparison classes a numeric fixture may declare.
 CLASSIFICATIONS = frozenset({"exact", "tolerance", "reference_only"})
 
+#: ⭐ The largest magnitude at which an integer and a double are the same number.
+#:
+#: A bit pattern travels beside every *measured* value here, because a decimal is an
+#: approximation of a double and a reader's parser may not recover it. ⛔ **A counted
+#: quantity has no such hazard and is written as a bare integer** — see :func:`bits`, which
+#: refuses one, and ``leaves.walk``, which branches on it. The exemption is safe only while
+#: the integer is one a double holds *exactly*: JSON declares no integer type, so a reader
+#: that parses every number into a double silently changes anything past this bound, and
+#: there is no pattern beside it to notice with.
+#:
+#: ⛔ So an integer past it is refused at write time rather than exempted. Either the
+#: quantity is a measurement — in which case it is a double and carries its pattern — or it
+#: is a count large enough that its decimal has become load-bearing with nothing watching it.
+#: ⚠ Measured when the rule was written: the largest integer in any row of any fixture this
+#: repository has produced is 858 238, and the largest in any header is 119 799 808. The
+#: refusal costs nothing today; it is what keeps the exemption true tomorrow.
+INTEGER_EXACT_LIMIT = 2**53
+
 #: What kind of source the material at a locus sits in.
 #:
 #: ⛔ **Minted because the field existed without one.** Until R6 stood on it, `_validate_locus`
@@ -591,9 +609,9 @@ def _validate_locus(locus: Any, *, where: str, kind: str) -> None:
 def _scan_keys(
     node: Any, *, where: str, path: str, reserved: Sequence[str] | None = None
 ) -> None:
-    """Reserved-name discipline over **keys**, and absolute-path discipline over **values**.
+    """Reserved-name discipline over **keys**, and value discipline over **values**.
 
-    ⚠ The two rules are different on purpose, and the difference is the point:
+    ⚠ The rules are different on purpose, and the difference is the point:
 
     * a reserved name in a **key** is refused, because a key is a permanent identifier;
     * a reserved name in a **value** is permitted — ``generator.repo`` must carry this
@@ -602,6 +620,11 @@ def _scan_keys(
       about the subject, it is a description of the machine that ran the recorder, and it
       makes a reproducibility claim false on every other machine. Use
       :func:`redact_environment` on any text a third party wrote.
+    * ⛔ an **integer past** :data:`INTEGER_EXACT_LIMIT` is refused. Integers are written
+      bare, without the bit pattern a measured value carries, and past that bound a reader
+      whose parser holds every number as a double no longer has the number this file wrote.
+
+    ⚠ Run over the header as well as every row: a count in a header is a count.
     """
     names = tuple(reserved) if reserved is not None else reserved_names()
     if isinstance(node, str):
@@ -612,6 +635,18 @@ def _scan_keys(
                 "fixture — it describes the recorder's machine rather than the subject, and "
                 "it makes the file's byte-for-byte claim false anywhere else. If this is a "
                 "message a library wrote, pass it through redact_environment() first"
+            )
+    # ⚠ `bool` before `int`: a flag is an int in Python and is not a quantity at all.
+    if isinstance(node, int) and not isinstance(node, bool):
+        if abs(node) > INTEGER_EXACT_LIMIT:
+            raise FixtureContractError(
+                f"{where}: {path}: the integer {node} is larger than {INTEGER_EXACT_LIMIT}, "
+                "which is the last magnitude an integer and a double agree on. An integer is "
+                "written bare here because a count has nothing to round-trip; past this bound "
+                "that stops being true, and a reader parsing JSON numbers as doubles would "
+                "hold a different number with no pattern beside it to disagree with. ⭐ If "
+                "this is a measurement, it is a double and carries its bit pattern; if it is "
+                "a count this large, record it as text and say what it counts"
             )
     if isinstance(node, Mapping):
         for key, value in node.items():
@@ -723,7 +758,25 @@ def bits(value: float) -> str:
     bit pattern is a property of the number. A consumer that disagrees on the decimal and
     agrees on the bits has a formatting bug, not a numeric one, and the two cases are worth
     telling apart at a glance.
+
+    ⛔ **An integer is refused, and that refusal is the rule rather than a type check.** The
+    pattern exists because a decimal *approximates* a double; a count is not approximated by
+    its own digits, so the hazard never reaches it. Packing one into an f64 pattern would
+    state that a counted quantity was measured on a real-number scale — the same class of
+    false claim as a band nobody measured, and harder to see, because the result is
+    sixteen well-formed hex digits.
+
+    ⚠ Measured before the refusal was added: across every fixture this repository has
+    produced, 239 026 value-and-pattern pairs, and **not one** carried an integer on the
+    value side. Nothing that has ever run is refused by this.
     """
     import struct
 
+    if isinstance(value, int):  # ⚠ catches `bool` too, which is not a quantity at all
+        raise FixtureContractError(
+            f"bits({value!r}): a bit pattern is for a measurement, and this is a count. "
+            "⛔ Integers are written bare, with no pattern beside them, because a decimal "
+            "that is not an approximation has nothing to round-trip. If a double is meant, "
+            "pass one and say where it was measured"
+        )
     return struct.pack(">d", value).hex()

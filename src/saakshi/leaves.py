@@ -27,7 +27,7 @@ import hashlib
 import json
 from typing import Any, Iterator, Mapping, Sequence
 
-from .fixture import bits
+from .fixture import INTEGER_EXACT_LIMIT, bits
 
 #: How deep a path may go before the walk refuses. A cycle in a returned object would
 #: otherwise spin forever; a legitimately deeper structure is a finding worth stopping on.
@@ -70,6 +70,18 @@ def walk(node: Any, *, path: str = "", depth: int = 0) -> Iterator[dict[str, Any
         yield {"path": path, "flag": node}
         return
     if isinstance(node, int):
+        # ⭐ No bit pattern, deliberately, and this branch is where that rule is made: an
+        #    integer is a count or an identifier, and its decimal is the number rather than
+        #    an approximation of it. ⛔ But only up to the magnitude a double still holds
+        #    exactly — past that a reader parsing every JSON number as a double has a
+        #    different value and nothing to notice it with.
+        if abs(node) > INTEGER_EXACT_LIMIT:
+            raise LeafError(
+                f"{path or '<root>'}: the integer {node} is larger than "
+                f"{INTEGER_EXACT_LIMIT}, the last magnitude an integer and a double agree "
+                "on. A leaf past it cannot be written bare and cannot carry a pattern "
+                "either, because it is not a measurement"
+            )
         yield {"path": path, "integer": node}
         return
     if isinstance(node, float):

@@ -155,6 +155,30 @@ def test_a_bool_is_not_recorded_as_an_integer():
     assert flatten(1) == [{"path": "", "integer": 1}]
 
 
+def test_an_integer_leaf_carries_no_pattern_and_that_is_the_rule():
+    """⭐ Where the count-versus-measurement distinction is actually made.
+
+    ⛔ Not an omission to be tidied up later: a pattern says *which double* a decimal meant,
+    and a count's decimal means itself. Every integer leaf in the corpus this module writes
+    is here — more than a hundred thousand of them — and none has ever carried one.
+    """
+    (leaf,) = flatten(12)
+    assert leaf == {"path": "", "integer": 12}
+    (measured,) = flatten(12.0)
+    assert measured["bits"] == "4028000000000000"
+
+
+def test_an_integer_leaf_past_what_a_double_holds_is_refused():
+    """⛔ The one magnitude at which writing a count bare stops being safe.
+
+    A reader whose parser holds every JSON number as a double has a different value past
+    this bound, and no pattern beside it to disagree with.
+    """
+    assert flatten(2**53) == [{"path": "", "integer": 2**53}]
+    with pytest.raises(LeafError, match="larger than"):
+        flatten({"hits": 2**53 + 1})
+
+
 def test_an_unrepresentable_value_is_named_not_stringified():
     """⛔ `str(object())` writes a memory address that looks like a value."""
     (leaf,) = flatten(object())

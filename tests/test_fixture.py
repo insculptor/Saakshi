@@ -489,3 +489,105 @@ def test_bits_round_trip():
 
     for v in (0.0, -0.0, 1.5, -1e-300, 6.02e23):
         assert struct.unpack(">d", bytes.fromhex(bits(v)))[0] == v or (v == 0.0)
+
+
+# --- a bit pattern is for a measurement, and a count is not a measurement --------------
+#
+# ⭐ The rule these tests pin was settled by asking what the pattern is *for*. A decimal
+# approximates a double, so the pattern says which double; a count is not approximated by
+# its own digits, so there is nothing for a pattern to settle. ⛔ The exemption is not
+# attached to a fixture kind — a `worked_example` full of counts and a `numeric_pin`
+# carrying an identifier are the same case, and the tests below say so by using both.
+
+
+def _worked_example(**over) -> Header:
+    base = dict(
+        fixture_kind="worked_example",
+        reference="R6",
+        generator=GEN,
+        generated="2026-08-14",
+        oracle={"editions": {}},
+        request={"asked": "the figures it printed"},
+        classification={"printed_figures": {"class": "exact"}},
+        budget_basis="source_reproduction",
+        locus=LOCUS,
+    )
+    base.update(over)
+    return Header(**base)
+
+
+def test_bits_refuses_a_count():
+    """⛔ Sixteen well-formed hex digits stating a measurement that was never made."""
+    with pytest.raises(FixtureContractError, match="count"):
+        bits(5)
+
+
+def test_bits_refuses_a_flag():
+    """⚠ `bool` is an `int` in Python, and a flag is not a quantity at all."""
+    with pytest.raises(FixtureContractError, match="count"):
+        bits(True)
+
+
+def test_bits_still_takes_the_double_beside_it():
+    assert bits(5.0) == "4014000000000000"
+
+
+def test_an_integer_a_double_holds_exactly_is_written_bare(tmp_path):
+    """⭐ The exemption itself, pinned: no pattern, and the value survives the file."""
+    path = tmp_path / "counts.jsonl"
+    write_jsonl(
+        path,
+        _worked_example(),
+        [{"section": "printed_figures", "cells_read": 12, "rekha": 2**53}],
+        declared_sections=["printed_figures"],
+    )
+    row = json.loads(path.read_text(encoding="utf-8").splitlines()[1])
+    assert row["rekha"] == 2**53 and row["cells_read"] == 12
+    assert not any(key.endswith("_bits") for key in row)
+
+
+def test_an_integer_past_the_bound_is_refused(tmp_path):
+    """⛔ The first magnitude at which the bare decimal stops being the number."""
+    with pytest.raises(FixtureContractError, match="larger than"):
+        write_jsonl(
+            tmp_path / "counts.jsonl",
+            _worked_example(),
+            [{"section": "printed_figures", "hits": 2**53 + 1}],
+            declared_sections=["printed_figures"],
+        )
+
+
+def test_the_bound_is_a_magnitude_and_catches_a_negative(tmp_path):
+    with pytest.raises(FixtureContractError, match="larger than"):
+        write_jsonl(
+            tmp_path / "counts.jsonl",
+            _worked_example(),
+            [{"section": "printed_figures", "offset": -(2**53) - 1}],
+            declared_sections=["printed_figures"],
+        )
+
+
+def test_the_bound_reaches_a_header_because_a_count_in_a_header_is_a_count():
+    header = _worked_example(request={"asked": "x", "characters_searched": 2**53 + 1})
+    with pytest.raises(FixtureContractError, match="larger than"):
+        validate_header(header, where="t")
+
+
+def test_the_bound_is_not_keyed_to_a_kind(tmp_path):
+    """⭐⭐ The finding, as a test.
+
+    Exempting the *kind* would have been the easy fix and the wrong axis: the corpus this
+    repository already emits is a `numeric_pin` carrying more than a hundred thousand
+    integer leaves with no pattern. The rule is about what the number **is**, so the same
+    row must be judged identically under either header.
+    """
+    row = [{"section": "position", "hits": 2**53 + 1}]
+    with pytest.raises(FixtureContractError, match="larger than"):
+        write_jsonl(tmp_path / "a.jsonl", numeric(), row, declared_sections=["position"])
+    with pytest.raises(FixtureContractError, match="larger than"):
+        write_jsonl(
+            tmp_path / "b.jsonl",
+            _worked_example(classification={"position": {"class": "exact"}}),
+            row,
+            declared_sections=["position"],
+        )

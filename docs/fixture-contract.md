@@ -142,6 +142,59 @@ scales wrongly, and not relative to the component, which a near-zero component i
 Where the norm is zero the relative disagreement is emitted as `null` and the row is
 excluded from the band, because a relative band cannot judge a quantity with no scale.
 
+## A bit pattern is for a measurement, and a count is not a measurement
+
+A recorded value that is a double is written twice — as a decimal, and as the IEEE-754 bit
+pattern beside it. ⭐ **The pattern is the value and the decimal is display.** The reason is
+itself a measurement: a widely-used JSON library was measured mis-parsing 18.9 % of
+shortest-round-tripping doubles by up to 2 ULP, so a reader on that path holds a different
+number from the one written and has no way to notice. A reader that disagrees on the decimal
+and agrees on the pattern has a formatting bug; one that disagrees on the pattern has a
+numeric one; and the two are worth telling apart at a glance.
+
+⭐ **The rule is bounded by that reason.** A decimal *approximates* a double, and the pattern
+is what settles which double was meant. A count is not approximated by its own digits, so
+there is nothing left for a pattern to settle. Packing one into an f64 pattern would state
+that a counted quantity had been measured on a real-number scale — the same class of false
+claim as a band nobody measured, and harder to see, because the result is sixteen
+well-formed hex digits.
+
+So:
+
+* a recorded **double** carries its pattern beside it — `X` and `X_bits`, or `number` and
+  `bits` in the leaf model;
+* an **integer** — a count, an index, a body number — is written **bare**, and `bits()`
+  refuses one at the point where the mistake would be made;
+* ⛔ an integer past **2<sup>53</sup>** is refused at write time, in a row or in a header.
+
+⚠ **That last clause is what keeps the second one honest.** JSON declares no integer type. A
+reader that parses every number into a double holds a different value past 2<sup>53</sup>, and
+there is no pattern beside it to disagree with — the exact hazard the rule exists for,
+reopened by its own exemption. Measured when this was written: the largest integer in any
+**row** of any fixture this repository has produced is **858 238**, and the largest in any
+**header** is **119 799 808**. The refusal costs nothing today; it is what makes the exemption
+still true when something counts something bigger.
+
+⭐⭐ **The exemption is not attached to a fixture kind, and that was the decision.** A
+`worked_example` raised the question — every one of the 123 numbers in the first such
+artifact is a count: printed figures, cells read, cells agreeing, occurrences of a quoted
+fragment. But the corpus `r5_continuity.py` writes is a `numeric_pin`, the kind the pattern
+rule was written for, and it carries **123 428** integer leaves with no pattern, by the same
+branch of the same walker. ⛔ An exemption written for the kind would have left that file
+refused for a reason that was never about it. **The question a number answers is what the
+rule turns on, not the kind of file it arrived in.**
+
+⚠ **And this section does not claim that every double carries a pattern, because that is
+measured false.** Of the floats in the fixtures produced so far, **48 122** carry none: they
+are derived comparisons (`reproduction_abs_delta`, `state_vector_norm`,
+`cross_check_max_rel_delta`), declared inputs (`atpress`, `attemp`, `window_jd_ut`) and
+environment context. The pattern accompanies the value a fixture is evidence **of**. ⛔ That
+narrower convention has never been written down as a rule and is **not settled here** — it is
+named so a reader does not mistake the integer rule for the whole of it. One file departs
+furthest: the timing fixture patterns **none** of its 803 floats, and it is also the only
+artifact here that does not regenerate byte for byte. ⚠ No reason for that is on the record,
+and this is not the place to invent one.
+
 ## Reserved names
 
 ⛔ A fixture **filename** or **JSON key** may never contain a project name. A key and a
