@@ -85,6 +85,59 @@ REFERENCE_UNBOUND = "none"
 #: The comparison classes a numeric fixture may declare.
 CLASSIFICATIONS = frozenset({"exact", "tolerance", "reference_only"})
 
+#: What kind of source the material at a locus sits in.
+#:
+#: ⛔ **Minted because the field existed without one.** Until R6 stood on it, `_validate_locus`
+#: checked that `source_kind` was *present* and never what it said, so a typo passed and a
+#: reader downstream could not group on it. ⚠ A field whose value set is "any string" is a
+#: field that reports a pass on anything — and this repository's own test file proved it:
+#: its shared locus carried `interpretation_status = "settled"`, a value no registry has ever
+#: declared, and the contract accepted it in every test that used it.
+#:
+#: ⭐ The distinction that earns the registry is **translation versus commentary**. A
+#: translator's rendering of a text and a translator's note about it are printed on the same
+#: page and are not the same authority, and a fixture that files one as the other has made a
+#: claim the source does not support.
+SOURCE_KINDS = frozenset(
+    {
+        # the root text in its own language
+        "primary_text",
+        # a translation of a primary text, carrying the translator's own numbering
+        "translation",
+        # exposition printed alongside a text, by its translator or a commentator
+        "commentary",
+        # a worked illustration the source resolves itself
+        "worked_illustration",
+        # a modern author's own work, not a translation of anything
+        "treatise",
+    }
+)
+
+#: How far the recorded claim sits from the words at the locus. ⭐ This is the field that
+#: makes an R6 fixture auditable rather than merely cited: *the text says this* and *we read
+#: this out of the text* are different claims, and only one of them can be checked by looking.
+INTERPRETATION_STATUS = frozenset(
+    {
+        # the recorded claim IS the located words
+        "quoted",
+        # the located words state it; restated here without inference
+        "restated",
+        # not stated anywhere; read off a worked example the source resolves itself
+        "read_from_worked_example",
+        # the located words admit more than one reading, and this is one of them
+        "disputed_reading",
+        # ⭐ the claim is that the located extent does NOT state this. It still needs a
+        # complete locus: an absence with no extent names nothing, and is unfalsifiable.
+        "absent",
+    }
+)
+
+#: ⚠ A **shape**, not a registry, and the difference is deliberate. The set of languages is
+#: not this contract's to declare — that standard exists outside this repository. But
+#: `English`, `english` and `Eng.` are three groups for one language, so the field is held to
+#: a two- or three-letter lowercase code and a reader can group on it.
+_LANGUAGE_RE = re.compile(r"^[a-z]{2,3}$")
+
 #: ⛔ Never in a fixture filename, never in a JSON *key*: a permanent identifier must not
 #: encode a renameable project name. ✅ Permitted in *values* — `generator.repo` must name
 #: this repository, because that is a recorded fact about origin.
@@ -485,12 +538,54 @@ def _validate_locus(locus: Any, *, where: str, kind: str) -> None:
     ⛔ A citation a reader cannot resolve without access to a private repository is not a
     citation: it makes the claim auditable only by us, which is the same defect as no
     audit at all.
+
+    ⭐ **Two of the five fields are also checked against a value set**, which they were not
+    until R6 became the first artifact to stand on them. Presence-only validation accepted
+    any string, so a misspelling passed the writer and arrived downstream as a group of one.
+    ⚠ The other three are left as free text on purpose: an `edition` and a `locus` are a
+    proper name and a citation, and a registry of those is a registry of everything ever
+    printed.
     """
     if not isinstance(locus, Mapping):
         _fail(where, kind, "locus", "absent or not an object")
     for name in ("source_kind", "language", "edition", "locus", "interpretation_status"):
         if not locus.get(name):
             _fail(where, kind, f"locus.{name}", "required for a textual kind and absent")
+
+    source_kind = locus["source_kind"]
+    if source_kind not in SOURCE_KINDS:
+        _fail(
+            where,
+            kind,
+            "locus.source_kind",
+            f"{source_kind!r} is not a declared source kind; must be one of "
+            f"{sorted(SOURCE_KINDS)}. ⛔ An undeclared value cannot be grouped on by a "
+            "reader, so it reports a pass and carries no meaning",
+        )
+
+    status = locus["interpretation_status"]
+    if status not in INTERPRETATION_STATUS:
+        _fail(
+            where,
+            kind,
+            "locus.interpretation_status",
+            f"{status!r} is not a declared interpretation status; must be one of "
+            f"{sorted(INTERPRETATION_STATUS)}. ⭐ This field is what separates *the text "
+            "says this* from *we read this out of the text*, and an undeclared value "
+            "collapses the two",
+        )
+
+    language = locus["language"]
+    if not isinstance(language, str) or not _LANGUAGE_RE.match(language):
+        _fail(
+            where,
+            kind,
+            "locus.language",
+            f"{language!r} is not a two- or three-letter lowercase code. ⚠ This is a shape "
+            "rather than a registry — the set of languages is not this contract's to "
+            "declare — but 'English', 'english' and 'Eng.' are three groups for one "
+            "language, and a reader has to be able to group on it",
+        )
 
 
 def _scan_keys(

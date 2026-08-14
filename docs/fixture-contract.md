@@ -66,6 +66,53 @@ example and we reproduce it, what is established is that we followed the text's 
 6th-century text's own astronomy is historical. Mapping such a row to a modern accuracy
 budget would launder one claim into another, so the schema forbids it outright.
 
+## A locus, and the two fields that used to accept anything
+
+The three textual kinds require a **complete locus**: `source_kind`, `language`, `edition`,
+`locus`, `interpretation_status`. All five must be present, and two of them are now checked
+against a value set.
+
+⛔ **They were not, until R6 became the first artifact to stand on them.** Validation checked
+presence and never what the field said, so a misspelling passed the writer and arrived
+downstream as a group of one. This repository's own test suite was the proof: its shared
+locus carried `interpretation_status: "settled"`, a value no registry has ever declared, and
+every test using it passed. ⚠ **A field whose value set is "any string" reports a pass on
+anything.**
+
+| `source_kind` | what the material at the locus sits in |
+|---|---|
+| `primary_text` | the root text, in its own language |
+| `translation` | a translation of a primary text, carrying the translator's numbering |
+| `commentary` | exposition printed alongside a text, by its translator or a commentator |
+| `worked_illustration` | a worked example the source resolves itself |
+| `treatise` | a modern author's own work, not a translation of anything |
+
+⭐ The distinction that earns the registry is **translation versus commentary**. They are
+printed on the same page and are not the same authority. Filing one as the other implements a
+modern commentator under the text's name — and that is not hypothetical: of five rules in the
+first R6 artifact, two sit in the translator's notes and not in the sutras.
+
+| `interpretation_status` | how far the recorded claim sits from the words |
+|---|---|
+| `quoted` | the recorded claim **is** the located words |
+| `restated` | the located words state it; restated without inference |
+| `read_from_worked_example` | not stated anywhere; read off an example the source resolves |
+| `disputed_reading` | the located words admit more than one reading, and this is one |
+| `absent` | the claim is that the located extent does **not** state this |
+
+⭐ This is the field that separates *the text says this* from *we read this out of the text*.
+Only one of the two can be checked by looking.
+
+⭐ **`absent` still requires a complete locus.** An absence with no extent names nothing and
+cannot be falsified. What bounds it is stated on the fixture: every spelling searched, with
+its own hit count, and the measured extent of the copy searched.
+
+⚠ `language` is held to a **shape** — a two- or three-letter lowercase code — rather than a
+registry. The set of languages is not this contract's to declare, but `English`, `english`
+and `Eng.` are three groups for one language. `edition` and `locus` stay free text: they are
+a proper name and a citation, and a registry of those is a registry of everything ever
+printed.
+
 ## Classification
 
 `numeric_pin` and `worked_example` declare, per section:

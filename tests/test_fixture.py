@@ -26,12 +26,18 @@ from saakshi.fixture import (
 
 GEN = Generator(repo="github.com/insculptor/Saakshi", script="generators/x.py", commit="0" * 40)
 
+#: ⛔ **This constant used to read `interpretation_status: "settled"`, and every test using it
+#: passed.** No registry has ever declared that value. `_validate_locus` checked the five
+#: fields for *presence* and never for what they said, so the contract's own test suite was
+#: quietly demonstrating the hole R6 was the first artifact to stand on — a field whose value
+#: set is "any string" reports a pass on anything. The registries are in `fixture.py` and
+#: their refusals are tested in `test_textual.py`.
 LOCUS = {
     "source_kind": "primary_text",
     "language": "sa",
     "edition": {"publisher": "P", "year": 1900},
     "locus": "ch. 1 v. 2",
-    "interpretation_status": "settled",
+    "interpretation_status": "quoted",
 }
 
 
