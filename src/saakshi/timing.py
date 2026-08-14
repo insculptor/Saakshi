@@ -778,13 +778,14 @@ def ordering_record(
         "pairs_separated_by_the_margin": len(separated),
         "separated_pairs": separated,
         "meaning": (
-            "⚠ THREE NESTED SETS, AND ONLY THE SMALLEST IS A CLAIM ABOUT A RE-RUN. Every "
-            "pair was compared. A pair that held in every round is a separation THIS run "
-            "could see. A pair separated by the margin in every round is one a re-run is "
-            "expected to see too — and the difference between the middle set and the "
-            "smallest is not pedantry: a second run at the same commit reordered several "
-            "pairs from the middle set, all of them pairs whose ratio is one within its own "
-            "spread"
+            "⚠ THREE NESTED SETS, AND NONE OF THEM IS A CLAIM ABOUT A RE-RUN ON ITS OWN. "
+            "Every pair was compared. A pair that held in every round is a separation THIS "
+            "run could see — and a second traversal at this commit reordered several of "
+            "them, all pairs whose ratio is one within its own spread. A pair separated by "
+            "the margin is a stronger statement, ⛔ and it was measured to be not strong "
+            "enough either. The figure to read for an ordering claim is "
+            "`smallest_separation_at_which_every_pair_kept_its_order` in the `reproduction` "
+            "row, because it was measured rather than chosen"
         ),
     }
 
@@ -817,6 +818,7 @@ def reproduction_record(
     comparison, which is why the file publishes the intervals it would be compared against.
     """
     inside = 0
+    outside: list[str] = []
     movements: list[tuple[float, str]] = []
     for numerator, denominator, form, denominator_form in ratio_keys:
         a = ratio(
@@ -833,9 +835,11 @@ def reproduction_record(
             form=form,
             denominator_form=denominator_form,
         )
+        label = f"{numerator} over {denominator} ({form})"
         if a.minimum <= b.median <= a.maximum:
             inside += 1
-        label = f"{numerator} over {denominator} ({form})"
+        else:
+            outside.append(label)
         movements.append((abs(b.median - a.median) / a.median, label))
     movements.sort(reverse=True)
     fractions = sorted(value for value, _ in movements)
@@ -846,6 +850,7 @@ def reproduction_record(
         held_second = {tuple(p) for p in _held_pairs(second, form=form)}
         separated_first = {tuple(p) for p in separated_pairs(first, form=form, margin=margin)}
         separated_second = {tuple(p) for p in separated_pairs(second, form=form, margin=margin)}
+        measured_margin = margin_that_held(first, second, form=form)
         ordering.append(
             {
                 "form": form,
@@ -854,10 +859,22 @@ def reproduction_record(
                 "held_in_the_first_and_not_the_second": sorted(
                     list(pair) for pair in held_first - held_second
                 ),
-                "pairs_separated_by_the_margin_first": len(separated_first),
-                "pairs_separated_by_the_margin_second": len(separated_second),
+                "declared_margin": margin,
+                "pairs_separated_by_the_declared_margin_first": len(separated_first),
+                "pairs_separated_by_the_declared_margin_second": len(separated_second),
                 "separated_in_the_first_and_not_the_second": sorted(
                     list(pair) for pair in separated_first - separated_second
+                ),
+                "smallest_separation_at_which_every_pair_kept_its_order": measured_margin,
+                "margin_note": (
+                    "⭐ MEASURED, NOT CHOSEN. The declared margin is what the ordering rows "
+                    "publish; the figure beside it is the smallest separation such that "
+                    "EVERY pair the first traversal separated by at least that much was "
+                    "still in the same order in the second. ⚠ Where it exceeds the declared "
+                    "margin, the declared margin did not hold even across two traversals of "
+                    "one process, and a reader wanting an ordering claim should take the "
+                    "measured figure. ⛔ It is itself a measurement: a further run may need "
+                    "a larger one"
                 ),
             }
         )
@@ -870,6 +887,7 @@ def reproduction_record(
         "what_was_checked": what_was_checked,
         "ratios_checked": len(ratio_keys),
         "ratios_whose_second_median_fell_inside_the_first_per_round_interval": inside,
+        "ratios_that_fell_outside": outside,
         "largest_movement_of_a_median": movements[0][0] if movements else None,
         "largest_movement_was": movements[0][1] if movements else None,
         "median_movement_of_a_median": (
@@ -883,6 +901,58 @@ def reproduction_record(
             "is performing the stronger version of the same comparison"
         ),
     }
+
+
+def margin_that_held(
+    first: Mapping[tuple[str, str], Reading],
+    second: Mapping[tuple[str, str], Reading],
+    *,
+    form: str,
+) -> float | None:
+    """The smallest separation margin that survived both traversals, or `None`.
+
+    ⭐ **The margin is measured rather than chosen, because a chosen one was measured to be
+    wrong.** It answers the question a consumer actually has — *how far apart must two rungs
+    be in this file before their order reproduces?* — by finding the smallest separation `m`
+    such that **every** pair the first traversal separated by at least `m` was still in the
+    same order in the second.
+
+    ⚠ It is not a guarantee and cannot be one: it is the value two traversals of one process
+    support. A run on another day may need a larger one, which is exactly why the figure is
+    published beside its own method instead of being folded into a constant.
+    """
+    order = [
+        r.op_id
+        for r in sorted(
+            readings_of(first, form).values(), key=lambda r: r.median_nanoseconds
+        )
+    ]
+    pairs: list[tuple[float, bool]] = []
+    for i, cheaper in enumerate(order):
+        for dearer in order[i + 1 :]:
+            separation = ratio(
+                first, numerator=dearer, denominator=cheaper, form=form
+            ).minimum
+            kept = all(
+                value > 1.0
+                for value in ratio(
+                    second, numerator=dearer, denominator=cheaper, form=form
+                ).per_round
+            )
+            pairs.append((separation, kept))
+    if not pairs:
+        return None
+    for candidate in sorted({1.0, *(separation for separation, _ in pairs)}):
+        if all(kept for separation, kept in pairs if separation >= candidate):
+            return candidate
+    return None
+
+
+def readings_of(
+    readings: Mapping[tuple[str, str], Reading], form: str
+) -> dict[str, Reading]:
+    """The readings of one form, by rung."""
+    return {key[0]: value for key, value in readings.items() if key[1] == form}
 
 
 def _held_pairs(

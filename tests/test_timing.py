@@ -49,6 +49,7 @@ from saakshi.timing import (
     control_same_arity_stdlib,
     control_sequence_mechanism,
     literal_text,
+    margin_that_held,
     ordering_record,
     ratio,
     refuse_unless_all_pass,
@@ -436,6 +437,41 @@ def test_a_second_traversal_landing_outside_the_first_interval_is_counted_as_out
     assert record["largest_movement_of_a_median"] == pytest.approx(1.25)
 
 
+def test_the_margin_that_held_is_measured_from_the_pair_that_lost_the_most():
+    """⭐ A margin nobody measured is a margin somebody hoped for.
+
+    ⚠ In the second traversal below the closest pair changes places outright, so no
+    separation at or under 1.2 can be claimed to reproduce; the answer has to rise past it to
+    the next separation actually observed. The figure is read off the pairs rather than
+    chosen.
+    """
+    first = {
+        ("a", "unpacked"): _reading("a", "unpacked", (100.0, 100.0)),
+        ("b", "unpacked"): _reading("b", "unpacked", (120.0, 120.0)),
+        ("c", "unpacked"): _reading("c", "unpacked", (500.0, 500.0)),
+    }
+    second = {
+        ("a", "unpacked"): _reading("a", "unpacked", (100.0, 100.0)),
+        ("b", "unpacked"): _reading("b", "unpacked", (98.0, 98.0)),
+        ("c", "unpacked"): _reading("c", "unpacked", (500.0, 500.0)),
+    }
+    assert separated_pairs(first, form="unpacked", margin=1.10) == [
+        ["a", "b"],
+        ["a", "c"],
+        ["b", "c"],
+    ]
+    held = margin_that_held(first, second, form="unpacked")
+    assert held is not None and held > 1.2
+
+
+def test_a_margin_that_held_everywhere_is_reported_as_the_smallest_one():
+    first = {
+        ("a", "unpacked"): _reading("a", "unpacked", (100.0, 100.0)),
+        ("b", "unpacked"): _reading("b", "unpacked", (500.0, 500.0)),
+    }
+    assert margin_that_held(first, first, form="unpacked") == 1.0
+
+
 def test_a_pair_that_stopped_being_separated_is_named_not_merely_counted():
     first = {
         ("a", "unpacked"): _reading("a", "unpacked", (10.0, 10.0)),
@@ -453,6 +489,8 @@ def test_a_pair_that_stopped_being_separated_is_named_not_merely_counted():
         what_was_checked="one ratio",
     )
     assert record["ordering"][0]["separated_in_the_first_and_not_the_second"] == [["a", "b"]]
+    assert record["ratios_that_fell_outside"] == ["b over a (unpacked)"]
+    assert record["ordering"][0]["declared_margin"] == SEPARATION_MARGIN
 
 
 # --------------------------------------------------------------------------------------
