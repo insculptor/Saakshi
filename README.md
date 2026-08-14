@@ -243,13 +243,13 @@ Three things make the ratios worth having, and each is a rule in `src/saakshi/ti
   count, and a batch too short to clear a hundred clock steps is refused rather than recorded;
 * ⭐ **the call-site form is part of the number.** Handing a callee a pre-built argument tuple
   is not the same act as compiling the arguments into the call site, and the difference was
-  measured at about 40 % for this binding while vanishing for a Python function. Each rung is
-  measured all three ways and the form is stated on every row;
+  measured at about half again for this binding while vanishing for a Python function. Each
+  rung is measured all three ways and the form is stated on every row;
 * ⛔ **a repeated call is not a repeated computation.** A timing loop asks one question many
   times; a callee may answer the second asking far more cheaply. Every rung whose cost could
   depend on which question is asked is measured over one request repeated *and* over distinct
   requests — and of the two rungs here that do real work, one is sensitive by a factor of
-  about thirty-three and the other is not.
+  thirty-odd and the other is not.
 
 ⛔ **The generator refuses to write if any of its four controls fails.** A timing harness has
 no known answer to check itself against, so what is checked is its ability to report a

@@ -62,26 +62,30 @@ it. ⚠ Every figure includes the loop the call sits in; that loop is measured a
 
 | Rung | Arity | Against the anchor |
 |---|---|---|
-| the loop, with no call in it | — | **0.36 – 0.43** |
-| a Python function, one argument | 1 | 1.03 – 1.06 |
-| a Python function, four arguments | 4 | 1.21 – 1.30 |
-| a standard-library C function, no arguments | 0 | 0.96 – 1.12 |
-| **the binding, no arguments** | 0 | **0.96 – 1.12** |
-| **the binding, one argument** | 1 | **1.5 – 2.2** |
-| **the binding, four arguments** | 4 | **2.4 – 3.5** |
-| the binding, one body's position | 3 | **≈ 200** |
-| the binding, a full set of house cusps | 4 | **≈ 130** |
+| the loop, with no call in it | — | **0.35 – 0.43** |
+| a Python function, one argument | 1 | 1.02 – 1.06 |
+| a Python function, four arguments | 4 | 1.20 – 1.30 |
+| a standard-library C function, no arguments | 0 | 0.95 – 1.12 |
+| **the binding, no arguments** | 0 | **0.95 – 1.12** |
+| **the binding, one argument** | 1 | **1.46 – 2.15** |
+| **the binding, four arguments** | 4 | **2.30 – 3.48** |
+| the binding, one body's position | 3 | **197 – 201** |
+| the binding, a full set of house cusps | 4 | **124 – 131** |
 
-The ranges are across the three call-site forms — see below, because that spread is a
-finding rather than an error bar.
+⚠ **Every figure on this page is an interval across three runs on one machine, not a
+digit**, and the wide ones are wide for two different reasons that the page keeps apart: the
+top two rows span the **three call-site forms**, which is a finding rather than an error bar
+(section 4), while the last two rows span **runs**, which is noise. The artifact separates
+them — a ratio's spread across rounds is on its own row, and its spread across forms is a
+row of its own kind.
 
 ---
 
 ## 1. ⭐ The empty crossing is not the binding's cost
 
 A binding call carrying **no arguments** costs **what a Python function call costs** —
-0.96 to 1.12 anchors, and a standard-library C function of the same arity lands on the same
-number to within the same spread.
+0.95 to 1.12 anchors, and a standard-library C function of the same arity lands on the same
+number to within the same spread, form for form.
 
 ⛔ **So the empty round trip is CPython's own call protocol.** A probe that reports it as
 "the cost of the binding" has measured the interpreter and attributed the result to the
@@ -95,11 +99,11 @@ rather than left to whoever assembles the list.
 
 | | against the same-arity Python function | against the binding's own zero-argument rung |
 |---|---|---|
-| one argument | **1.4 – 2.1** | **1.6 – 2.0** |
-| four arguments | **1.9 – 2.9** | **2.4 – 3.4** |
+| one argument | **1.39 – 2.10** | **1.55 – 2.01** |
+| four arguments | **1.95 – 2.93** | **2.43 – 3.35** |
 
-The same comparison inside pure Python moves far less: one argument costs 1.03 anchors and
-four cost about 1.25.
+The same comparison inside pure Python moves far less: one argument costs about 1.04 anchors
+and four about 1.25.
 
 ⚠ The C comparator is an **upper** bound on the interpreter's own share, never a floor: the
 standard-library function used at those arities does a small amount of real arithmetic, which
@@ -109,7 +113,8 @@ is why it is quoted as a bound rather than subtracted.
 
 ## 3. A call that does work dwarfs the crossing
 
-One body's position: **about 200 anchors.** A full set of house cusps: **about 130.**
+One body's position, asked a different instant each time: **197 to 201 anchors.** A full set
+of house cusps: **124 to 131.**
 
 ⭐ Both are two orders of magnitude above the crossing they sit on top of. A caller sizing
 these calls is bounded by the work, not by the boundary — and the boundary's contribution is
@@ -128,14 +133,18 @@ The same callee, the same argument values, three ways of writing the call:
 
 | Rung | unpacked | local names | literal |
 |---|---|---|---|
-| a Python function, one argument | 1.06 | 1.03 | 1.03 |
-| a Python function, four arguments | 1.21 | 1.27 | 1.30 |
-| **the binding, one argument** | **1.54** | **2.14** | **2.15** |
-| **the binding, four arguments** | **2.35** | **3.43** | **3.45** |
+| a Python function, one argument | 1.05 – 1.06 | 1.03 – 1.04 | 1.02 – 1.04 |
+| a Python function, four arguments | 1.20 – 1.23 | 1.25 – 1.27 | 1.27 – 1.30 |
+| **the binding, one argument** | **1.46 – 1.58** | **2.13 – 2.14** | **2.12 – 2.15** |
+| **the binding, four arguments** | **2.30 – 2.42** | **3.43 – 3.57** | **3.45 – 3.58** |
 
-⭐ **The pure-Python rungs barely notice; the binding rungs move by about 40 %** — comparable
-to the entire cost of an empty crossing. The direction is worth reading: handing this binding
-a pre-built tuple is the **cheapest** form, while for the anchor it is the dearest.
+⭐ **The pure-Python rungs move by a few per cent across the three forms; the binding rungs by
+about half again** — 47 % at one argument, 51 % at four, which is comparable to the entire
+cost of an empty crossing. ⚠ The intervals above are across runs; the finding is the gap
+**between columns**, and it is far larger than any interval inside one.
+
+The direction is worth reading: handing this binding a pre-built tuple is the **cheapest**
+form, while for the anchor it is the dearest.
 
 ⛔ **So a figure quoted without its call-site form is under-specified**, and a harness that
 picks one form and calls the result "the cost of the call" has measured its own convention.
@@ -158,14 +167,14 @@ request repeated, or a distinct request every time.
 | Rung | distinct requests ÷ one request repeated |
 |---|---|
 | a Python function, one / three / four arguments | 0.99 – 1.03 |
-| the binding, one argument | 0.98 |
-| the binding, four arguments | 1.00 |
-| **the binding, one body's position** | **≈ 33** |
-| the binding, a full set of house cusps | 1.01 |
+| the binding, one argument | 0.98 – 0.99 |
+| the binding, four arguments | 1.00 – 1.02 |
+| **the binding, one body's position** | **33 – 37** |
+| the binding, a full set of house cusps | 1.01 – 1.03 |
 
-⭐ **The position call answers a repeated request about thirty-three times more cheaply than a
-new one.** Measured only the ordinary way, it reads as **six** times the crossing; measured
-over distinct instants it is **about two hundred** times the crossing.
+⭐ **The position call answers a repeated request thirty-odd times more cheaply than a new
+one.** Measured only the ordinary way, it reads as about **six** times the crossing; measured
+over distinct instants it is **about two hundred** times it.
 
 ⭐⭐ **And the two rungs that do real astronomical work answer oppositely.** The house-cusp
 call is indifferent to whether it has been asked before. Measuring either one alone would
@@ -186,9 +195,9 @@ report none where there is none. ⛔ **The generator refuses to write if any con
 
 | Control | Expected | Measured |
 |---|---|---|
-| the anchor against a second reading of itself | 1.0 | **0.993 – 1.002** |
+| the anchor against a second reading of itself | 1.0 | **0.99 – 1.01** |
 | every arity a binding is measured at also has a pure-Python and a C rung | none missing | none missing |
-| a pair built to perform the anchor a hundred times | ≥ 20 | **66 – 80** |
+| a pair built to perform the anchor a hundred times | ≥ 20 | **66 – 83** |
 | distinct arguments cost nothing by themselves, where the callee cannot notice them | 1.0 | **0.99 – 1.03** |
 
 ⭐ **The third and fourth exist because the first two are satisfied by a harness that measures
@@ -213,8 +222,8 @@ from a diff.
   round**. That claim is made pair by pair rather than over the whole list, because rungs the
   harness cannot separate change places for no reason but noise — and the artifact publishes
   both sets, with each pair's own ratio, so the obvious hypothesis can be checked instead of
-  taken. In the run recorded here, 75 to 89 of 91 pairs held in every round, and the ones that
-  did not are the pairs whose ratio is one within its own spread;
+  taken. Across the runs behind this page, 75 to 89 of the 91 pairs held in every round, and
+  the ones that did not are the pairs whose ratio is one within its own spread;
 * each ratio, within the spread stated on its own row;
 * every verdict: the four controls, and each rung's repetition sensitivity.
 
@@ -225,11 +234,13 @@ the spreads themselves, or the ordering of the pairs the file reports as changin
 Compare orderings and check that each ratio's interval overlaps.
 
 ⚠ **A write-up of a timing probe cannot quote the shipped artifact's own digits either**, and
-the reason is worth stating rather than working around: committing this page moves the commit
-the artifact is stamped with, and re-emitting to restore the stamp moves the digits. The
-figures above are from the runs this page was written from; the shipped file carries a later
-run's. What they share is every ordering, every verdict, and every factor to the precision
-quoted here — which is exactly the claim the file makes about itself.
+the reason is worth stating rather than working around. Committing this page moves the commit
+the artifact is stamped with; re-emitting to restore the stamp moves the digits; correcting
+the page to match moves the commit again. ⭐ **The regress terminates the moment the page
+quotes intervals instead of digits** — every figure above is an interval across three runs on
+this machine, and the shipped file's own numbers fall inside them. That is not a workaround
+for the artifact's instability. It is the same claim the artifact makes about itself, applied
+to the page that describes it.
 
 ---
 
@@ -247,6 +258,8 @@ measurement that transfers — and it is the reason the anchor is a rung of the 
 than an implementation detail of the harness.
 
 ⚠ **The two halves of the ladder are not one scale.** The loop that iterates a pre-built run
-of argument tuples was measured at about **0.85** of the loop that calls with a fixed tuple,
-on the same callee in the same rounds. So the artifact publishes that factor as its own row
-and never divides a rung measured by one loop by a rung measured by the other.
+of argument tuples was measured at **0.81 to 0.90** of the loop that calls with a fixed tuple,
+on the same callee in the same rounds — a real difference, not a rounding one. So the
+artifact publishes that factor as its own row, and never divides a rung measured by one loop
+by a rung measured by the other. ⭐ That row was written expecting to read one; it does not,
+and that is precisely why it is a row rather than an assumption.
