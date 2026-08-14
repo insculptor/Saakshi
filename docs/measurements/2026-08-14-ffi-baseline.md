@@ -231,10 +231,13 @@ figures below are that comparison, not a bound):
 | | |
 |---|---|
 | published ratios re-measured | **98** — every one the file carries |
-| ratios whose second median fell inside the first traversal's per-round interval | **95 to 98** |
-| median movement of a ratio between traversals | **1.3 % – 2.6 %** |
-| largest movement of a ratio between traversals | **4.8 % – 13 %** |
-| repetition-sensitivity verdicts that agreed | **7 of 7** |
+| ratios whose second median fell inside the first traversal's per-round interval | **91 to 98**, run depending |
+| median movement of a ratio between traversals | **a few per cent** (1.3 to 4.3 observed) |
+| largest movement of a ratio between traversals | **ten to fifteen per cent**, always a ratio near one |
+| repetition-sensitivity verdicts that agreed | **7 of 7, every time** |
+
+⚠ **The first two rows move a great deal with how busy the machine is, and the last does
+not.** That contrast is the useful one: the digits are noise and the verdicts are not.
 
 ⚠ The ratios that fell outside are **named** on the row, not merely counted; every one of
 them is a ratio near one, where a movement of a fraction of a nanosecond is a large fraction
@@ -252,9 +255,10 @@ per form — every pair compared, the pairs that held in every round, and the pa
 the declared 10 % — and beside them the figure that is actually the claim: **the smallest
 separation such that every pair the first traversal separated by at least that much was still
 in the same order in the second.** On this machine it came out between **1.08 and 1.72**,
-varying by form and by how busy the machine was. ⛔ It too is a measurement, not a guarantee;
-a run on another day may need a larger one, and the row says so. Where it reads exactly
-**1.0**, the whole ordering for that form reproduced.
+varying by form and by how busy the machine was — so a factor of two apart is safe to read off
+this ladder and a few per cent is not. ⛔ It too is a measurement, not a guarantee; a run on
+another day may need a larger one, and the row says so. Where it reads exactly **1.0**, the
+whole ordering for that form reproduced.
 
 **What a re-run will not reproduce** — any nanosecond figure, the exact digits of any ratio,
 the spreads themselves, and the ordering of any pair closer together than the measured
