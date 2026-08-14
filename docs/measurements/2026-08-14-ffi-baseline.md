@@ -231,17 +231,18 @@ figures below are that comparison, not a bound):
 | | |
 |---|---|
 | published ratios re-measured | **98** — every one the file carries |
-| ratios whose second median fell inside the first traversal's per-round interval | **91 to 98**, run depending |
+| ratios whose second median fell inside the first traversal's per-round interval | **most of them**; 86 to 98 observed, tracking how busy the machine was |
 | median movement of a ratio between traversals | **a few per cent** (1.3 to 4.3 observed) |
-| largest movement of a ratio between traversals | **ten to fifteen per cent**, always a ratio near one |
-| repetition-sensitivity verdicts that agreed | **7 of 7, every time** |
+| largest movement of a ratio between traversals | **into the teens** at worst |
+| repetition-sensitivity verdicts that agreed | **7 of 7, in every run taken** |
 
-⚠ **The first two rows move a great deal with how busy the machine is, and the last does
+⚠ **The first three rows move a great deal with how busy the machine is, and the last does
 not.** That contrast is the useful one: the digits are noise and the verdicts are not.
 
-⚠ The ratios that fell outside are **named** on the row, not merely counted; every one of
-them is a ratio near one, where a movement of a fraction of a nanosecond is a large fraction
-of the ratio.
+⚠ The ratios that fell outside are **named** on the row rather than counted. ⛔ And the
+obvious guess about them is wrong: they are *not* all ratios near one, where a fraction of a
+nanosecond would be a large fraction of the ratio. That was checked on a busy run, and a
+ratio of 3.6 was among them.
 
 ⛔⛔ **Two ordering claims were written here and the second traversal disposed of both.** The
 first — *"the order of every pair that held in every round"* — sounds like a claim about a
