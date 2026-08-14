@@ -102,10 +102,29 @@ PAIRS: list[tuple[int, int, str]] = [
 
 SECONDS_PER_DAY = 86400.0
 
-#: One unit in the last place, relative, for a double: 2**-52. ⭐ Used only to *report* a
-#: measured relative disagreement in a scale-free way. The band itself is declared as the
-#: measured fraction, because a fraction needs no agreement about what "a ULP" means.
-RELATIVE_ULP = 2.0**-52
+#: ⛔ **THIS FILE USED TO CALL THIS QUANTITY "ULP", AND THAT LABEL WAS WRONG.**
+#:
+#: The figure reported beside each band is `relative / 2**-52`. A true distance in last
+#: places is not that: for a value `m * 2**e` with `m` in `[1, 2)`, one last place is
+#: `2**(e-52)`, so relative to the value itself it is `2**-52 / m`. The count of last places
+#: is therefore this figure divided by the mantissa — somewhere between the figure and half
+#: of it, and *which* is not recoverable from the figure alone. A label that is wrong by an
+#: unstated factor of up to two is worse than no label, because it reads as exact.
+#:
+#: ⭐ **THE REPAIR IS TO STOP NAMING A UNIT, NOT TO NAME A BETTER ONE.** Nothing consumes
+#: this figure: the band is declared as the fraction, every row value is a fraction, and no
+#: comparison anywhere depends on the ratio. A quantity nobody consumes does not need a
+#: term, and minting one would put a second name into the world that a reader has to be
+#: taught. So the constant names the *number*, the fields name the *division*, and neither
+#: claims a dimension. ⚠ A field called `..._over_two_to_minus_52` cannot be misread the way
+#: a unit called "ULP" was.
+#:
+#: ⚠ **What is NOT this quantity**, and must not be swept into the same repair: the record
+#: boundaries below are stepped by `math.nextafter`, which really does move one last place;
+#: and the service sampler reports a disagreement over `math.ulp` of the value itself, which
+#: is a real, absolute last-place spacing. Both are correct uses of the term and are left
+#: exactly as they are.
+TWO_TO_MINUS_52 = 2.0**-52
 
 #: The sections, and the slice of the six-vector each one is.
 SECTIONS: tuple[tuple[str, str, slice], ...] = (
@@ -343,7 +362,7 @@ def main() -> int:
                             "centre": centre,
                             "chain_shape": shape,
                             "max_rel_delta": relative,
-                            "max_rel_delta_in_ulp": relative / RELATIVE_ULP,
+                            "max_rel_delta_over_two_to_minus_52": relative / TWO_TO_MINUS_52,
                         }
                 rows.append(
                     {
@@ -476,19 +495,32 @@ def main() -> int:
                 "per_section": {
                     name: {
                         "band": worst_relative[name],
-                        "in_ulp": worst_relative[name] / RELATIVE_ULP,
+                        "band_over_two_to_minus_52": worst_relative[name] / TWO_TO_MINUS_52,
                         "worst_state": worst_relative_row[name],
                         "rows_with_no_denominator": undefined_denominator[name],
                     }
                     for name, _, _ in SECTIONS
                 },
                 "unit": "relative_to_section_state_vector_norm",
-                "ulp_definition": RELATIVE_ULP,
+                "two_to_minus_52": TWO_TO_MINUS_52,
                 "derivation": (
                     "the largest relative disagreement observed on this grid, per section, "
-                    "with no headroom added. ⭐ Reported in ULP too because that is the "
-                    "scale-free reading, but declared as the fraction, which needs no "
-                    "agreement about what a ULP is"
+                    "with no headroom added. ⭐ THE BAND IS THE FRACTION — the value of "
+                    "`band`, in the unit above — and nothing here depends on any other "
+                    "reading of it"
+                ),
+                "the_ratio_beside_it": (
+                    "⚠ `band_over_two_to_minus_52` is exactly what its name says: the band "
+                    "divided by 2**-52. It is offered because it makes the size legible at a "
+                    "glance — a value near 1 says the two readers disagree at the resolution "
+                    "of the number format rather than about the sky. ⛔ IT IS NOT A COUNT OF "
+                    "LAST PLACES. One last place of a value m*2**e, with m in [1,2), is "
+                    "2**-52/m relative to the value, so the count of last places is this "
+                    "figure divided by m — between this figure and half of it, and which is "
+                    "not recoverable from the figure. ⛔ An earlier version of this file "
+                    "labelled the ratio 'ULP', which asserted the count and was wrong by an "
+                    "unstated factor of up to two. No number changed when the label went; "
+                    "that it did not is the reason the label was the whole defect"
                 ),
                 "why_this_denominator": (
                     "⛔ a band in kilometres is the wrong SHAPE — the disagreement scales "
@@ -566,8 +598,9 @@ def main() -> int:
         print(f"cross-check: differing states median = {np.median(arr)!r}")
     for name, _, _ in SECTIONS:
         print(
-            f"band ({name}): {worst_relative[name]:.4e} "
-            f"= {worst_relative[name] / RELATIVE_ULP:.2f} ULP of the section norm; "
+            f"band ({name}): {worst_relative[name]:.4e} of the section norm "
+            f"= {worst_relative[name] / TWO_TO_MINUS_52:.2f} x 2**-52 "
+            f"(not a count of last places); "
             f"{undefined_denominator[name]} row(s) had no denominator"
         )
     return 0

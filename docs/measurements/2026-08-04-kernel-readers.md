@@ -64,22 +64,49 @@ values in the publisher's own units and never rescales them — the AU constant 
 
 **891 of 1 323 states are bit-identical.** The worst absolute disagreement, 9.5 × 10⁻⁷ km,
 is on Pluto's barycentre relative to Earth at a span edge — where the coordinate is
-≈4.3 × 10⁹ km, so **relative error 2.22 × 10⁻¹⁶: one unit in the last place.** The worst
+≈4.3 × 10⁹ km, so **relative error 2.22 × 10⁻¹⁶, which is 1.00 × 2⁻⁵²**. The worst
 absolute velocity disagreement, 1.42 × 10⁻¹⁴ km s⁻¹, is Mercury relative to Earth at
-≈64.7 km s⁻¹ — 0.99 ULP.
+≈64.7 km s⁻¹ — 0.99 × 2⁻⁵².
 
 Taking the worst **relative** disagreement anywhere in the grid rather than the worst
 absolute one, which is the fairer question:
 
-| | Worst relative | In ULP |
+| | Worst relative | ÷ 2⁻⁵² |
 |---|---|---|
 | Position | 3.4 × 10⁻¹⁶ | **1.5** |
 | Velocity | 5.7 × 10⁻¹⁶ | **2.6** |
 
-⭐ So the honest floor is **a small number of ULP**, and the absolute figure scales with
+⭐ So the honest floor is **a small multiple of 2⁻⁵²**, and the absolute figure scales with
 the magnitude of the coordinate rather than being a fixed distance. **A band expressed in
 kilometres would be the wrong shape for this quantity** — at Pluto's distance it would
 have to be a millimetre, and the same band would be absurdly loose for the Moon.
+
+> ⛔ **Why these read `× 2⁻⁵²` and not "ULP", and why that is not pedantry.**
+> An earlier version of this page and of the fixture called this ratio a count of units in
+> the last place. It is not one. A double `m × 2ᵉ` with `m ∈ [1, 2)` has one last place at
+> `2ᵉ⁻⁵²`, so *relative to the value* one last place is `2⁻⁵²/m` — and the count is this
+> figure divided by `m`, somewhere between the figure and half of it, with no way to tell
+> which from the figure alone.
+>
+> ⭐ **Measured, on this repository's own worst rows**, which is what turns the objection
+> from a definition into a fact. The publisher-values band is the same number in both
+> profiles, **7.105 × 10⁻¹⁵ au** — and it is **one** last place in `de440s` (worst row at
+> 37.65 au) and **two** in `de440` (worst row at 29.98 au), because 32 au is a binade
+> boundary and the spacing halves below it. The velocity band is **three** last places in
+> both, while reading 2.00 × 2⁻⁵². ⛔ So a "1 ULP" label is not even a property of the band:
+> it is a property of which row happened to be worst.
+>
+> ✅ **No number moved.** The band was always declared as the fraction, and the ratio was
+> always reporting prose — which is exactly why the label was the whole defect and fixing it
+> costs nothing. The fixture now names the division (`band_over_two_to_minus_52`) instead of
+> claiming a unit, and a field name that states an arithmetic operation cannot be wrong
+> about what it means.
+>
+> ⚠ **Where "last place" *is* the right word, it is kept.** The grid below steps record
+> boundaries with `nextafter`, which really does move one last place; and the service
+> sampler reports a disagreement over `math.ulp` of the value itself, an absolute spacing at
+> that value's own magnitude. Those are a different quantity that happens to be adjacent,
+> and sweeping them into this repair would have replaced one mislabelling with another.
 
 ⚠ The two segments the file carries as identically zero — Mercury and Venus relative to
 their own system barycentres — agree **exactly**, at every epoch, both readers. They were
@@ -101,10 +128,10 @@ components"*.
 pass through zero except where the whole state is zero, and there it is undefined rather
 than misleading. Measured that way on the same grid:
 
-| | Per component | Per section norm |
+| | Per component (÷ 2⁻⁵²) | Per section norm (÷ 2⁻⁵²) |
 |---|---|---|
-| Position | 1.5 ULP | **1.36 ULP** (3.01 × 10⁻¹⁶) |
-| Velocity | 2.6 ULP | **2.36 ULP** (5.25 × 10⁻¹⁶) |
+| Position | 1.5 | **1.36** (3.01 × 10⁻¹⁶) |
+| Velocity | 2.6 | **2.36** (5.25 × 10⁻¹⁶) |
 
 The two readings agree on the order of magnitude, which is the point: the finding is robust
 and the *shape* still matters, because it is the shape a band has to be written in. So the
@@ -133,7 +160,7 @@ Same reader, same bytes, same state — composed two ways:
 | `de440s.bsp` | **2.9 × 10⁻⁸ km** | Moon relative to Earth |
 | `de440.bsp` | **1.5 × 10⁻⁸ km** | Earth relative to Moon |
 
-That is ~30 times the 1-ULP evaluation floor, and it is pure cancellation: the second form
+That is ~30 times the evaluation floor measured above, and it is pure cancellation: the second form
 throws away digits before it starts. ⭐ **Anyone implementing chaining faces this choice,
 so the cost is recorded rather than left to be rediscovered.** ⛔ It is a property of the
 arithmetic, not of either reader, and it is not a tolerance. The emitted fixture values
@@ -141,7 +168,7 @@ compose at the nearest common ancestor.
 
 ---
 
-## 4. The publisher's own test values reproduce to 1 ULP
+## 4. The publisher's own test values reproduce to the last place or two
 
 `testpo.440` — 13 201 values taken from the original integration — checked against each
 binary kernel through the SPICE Toolkit.
@@ -156,9 +183,12 @@ binary kernel through the SPICE Toolkit.
 | Maximum absolute difference | 7.1 × 10⁻¹⁵ au | 7.1 × 10⁻¹⁵ au |
 | Rows at or over the publisher's own 1 × 10⁻¹³ | **0** | **0** |
 
-The maximum, 7.1 × 10⁻¹⁵ au against coordinates of order 30 au, is again **one ULP**. More
-than half the rows reproduce exactly. The publisher's distributed test program warns at
-1 × 10⁻¹³; nothing here comes within a factor of fourteen of it.
+The maximum, 7.1 × 10⁻¹⁵ au, is **one last place** where it occurs in `de440s` (at 37.65 au)
+and **two** where it occurs in `de440` (at 29.98 au) — the same absolute number, a different
+count, because the two worst rows sit either side of a binade boundary. ⭐ That pair is the
+demonstration in the box above, and it is why this page states the coordinate a count was
+taken at. More than half the rows reproduce exactly. The publisher's distributed test program
+warns at 1 × 10⁻¹³; nothing here comes within a factor of fourteen of it.
 
 ### 4a. ⭐ The band, and what a single number across both sections was hiding
 
@@ -222,8 +252,8 @@ carry them. That is a property of the kernel, not a gap in the evidence.
 
 ## 5. What was not measured
 
-* ⛔ **Only one platform.** Both readers, the same CPU, the same libm. Whether the ULP-level
-  agreement survives a different target is untested.
+* ⛔ **Only one platform.** Both readers, the same CPU, the same libm. Whether agreement at
+  the last place or two survives a different target is untested.
 * ⛔ **Only two readers, and they are not fully independent of each other** in the sense
   that matters most: both were written against the same published format specification.
   Agreement between them is evidence about implementation, not about the specification.
