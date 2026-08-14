@@ -291,8 +291,14 @@ def ladder_rows(ops: list[Operation], readings: dict[tuple[str, str], Any]) -> l
                 row["ratio_to_anchor"] = ratio(
                     readings, numerator=op.id, denominator=ANCHOR, form=form
                 ).as_json()
+            # ⚠ Suppressed where the mirror IS the anchor. The two fields would carry the
+            #   same division under two names, which reads as two measurements.
             mirror = mirrors.get(("pure_python", op.arity))
-            if mirror is not None and op.callee_kind in ("stdlib_c", "binding"):
+            if (
+                mirror is not None
+                and mirror != ANCHOR
+                and op.callee_kind in ("stdlib_c", "binding")
+            ):
                 row["ratio_to_same_arity_pure_python"] = ratio(
                     readings, numerator=op.id, denominator=mirror, form=form
                 ).as_json()
@@ -473,7 +479,11 @@ def published_ratio_keys(
             if op.id != ANCHOR:
                 keys.append((op.id, ANCHOR, form, None))
             mirror = mirrors.get(("pure_python", op.arity))
-            if mirror is not None and op.callee_kind in ("stdlib_c", "binding"):
+            if (
+                mirror is not None
+                and mirror != ANCHOR
+                and op.callee_kind in ("stdlib_c", "binding")
+            ):
                 keys.append((op.id, mirror, form, None))
             base = arity_zero.get(op.callee_kind)
             if base is not None and op.arity not in (None, 0):
@@ -516,24 +526,25 @@ def reproducibility_row(readings: dict[tuple[str, str], Any]) -> dict[str, Any]:
             "each ratio, within the spread stated on its own row — checked, see the "
             "`reproduction` row",
             "every verdict: the controls, and each rung's repetition sensitivity — checked",
-            "the ordering of the ladder, for every pair the `ordering` rows report as "
-            "`separated_pairs`",
+            "the ordering of the ladder, for every pair separated by at least the figure "
+            "the `reproduction` row measured for that form — ⛔ NOT for every pair the "
+            "`ordering` rows report as having held, and ⛔ not at the declared margin either",
         ],
         "what_a_re_run_will_not_reproduce": [
             "any figure in nanoseconds, including the anchor's",
             "the exact digits of any ratio",
             "the spreads themselves, which are a property of what else the machine was doing",
-            "⛔ the ordering of rungs the `ordering` rows report as changing places — AND "
-            "NOT ONLY THOSE. A pair that held in every round of one run is a separation that "
-            "run could see; a second run at this commit reordered several such pairs, all of "
-            "them pairs whose ratio is one within its own spread. The reproducible ordering "
-            "claim is about `separated_pairs`, which is the smaller set",
+            "⛔ the ordering of any pair closer together than the separation the "
+            "`reproduction` row measured — AND THAT IS WIDER THAN IT SOUNDS. Two claims were "
+            "tried here and a second traversal disposed of both: the pairs that held in "
+            "every round, and then the pairs separated by the declared margin. The claim is "
+            "the measured separation, and it is a measurement rather than a guarantee",
         ],
         "how_to_compare_two_runs": (
             "for each ratio, check that the other run's median falls inside this file's "
-            "per-round interval for it; then compare the `separated_pairs` lists and the "
-            "verdicts. ⛔ A byte comparison of this file reports a difference every time and "
-            "means nothing by it"
+            "per-round interval for it; then compare the orderings of the pairs that clear "
+            "the measured separation, and the verdicts. ⛔ A byte comparison of this file "
+            "reports a difference every time and means nothing by it"
         ),
         "how_to_use_a_ratio_on_another_machine": (
             "measure the anchor there — a Python function that takes no arguments and "

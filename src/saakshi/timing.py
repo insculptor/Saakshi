@@ -835,7 +835,10 @@ def reproduction_record(
             form=form,
             denominator_form=denominator_form,
         )
-        label = f"{numerator} over {denominator} ({form})"
+        label = (
+            f"{numerator} ({form}) over {denominator} "
+            f"({denominator_form or form})"
+        )
         if a.minimum <= b.median <= a.maximum:
             inside += 1
         else:

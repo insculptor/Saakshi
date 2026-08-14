@@ -225,32 +225,43 @@ from a diff.
 statement about what a file reproduces is a claim like any other, and made in prose it is
 untested. The second traversal exists only to test it.
 
-**Measured, in the file, by the same instrument on the same day:**
+**Measured, in the file, by the same instrument on the same day** (one busy machine; the
+figures below are that comparison, not a bound):
 
 | | |
 |---|---|
-| published ratios whose second median fell inside the first traversal's per-round interval | **39 of 39** |
-| median movement of a ratio between traversals | **1.3 %** |
-| largest movement of a ratio between traversals | **4.8 %** |
+| published ratios re-measured | **104** — every one the file carries |
+| ratios whose second median fell inside the first traversal's per-round interval | **96 to 102** |
+| median movement of a ratio between traversals | **1.3 % – 2.6 %** |
+| largest movement of a ratio between traversals | **4.8 % – 13 %** |
 | repetition-sensitivity verdicts that agreed | **7 of 7** |
 
-⛔⛔ **And the ordering claim I first wrote was too strong — the second traversal is what
-caught it.** "The ordering of every pair that held in every round" sounds like a claim about a
-re-run and is not one: **three to four pairs per call-site form** that held in every round of
-the first traversal changed places in the second, all of them pairs whose ratio is one within
-its own spread. A pair that held in every round of one run is a separation *that run* could
-see.
+⚠ The ratios that fell outside are **named** on the row, not merely counted; every one of
+them is a ratio near one, where a movement of a fraction of a nanosecond is a large fraction
+of the ratio.
 
-So the artifact publishes **three nested sets** per form, and only the smallest is a claim
-about a re-run: every pair compared; the pairs that held in every round; and the pairs
-**separated by at least 10 % in every round**. The reproducible ordering is the third.
+⛔⛔ **Two ordering claims were written here and the second traversal disposed of both.** The
+first — *"the order of every pair that held in every round"* — sounds like a claim about a
+re-run and is not one: several pairs per call-site form that held in every round of the first
+traversal changed places in the second, all of them pairs whose ratio is one within its own
+spread. The second was a fix by constant: *"pairs separated by at least 10 %"*. That failed
+the same way, losing four pairs in one form and seven in another.
+
+⭐ **So the file stopped choosing a number and measured one.** It publishes three nested sets
+per form — every pair compared, the pairs that held in every round, and the pairs separated by
+the declared 10 % — and beside them the figure that is actually the claim: **the smallest
+separation such that every pair the first traversal separated by at least that much was still
+in the same order in the second.** On this machine it came out between **1.11 and 1.68**,
+varying by form. ⛔ It too is a measurement, not a guarantee; a run on another day may need a
+larger one, and the row says so.
 
 **What a re-run will not reproduce** — any nanosecond figure, the exact digits of any ratio,
-the spreads themselves, and the ordering of any pair outside the separated set.
+the spreads themselves, and the ordering of any pair closer together than the measured
+separation.
 
 ⛔ **A byte comparison of this file reports a difference every time and means nothing by it.**
 For each ratio, check that the other run's median falls inside this file's per-round interval;
-then compare the separated-pair lists and the verdicts.
+then compare the orderings of the pairs that clear the measured separation, and the verdicts.
 
 ⚠ **Two traversals minutes apart on one machine is the weakest form of this check**, and the
 artifact says so on the row. It cannot speak for a different day, a different load or a

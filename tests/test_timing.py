@@ -489,7 +489,9 @@ def test_a_pair_that_stopped_being_separated_is_named_not_merely_counted():
         what_was_checked="one ratio",
     )
     assert record["ordering"][0]["separated_in_the_first_and_not_the_second"] == [["a", "b"]]
-    assert record["ratios_that_fell_outside"] == ["b over a (unpacked)"]
+    assert record["ratios_that_fell_outside"] == [
+        "b (unpacked) over a (unpacked)"
+    ]
     assert record["ordering"][0]["declared_margin"] == SEPARATION_MARGIN
 
 
