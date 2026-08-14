@@ -49,6 +49,7 @@ from saakshi.fixture import (  # noqa: E402
     Header,
     bits,
     describe_reserved_names,
+    patterned,
     write_jsonl,
 )
 from saakshi.kernels import oracle_identity, verify  # noqa: E402
@@ -336,8 +337,12 @@ def main() -> int:
                 "epoch_id": epoch_id,
                 "stratum": stratum,
                 "chain_shape": shape,
-                "et_seconds": et,
-                "et_bits": bits(et),
+                # ⭐ Written through `patterned()` rather than by hand. This row used to
+                #    spell the pair `et_seconds`/`et_bits`, which was the repository's only
+                #    second spelling of one relationship — and it cost a wrong number on the
+                #    contract page, because a survey that matched `<key>_bits` counted 5 294
+                #    patterned values as bare. ⛔ A convention no code enforces drifts.
+                **patterned("et_seconds", et),
                 "target": target,
                 "centre": centre,
             }
@@ -444,7 +449,7 @@ def main() -> int:
             "stratum": "why this epoch is in the grid",
             "chain_shape": "direct | direct_identically_zero | common_ancestor_not_root | through_root",
             "et_seconds": "TDB seconds past J2000.0",
-            "et_bits": "IEEE-754 bit pattern of et_seconds",
+            "et_seconds_bits": "IEEE-754 bit pattern of et_seconds",
             "target": "NAIF id of the body whose state this is",
             "centre": "NAIF id of the body the state is relative to",
             "section": "position | velocity",

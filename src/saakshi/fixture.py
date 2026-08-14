@@ -628,15 +628,21 @@ def resolve_pattern_partner(pattern_key: str, keys: Iterable[str]) -> str | None
     sibling (``jd_ut``/``jd_ut_bits``) and a parallel array (``values``/``values_bits``) —
     and a reader has to resolve all three to know which decimals are load-bearing.
 
-    ⚠ **A fourth spelling exists and is tolerated here rather than silently:** one generator
-    writes ``et_seconds`` and names its pattern ``et_bits``, not ``et_seconds_bits``. It is
-    documented in that file's own ``row_schema``, so it is a local choice rather than a bug —
-    but it is a *second* spelling of one relationship, and it has already cost something
-    measurable. A survey of this repository's own artifacts, run to settle what the pattern
-    convention is, matched only ``<key>_bits`` and therefore counted 5 294 patterned values
-    as bare; the resulting figure reached the contract page and was wrong by exactly that
-    much. ⛔ **A convention no code enforces is a convention that drifts, and the drift is
-    invisible until something counts.**
+    ⚠ **A fourth spelling is tolerated here rather than silently, and the tolerance outlives
+    the writer that needed it.** ``r2_kernel_states.py`` used to write ``et_seconds`` and name
+    its pattern ``et_bits``, not ``et_seconds_bits``. It was documented in that file's own
+    ``row_schema``, so it was a local choice rather than a bug — but it was a *second*
+    spelling of one relationship, and it cost something measurable. A survey of this
+    repository's own artifacts, run to settle what the pattern convention is, matched only
+    ``<key>_bits`` and therefore counted 5 294 patterned values as bare; the resulting figure
+    reached the contract page and was wrong by exactly that much. ⛔ **A convention no code
+    enforces is a convention that drifts, and the drift is invisible until something counts.**
+
+    ⭐ **That generator now writes the pair through** :func:`patterned`, so no generator here
+    emits an abbreviated stem any more. ⛔ **The tolerance below is kept anyway, and removing
+    it would be the mistake:** artifacts carrying ``et_bits`` have already been emitted and
+    handed over, and a resolver that refused them would refuse evidence that is not coming
+    back. What stops the *next* spelling is :func:`patterned`, not a narrower resolver.
 
     So an abbreviated stem resolves only when it is **unambiguous** — exactly one non-pattern
     key extends it. Two candidates is not a near miss, it is an unresolvable pattern, and the

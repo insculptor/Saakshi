@@ -197,11 +197,27 @@ length that does not match repatterns every value after the gap, silently.
 
 **2. The pair has one spelling.** `patterned("jd_ut", x)` returns both entries, in scalar or
 parallel-array form, and refuses an integer for the same reason `bits()` does. Every generator
-here hand-writes the pair, which is how a second spelling got in; a third now cannot.
+here hand-writes the pair, which is how a second spelling got in.
+
+⚠ **It does not make a third spelling impossible, and saying so would repeat the defect one
+level up.** `patterned()` removes the drift only where it is *used*; most generators still
+hand-write the two keys, and a hand-written pair that resolves to nothing is caught at write
+time while a hand-written pair that resolves to the *wrong* stem spelling is not — it is
+merely a second name for a relationship, which is exactly what was not noticed the first time.
+⛔ What is enforced is that a pattern names a value and agrees with it; what is **not** enforced
+is that one relationship has one name.
 
 ⚠ The abbreviated `et_bits` spelling is **resolved rather than refused**, and only when it is
 unambiguous — exactly one non-pattern key extends the stem. Two candidates is not a near miss
 and is refused. ⛔ Unifying it would change an artifact whose generator cannot be run here.
+
+> **Added 2026-08-14, later the same day — the last sentence above no longer holds.** The
+> generator *can* be run here; the kernel it needs was found. `r2_kernel_states.py` now writes
+> the pair through `patterned()`, so **no generator here emits an abbreviated stem**, and R2
+> was re-run against both pinned kernels to confirm the only change is the intended one.
+> ⛔ **The resolver's tolerance is deliberately unchanged.** It exists for a *reader*: rows
+> spelling it `et_bits` have already been handed over, and refusing them would refuse evidence
+> rather than prevent a defect. ⭐ What stops a third spelling is `patterned()`, at the writer.
 
 ⭐ **Measured before arming, over all 22 files and 244 292 pairs: zero unresolvable pattern
 keys, zero malformed patterns, zero disagreements between a decimal and its pattern, zero

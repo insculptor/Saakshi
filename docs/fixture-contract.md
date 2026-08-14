@@ -207,8 +207,17 @@ run. See [`docs/measurements/2026-08-14-pattern-convention.md`](measurements/202
 ⚠ The earlier figure for this was **48 122**, and it was wrong by exactly 5 294 — the count of
 values whose pattern is spelled `et_bits` rather than `et_seconds_bits`, which the survey's
 walker did not match. ⛔ **The pairing is by name and nothing enforced it**, which is how one
-relationship acquired two spellings; `patterned()` now writes the pair so a third cannot
-appear.
+relationship acquired two spellings; `patterned()` now writes the pair wherever it is used.
+⚠ **It is not a guarantee, and calling it one would repeat the defect.** Most generators still
+hand-write the two keys. What the contract enforces is that a pattern *names a value and agrees
+with it*; it does not enforce that one relationship has only one name.
+
+⭐ **The second spelling is now retired at the writer.** `r2_kernel_states.py` emits the pair
+through `patterned()`, so no generator here produces an abbreviated stem. ⛔ **The resolver
+still accepts one, and narrowing it would be the mistake:** artifacts spelling it `et_bits`
+have been emitted and handed over already, and a reader that refused them would refuse
+evidence rather than prevent a defect. What stops a third spelling is the writer, not the
+resolver.
 
 ## A pattern that is written is checked
 
@@ -227,6 +236,17 @@ scalar sibling (`jd_ut`/`jd_ut_bits`) and the parallel array (`values`/`values_b
 unchecked. A parallel array is read by index, so a length that does not match repatterns every
 value after the gap. Measured over every fixture before the check was armed — 244 292 pairs,
 zero unresolvable, zero malformed, zero disagreements, zero mismatched lengths.
+
+⚠ **That measurement was static, and a refusal nothing has run against is a refusal nobody
+has tested.** It has since been executed: R3 and the five convention probes were re-run and
+put **33 300** numeric pairs through the check, all of them in the two forms
+`leaves.verify_bits` never reached — 9 133 scalar siblings and 3 784 parallel arrays, zero in
+the leaf model — and every output reproduced byte for byte against the held artifact apart
+from the commit stamp. ⭐ **And the accepting run is not the evidence; the refusing one is.**
+Real rows from three of those files were corrupted one defect at a time — a disagreeing
+decimal, a short parallel array, a pattern naming nothing, a malformed pattern — and each was
+refused, against a null control of the same rows unmutated that was accepted. ⛔ A walk that
+never visited these row shapes would have accepted all 33 300 and looked identical.
 
 ⚠ One file departs furthest from the pattern convention: the timing fixture patterns **none**
 of its 803 floats, and it is also the only artifact here that does not regenerate byte for

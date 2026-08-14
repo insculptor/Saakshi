@@ -690,14 +690,19 @@ def test_the_check_reaches_a_header_because_a_summary_quotes_patterns(tmp_path):
 
 
 def test_an_abbreviated_stem_resolves_when_it_is_unambiguous():
-    """⚠ One generator writes `et_seconds` and names its pattern `et_bits`.
+    """⚠ `r2_kernel_states.py` used to write `et_seconds` and name its pattern `et_bits`.
 
-    ⭐ It is documented in that file's own `row_schema`, so it is a local choice rather
-    than a defect — but it is a **second spelling of one relationship**, and it has already
-    cost something measurable: a survey of this repository's artifacts matched only
+    ⭐ It was documented in that file's own `row_schema`, so it was a local choice rather
+    than a defect — but it was a **second spelling of one relationship**, and it cost
+    something measurable: a survey of this repository's artifacts matched only
     `<key>_bits`, counted 5 294 patterned values as bare, and put the wrong figure on the
     contract page. ⛔ A convention no code enforces drifts, and the drift is invisible
     until something counts.
+
+    ⭐ **That generator now writes the pair through `patterned()`, and this test stays.**
+    ⛔ The tolerance is not kept for a writer — it is kept for a *reader*: artifacts
+    spelling it `et_bits` have already been handed over, and a resolver that refused them
+    would refuse evidence nobody can regenerate a second time under the old spelling.
     """
     keys = ["et_seconds", "et_bits", "target", "values", "values_bits"]
     assert resolve_pattern_partner("et_bits", keys) == "et_seconds"
