@@ -472,6 +472,22 @@ def test_a_margin_that_held_everywhere_is_reported_as_the_smallest_one():
     assert margin_that_held(first, first, form="unpacked") == 1.0
 
 
+def test_a_separation_of_less_than_none_is_never_reported():
+    """⚠ A pair the first traversal did not separate cannot set the separation that held.
+
+    ⛔ Caught on the real ladder, which reported 0.999 for one form. It was arithmetically
+    honest and unreadable: a separation below one is not a smaller separation, it is a pair
+    that changed places inside the first traversal. One is the floor, and it means the whole
+    ordering reproduced.
+    """
+    first = {
+        ("a", "unpacked"): _reading("a", "unpacked", (100.0, 100.0)),
+        ("b", "unpacked"): _reading("b", "unpacked", (101.0, 99.0)),
+    }
+    held = margin_that_held(first, first, form="unpacked")
+    assert held == 1.0
+
+
 def test_a_pair_that_stopped_being_separated_is_named_not_merely_counted():
     first = {
         ("a", "unpacked"): _reading("a", "unpacked", (10.0, 10.0)),

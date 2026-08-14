@@ -945,7 +945,11 @@ def margin_that_held(
             pairs.append((separation, kept))
     if not pairs:
         return None
-    for candidate in sorted({1.0, *(separation for separation, _ in pairs)}):
+    # ⚠ Candidates below one are dropped rather than reported. A pair whose minimum ratio is
+    #   under one is a pair the first traversal did not separate at all, so returning such a
+    #   value would read as a separation of less than none. One means the whole ordering
+    #   reproduced, which is the strongest answer available here.
+    for candidate in sorted({1.0, *(s for s, _ in pairs if s > 1.0)}):
         if all(kept for separation, kept in pairs if separation >= candidate):
             return candidate
     return None

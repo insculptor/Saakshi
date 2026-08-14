@@ -230,8 +230,8 @@ figures below are that comparison, not a bound):
 
 | | |
 |---|---|
-| published ratios re-measured | **104** — every one the file carries |
-| ratios whose second median fell inside the first traversal's per-round interval | **96 to 102** |
+| published ratios re-measured | **98** — every one the file carries |
+| ratios whose second median fell inside the first traversal's per-round interval | **95 to 98** |
 | median movement of a ratio between traversals | **1.3 % – 2.6 %** |
 | largest movement of a ratio between traversals | **4.8 % – 13 %** |
 | repetition-sensitivity verdicts that agreed | **7 of 7** |
@@ -251,9 +251,10 @@ the same way, losing four pairs in one form and seven in another.
 per form — every pair compared, the pairs that held in every round, and the pairs separated by
 the declared 10 % — and beside them the figure that is actually the claim: **the smallest
 separation such that every pair the first traversal separated by at least that much was still
-in the same order in the second.** On this machine it came out between **1.11 and 1.68**,
-varying by form. ⛔ It too is a measurement, not a guarantee; a run on another day may need a
-larger one, and the row says so.
+in the same order in the second.** On this machine it came out between **1.08 and 1.72**,
+varying by form and by how busy the machine was. ⛔ It too is a measurement, not a guarantee;
+a run on another day may need a larger one, and the row says so. Where it reads exactly
+**1.0**, the whole ordering for that form reproduced.
 
 **What a re-run will not reproduce** — any nanosecond figure, the exact digits of any ratio,
 the spreads themselves, and the ordering of any pair closer together than the measured
