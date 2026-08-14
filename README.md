@@ -67,6 +67,9 @@ generators/          one script per fixture set; each is a recorder
   r3_swiss.py            the same grid under each ephemeris source, source asserted per row
   r5_continuity.py       what an earlier implementation answered, before it stops running
   probe6b_ffi.py         what crossing into the ephemeris binding costs, as ratios
+  r6_karaka_rules.py     what one located translation states, and one rule it does not
+  r6_reduction_fork.py   a rule one chapter disagrees with its own illustrations about
+  r6_reduction_example.py  a source's own worked figures, reproduced from what it printed
 src/saakshi/         the shared library
   fixture.py             the fixture contract, fail-closed, five discriminated kinds
   acquisition.py         retrieval as evidence; ⛔ a cache read is not an acquisition
@@ -78,6 +81,8 @@ src/saakshi/         the shared library
   surface.py             a sampled engine's call surface, declared as local data
   swiss.py               which ephemeris actually answered; ⛔ refuses to attribute a value
   timing.py              a timing ladder and its controls; ⛔ publishes ratios, never durations
+  textual.py             the locus discipline; ⛔ a citation that does not resolve is refused
+  texts.py               the copies a locus resolves into; ⛔ emission never acquires
 tests/               the contract's own negative tests
 config/              reserved names (local, not committed)
 out/                 generated fixtures (not committed; they are consumed elsewhere)
@@ -100,7 +105,16 @@ python generators/r1_horizons.py --kernel <path to de440s.bsp> --out out/
 python generators/r3_swiss.py --ephe-path <directory of .se1 files> --out out/
 python generators/convention_probes.py --ephe-path <directory of .se1 files> --out out/
 python generators/probe6b_ffi.py --out out/
+
+python generators/r6_karaka_rules.py --acquire --out out/
+python generators/r6_reduction_fork.py --acquire --out out/
+python generators/r6_reduction_example.py --out out/
 ```
+
+⚠ **The `r6_*` generators separate acquiring a text from citing it.** `--acquire` goes to the
+network once and writes the retrieval beside the copy; every later run reads what is on disk
+and refuses to fetch. ⛔ A generator that acquired at emit time would stamp today's date on a
+copy obtained months ago, and would need the network to reproduce its own output.
 
 ⚠ **`probe6b_ffi.py` takes no path at all, and that is deliberate** — see the section on
 timing below. It records the interpreter, the binding, the library version and the platform,
