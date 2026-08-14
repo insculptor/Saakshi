@@ -185,15 +185,54 @@ refused for a reason that was never about it. **The question a number answers is
 rule turns on, not the kind of file it arrived in.**
 
 ⚠ **And this section does not claim that every double carries a pattern, because that is
-measured false.** Of the floats in the fixtures produced so far, **48 122** carry none: they
-are derived comparisons (`reproduction_abs_delta`, `state_vector_norm`,
-`cross_check_max_rel_delta`), declared inputs (`atpress`, `attemp`, `window_jd_ut`) and
-environment context. The pattern accompanies the value a fixture is evidence **of**. ⛔ That
-narrower convention has never been written down as a rule and is **not settled here** — it is
-named so a reader does not mistake the integer rule for the whole of it. One file departs
-furthest: the timing fixture patterns **none** of its 803 floats, and it is also the only
-artifact here that does not regenerate byte for byte. ⚠ No reason for that is on the record,
-and this is not the place to invent one.
+measured false.** Of the floats in the fixtures produced so far, **42 830** in value rows
+carry none — derived comparisons, declared inputs and environment context.
+
+⛔ **There is no rule behind that, and the one previously offered for it is retired.** *"The
+pattern accompanies the value a fixture is evidence of"* was measured against the artifacts
+and they contradict it, most sharply where it matters most: in `publisher-test-values` the
+**patterned** number is the one copied out of the publisher's file, while
+`reproduction_abs_delta` — the residual this instrument established, and the only trace in the
+file of what it computed — is written **bare**, 14 453 times. Two arguments of one call in one
+row are also split, `latitude` patterned and `atpress` not.
+
+⭐ **The pattern's own reason reaches every double.** A decimal approximates a double whether
+that double is a measurement, a derivative or an input, so nothing in the stated purpose
+distinguishes them. What actually decided each case was whether the value passed through a
+`bits()` call site — a fact about the writing code, not about the numbers. ⚠ **A rule this
+repository's own artifacts do not satisfy is not this repository's rule**, so none is declared
+here; arming one would refuse thirteen emitted artifacts, six of whose generators cannot be
+run. See [`docs/measurements/2026-08-14-pattern-convention.md`](measurements/2026-08-14-pattern-convention.md).
+
+⚠ The earlier figure for this was **48 122**, and it was wrong by exactly 5 294 — the count of
+values whose pattern is spelled `et_bits` rather than `et_seconds_bits`, which the survey's
+walker did not match. ⛔ **The pairing is by name and nothing enforced it**, which is how one
+relationship acquired two spellings; `patterned()` now writes the pair so a third cannot
+appear.
+
+## A pattern that is written is checked
+
+Wherever a pattern *is* written, it is verified at write time, in the same walk that enforces
+the rules above. Three refusals:
+
+* a pattern key that resolves to **no value key** — a pattern that names nothing is a pattern
+  nobody checks, and it reads as though the value beside it were guarded;
+* a pattern that is not sixteen lowercase hex digits;
+* a pattern and a decimal that are **different numbers**, compared through `bits()` rather
+  than `==` so that `-0.0` and `0.0` are told apart.
+
+⭐ This reaches all three carrying forms — the flattened leaf model (`number`/`bits`), the
+scalar sibling (`jd_ut`/`jd_ut_bits`) and the parallel array (`values`/`values_bits`). ⚠
+`leaves.verify_bits` had only ever reached the first: **135 524** pairs checked, **108 768**
+unchecked. A parallel array is read by index, so a length that does not match repatterns every
+value after the gap. Measured over every fixture before the check was armed — 244 292 pairs,
+zero unresolvable, zero malformed, zero disagreements, zero mismatched lengths.
+
+⚠ One file departs furthest from the pattern convention: the timing fixture patterns **none**
+of its 803 floats, and it is also the only artifact here that does not regenerate byte for
+byte. ⭐ The measured cause is that `timing.py` and `probe6b_ffi.py` are the only
+value-writing modules here that never import `bits` at all — so that is an **absence rather
+than a decision**, which is a different fact from the one the previous note left open.
 
 ## Reserved names
 

@@ -18,7 +18,9 @@ from saakshi.fixture import (
     Header,
     bits,
     find_absolute_path,
+    patterned,
     redact_environment,
+    resolve_pattern_partner,
     validate_filename,
     validate_header,
     write_jsonl,
@@ -591,3 +593,177 @@ def test_the_bound_is_not_keyed_to_a_kind(tmp_path):
             row,
             declared_sections=["position"],
         )
+
+
+# --- a pattern is only a pattern if a reader can tell what it is the pattern OF ---------
+#
+# ⭐ These pin the second half of the bit-pattern rule. The first half asked *which values*
+# carry a pattern; this half asks whether the patterns that ARE written can be trusted —
+# and until they were added, nothing checked a scalar sibling or a parallel array at all.
+# `leaves.verify_bits` reached only the flattened leaf model, which is 135 524 of the
+# 244 292 pairs this repository has emitted. The other 108 768 were unguarded.
+
+
+def test_a_pattern_that_names_no_value_is_refused(tmp_path):
+    """⛔ It reads in the file as though the value beside it were guarded. Nothing is."""
+    with pytest.raises(FixtureContractError, match="names no value"):
+        write_jsonl(
+            tmp_path / "a.jsonl",
+            numeric(),
+            [{"section": "position", "jd_ut": 1.5, "jd_utc_bits": bits(1.5)}],
+            declared_sections=["position"],
+        )
+
+
+def test_a_pattern_that_disagrees_with_its_decimal_is_refused(tmp_path):
+    """⛔ Two readers, one row, two different numbers, and no way to notice."""
+    with pytest.raises(FixtureContractError, match="different numbers"):
+        write_jsonl(
+            tmp_path / "a.jsonl",
+            numeric(),
+            [{"section": "position", "value": 1.5, "value_bits": bits(1.4999999)}],
+            declared_sections=["position"],
+        )
+
+
+def test_the_sign_of_zero_is_a_disagreement(tmp_path):
+    """⭐ `-0.0 == 0.0` is true, which is exactly why the comparison goes through bits()."""
+    with pytest.raises(FixtureContractError, match="different numbers"):
+        write_jsonl(
+            tmp_path / "a.jsonl",
+            numeric(),
+            [{"section": "position", "value": -0.0, "value_bits": bits(0.0)}],
+            declared_sections=["position"],
+        )
+
+
+@pytest.mark.parametrize("bad", ["3FF8000000000000", "3ff800000000000", "zz", 1.5, None])
+def test_a_malformed_pattern_is_refused(bad, tmp_path):
+    """⚠ Including an uppercase one: sixteen lowercase hex digits, as bits() writes them."""
+    with pytest.raises(FixtureContractError, match="not a bit pattern"):
+        write_jsonl(
+            tmp_path / "a.jsonl",
+            numeric(),
+            [{"section": "position", "value": 1.5, "value_bits": bad}],
+            declared_sections=["position"],
+        )
+
+
+def test_a_parallel_array_of_the_wrong_length_is_refused(tmp_path):
+    """⛔ A parallel array is read by index, so a gap repatterns everything after it."""
+    with pytest.raises(FixtureContractError, match="parallel array is read by index"):
+        write_jsonl(
+            tmp_path / "a.jsonl",
+            numeric(),
+            [{
+                "section": "position",
+                "values": [1.5, 2.5, 3.5],
+                "values_bits": [bits(1.5), bits(2.5)],
+            }],
+            declared_sections=["position"],
+        )
+
+
+def test_a_parallel_array_is_verified_elementwise(tmp_path):
+    """⚠ The right length and a wrong element is the case a length check alone misses."""
+    with pytest.raises(FixtureContractError, match="different numbers"):
+        write_jsonl(
+            tmp_path / "a.jsonl",
+            numeric(),
+            [{
+                "section": "position",
+                "values": [1.5, 2.5],
+                "values_bits": [bits(1.5), bits(9.5)],
+            }],
+            declared_sections=["position"],
+        )
+
+
+def test_the_check_reaches_a_header_because_a_summary_quotes_patterns(tmp_path):
+    """⚠ A `summary` block carries the same pairs a row does, and is written once."""
+    header = numeric(summary={"worst": {"delta": 1.5, "delta_bits": bits(2.5)}})
+    with pytest.raises(FixtureContractError, match="different numbers"):
+        validate_header(header, where="t")
+
+
+# --- the abbreviated spelling, tolerated on purpose and pinned so it cannot spread ------
+
+
+def test_an_abbreviated_stem_resolves_when_it_is_unambiguous():
+    """⚠ One generator writes `et_seconds` and names its pattern `et_bits`.
+
+    ⭐ It is documented in that file's own `row_schema`, so it is a local choice rather
+    than a defect — but it is a **second spelling of one relationship**, and it has already
+    cost something measurable: a survey of this repository's artifacts matched only
+    `<key>_bits`, counted 5 294 patterned values as bare, and put the wrong figure on the
+    contract page. ⛔ A convention no code enforces drifts, and the drift is invisible
+    until something counts.
+    """
+    keys = ["et_seconds", "et_bits", "target", "values", "values_bits"]
+    assert resolve_pattern_partner("et_bits", keys) == "et_seconds"
+    assert resolve_pattern_partner("values_bits", keys) == "values"
+
+
+def test_an_ambiguous_abbreviated_stem_resolves_to_nothing(tmp_path):
+    """⛔ Two candidates is not a near miss — a reader cannot tell which was meant."""
+    keys = ["et_seconds", "et_days", "et_bits"]
+    assert resolve_pattern_partner("et_bits", keys) is None
+    with pytest.raises(FixtureContractError, match="names no value"):
+        write_jsonl(
+            tmp_path / "a.jsonl",
+            numeric(),
+            [{"section": "position", "et_seconds": 1.5, "et_days": 2.5,
+              "et_bits": bits(1.5)}],
+            declared_sections=["position"],
+        )
+
+
+def test_prose_describing_a_pattern_is_not_verified_as_one(tmp_path):
+    """⚠ A `row_schema` maps a value key AND its pattern key to prose about them.
+
+    The pairing is still resolved — that is what keeps a documented pattern key honest —
+    but there is no number to check, and demanding one would refuse every fixture that
+    documents its own rows.
+    """
+    header = numeric(row_schema={
+        "et_seconds": "TDB seconds past J2000.0",
+        "et_bits": "IEEE-754 bit pattern of et_seconds",
+    })
+    validate_header(header, where="t")  # ⛔ must not raise
+
+
+# --- the pair has one spelling now ------------------------------------------------------
+
+
+def test_patterned_writes_the_pair(tmp_path):
+    assert patterned("jd_ut", 1.5) == {"jd_ut": 1.5, "jd_ut_bits": bits(1.5)}
+
+
+def test_patterned_writes_the_parallel_array_form():
+    assert patterned("values", [1.5, 2.5]) == {
+        "values": [1.5, 2.5],
+        "values_bits": [bits(1.5), bits(2.5)],
+    }
+
+
+def test_patterned_refuses_a_count():
+    """⛔ The same refusal as bits(), at the other place the mistake gets made."""
+    with pytest.raises(FixtureContractError, match="count"):
+        patterned("cells_read", 12)
+    with pytest.raises(FixtureContractError, match="count"):
+        patterned("hits", [1, 2])
+
+
+def test_a_row_built_by_patterned_survives_the_writer(tmp_path):
+    """⭐ The mechanism and the check agree: what patterned() writes, the walk accepts."""
+    path = tmp_path / "a.jsonl"
+    write_jsonl(
+        path,
+        numeric(),
+        [{"section": "position", **patterned("jd_ut", 1.5),
+          **patterned("values", [2.5, -0.0])}],
+        declared_sections=["position"],
+    )
+    row = json.loads(path.read_text(encoding="utf-8").splitlines()[1])
+    assert row["jd_ut_bits"] == bits(1.5)
+    assert row["values_bits"] == [bits(2.5), bits(-0.0)]

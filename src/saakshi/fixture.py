@@ -167,6 +167,20 @@ DEFAULT_RESERVED_NAMES: tuple[str, ...] = ("saakshi",)
 
 _KEY_RE = re.compile(r"^[a-z][a-z0-9_]*$")
 
+#: The suffix that marks a key as carrying another key's bit pattern, and the two key names
+#: the flattened leaf model uses instead.
+#:
+#: ⛔ **A pattern key is only a pattern if a reader can tell what it is the pattern OF.**
+#: The pairing is by name and nothing enforced it, so the repository grew two spellings for
+#: one relationship — see :func:`resolve_pattern_partner`. Use :func:`patterned` to write a
+#: pair and the question does not arise.
+PATTERN_SUFFIX = "_bits"
+LEAF_PATTERN_KEY = "bits"
+LEAF_VALUE_KEY = "number"
+
+#: 16 lowercase hex digits, and nothing else.
+_PATTERN_RE = re.compile(r"^[0-9a-f]{16}$")
+
 
 class FixtureContractError(Exception):
     """Raised when a fixture would violate the contract. ⛔ There is no permissive mode."""
@@ -606,6 +620,146 @@ def _validate_locus(locus: Any, *, where: str, kind: str) -> None:
         )
 
 
+def resolve_pattern_partner(pattern_key: str, keys: Iterable[str]) -> str | None:
+    """Which key does `pattern_key` carry the bit pattern **of**? `None` if nothing.
+
+    ⭐ **The pairing is by name, and until this function nothing checked it.** Three
+    carrying forms grew up here — the flattened leaf model (``number``/``bits``), a scalar
+    sibling (``jd_ut``/``jd_ut_bits``) and a parallel array (``values``/``values_bits``) —
+    and a reader has to resolve all three to know which decimals are load-bearing.
+
+    ⚠ **A fourth spelling exists and is tolerated here rather than silently:** one generator
+    writes ``et_seconds`` and names its pattern ``et_bits``, not ``et_seconds_bits``. It is
+    documented in that file's own ``row_schema``, so it is a local choice rather than a bug —
+    but it is a *second* spelling of one relationship, and it has already cost something
+    measurable. A survey of this repository's own artifacts, run to settle what the pattern
+    convention is, matched only ``<key>_bits`` and therefore counted 5 294 patterned values
+    as bare; the resulting figure reached the contract page and was wrong by exactly that
+    much. ⛔ **A convention no code enforces is a convention that drifts, and the drift is
+    invisible until something counts.**
+
+    So an abbreviated stem resolves only when it is **unambiguous** — exactly one non-pattern
+    key extends it. Two candidates is not a near miss, it is an unresolvable pattern, and the
+    caller refuses.
+    """
+    keys = list(keys)
+    if pattern_key == LEAF_PATTERN_KEY:
+        return LEAF_VALUE_KEY if LEAF_VALUE_KEY in keys else None
+    if not pattern_key.endswith(PATTERN_SUFFIX):
+        return None
+    stem = pattern_key[: -len(PATTERN_SUFFIX)]
+    if stem in keys:
+        return stem
+    candidates = [
+        key
+        for key in keys
+        if key != pattern_key
+        and key.startswith(stem + "_")
+        and not key.endswith(PATTERN_SUFFIX)
+        and key != LEAF_PATTERN_KEY
+    ]
+    return candidates[0] if len(candidates) == 1 else None
+
+
+def _is_pattern_key(key: str) -> bool:
+    return key == LEAF_PATTERN_KEY or key.endswith(PATTERN_SUFFIX)
+
+
+def _verify_pattern_pairs(node: Mapping[str, Any], *, where: str, path: str) -> None:
+    """Every pattern in this object names a value, and states the same number as it does.
+
+    ⛔ **Three things are refused, and each of them looks fine in a diff.**
+
+    * a pattern key that resolves to no value key — *a pattern that names nothing is a
+      pattern nobody checks*, and it reads in the file as though the value beside it were
+      guarded;
+    * a pattern that is not sixteen hex digits;
+    * a pattern and a decimal that are **different numbers**. This file declares the pattern
+      to be the value and the decimal to be display, so a disagreement hands two readers two
+      different numbers from one row with nothing to notice it by.
+
+    ⭐ Compared through :func:`bits` rather than ``==``, because ``-0.0 == 0.0`` is true and
+    the sign of zero is one of the reasons the hex form exists at all.
+
+    ⚠ **Verification is attempted only where the partner is a number.** A ``row_schema``
+    block maps both a value key and its pattern key to prose describing them; the pairing is
+    still resolved there — that is what keeps a documented pattern key honest — but there is
+    no number to check, and demanding one would refuse every fixture that documents itself.
+
+    ⚠ Measured before this was armed: over every fixture this repository has produced,
+    244 292 value-and-pattern pairs in all three carrying forms, **zero** unresolvable
+    pattern keys, **zero** malformed patterns, **zero** disagreements and **zero**
+    parallel arrays of mismatched length. ⛔ Nothing that has ever been written is refused
+    by this — and 108 768 of those pairs had never been checked by anything, because
+    ``leaves.verify_bits`` only ever reached the leaf model.
+    """
+    keys = list(node)
+    for key in keys:
+        if not _is_pattern_key(key):
+            continue
+        partner = resolve_pattern_partner(key, keys)
+        if partner is None:
+            raise FixtureContractError(
+                f"{where}: {path}.{key}: this key carries a bit pattern but names no value "
+                "in the same object. ⛔ A pattern that names nothing is a pattern nobody "
+                f"checks, and it reads as though a value were guarded when none is. Name it "
+                f"<value_key>{PATTERN_SUFFIX}, or write the pair with patterned()"
+            )
+        value = node[partner]
+        pattern = node[key]
+        if isinstance(value, float):
+            _verify_one_pattern(pattern, value, where=where, path=f"{path}.{key}")
+        elif isinstance(value, (list, tuple)) and value and all(
+            isinstance(item, float) for item in value
+        ):
+            if not isinstance(pattern, (list, tuple)) or len(pattern) != len(value):
+                raise FixtureContractError(
+                    f"{where}: {path}.{key}: {partner!r} holds {len(value)} numbers and its "
+                    f"pattern holds "
+                    f"{len(pattern) if isinstance(pattern, (list, tuple)) else 'no'} — a "
+                    "parallel array is read by index, so a length that does not match "
+                    "silently repatterns every value after the gap"
+                )
+            for index, item in enumerate(value):
+                _verify_one_pattern(
+                    pattern[index], item, where=where, path=f"{path}.{key}[{index}]"
+                )
+
+
+def _verify_one_pattern(pattern: Any, value: float, *, where: str, path: str) -> None:
+    if not isinstance(pattern, str) or not _PATTERN_RE.match(pattern):
+        raise FixtureContractError(
+            f"{where}: {path}: {pattern!r} is not a bit pattern — sixteen lowercase hex "
+            "digits, as bits() writes them"
+        )
+    if pattern != bits(value):
+        raise FixtureContractError(
+            f"{where}: {path}: the decimal {value!r} and the pattern {pattern!r} are "
+            "different numbers. ⛔ The pattern is the value and the decimal is display; a "
+            "reader on each path would hold a different number from the same row and "
+            "neither could tell"
+        )
+
+
+def patterned(key: str, value: float | Sequence[float]) -> dict[str, Any]:
+    """One value and its bit pattern, as the two entries a row carries.
+
+    ⭐ **The one place the pair is spelled**, so a third spelling cannot be invented by
+    hand. ``{**patterned("jd_ut", jd)}`` writes ``jd_ut`` and ``jd_ut_bits``; a sequence
+    writes the parallel array form.
+
+    ⛔ It refuses an integer for the same reason :func:`bits` does: a count is not
+    approximated by its own digits, so there is nothing for a pattern to settle.
+    """
+    if isinstance(value, (list, tuple)):
+        items = [float(item) if not isinstance(item, bool) else item for item in value]
+        for item in value:
+            if isinstance(item, int):  # ⚠ catches bool too
+                bits(item)  # raises, with the reason
+        return {key: items, f"{key}{PATTERN_SUFFIX}": [bits(item) for item in items]}
+    return {key: value, f"{key}{PATTERN_SUFFIX}": bits(value)}
+
+
 def _scan_keys(
     node: Any, *, where: str, path: str, reserved: Sequence[str] | None = None
 ) -> None:
@@ -623,8 +777,11 @@ def _scan_keys(
     * ⛔ an **integer past** :data:`INTEGER_EXACT_LIMIT` is refused. Integers are written
       bare, without the bit pattern a measured value carries, and past that bound a reader
       whose parser holds every number as a double no longer has the number this file wrote.
+    * ⛔ a **bit pattern that names no value**, is malformed, or states a different number
+      from the decimal beside it — see :func:`_verify_pattern_pairs`.
 
-    ⚠ Run over the header as well as every row: a count in a header is a count.
+    ⚠ Run over the header as well as every row: a count in a header is a count, and a
+    ``summary`` block quotes patterns the same way a row does.
     """
     names = tuple(reserved) if reserved is not None else reserved_names()
     if isinstance(node, str):
@@ -649,6 +806,8 @@ def _scan_keys(
                 "a count this large, record it as text and say what it counts"
             )
     if isinstance(node, Mapping):
+        if all(isinstance(key, str) for key in node):
+            _verify_pattern_pairs(node, where=where, path=path)
         for key, value in node.items():
             if not isinstance(key, str):
                 raise FixtureContractError(f"{where}: {path}: non-string key {key!r}")
