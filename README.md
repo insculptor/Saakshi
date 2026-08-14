@@ -66,6 +66,7 @@ generators/          one script per fixture set; each is a recorder
   publisher_testpo.py    the ephemeris publisher's own test-value set
   r3_swiss.py            the same grid under each ephemeris source, source asserted per row
   r5_continuity.py       what an earlier implementation answered, before it stops running
+  probe6b_ffi.py         what crossing into the ephemeris binding costs, as ratios
 src/saakshi/         the shared library
   fixture.py             the fixture contract, fail-closed, five discriminated kinds
   acquisition.py         retrieval as evidence; ⛔ a cache read is not an acquisition
@@ -76,6 +77,7 @@ src/saakshi/         the shared library
   leaves.py              flatten a returned object to addressed leaves
   surface.py             a sampled engine's call surface, declared as local data
   swiss.py               which ephemeris actually answered; ⛔ refuses to attribute a value
+  timing.py              a timing ladder and its controls; ⛔ publishes ratios, never durations
 tests/               the contract's own negative tests
 config/              reserved names (local, not committed)
 out/                 generated fixtures (not committed; they are consumed elsewhere)
@@ -97,7 +99,13 @@ python generators/publisher_testpo.py --kernel <path to de440s.bsp> --out out/
 python generators/r1_horizons.py --kernel <path to de440s.bsp> --out out/
 python generators/r3_swiss.py --ephe-path <directory of .se1 files> --out out/
 python generators/convention_probes.py --ephe-path <directory of .se1 files> --out out/
+python generators/probe6b_ffi.py --out out/
 ```
+
+⚠ **`probe6b_ffi.py` takes no path at all, and that is deliberate** — see the section on
+timing below. It records the interpreter, the binding, the library version and the platform,
+and ⛔ never a filesystem path: a path describes the machine that ran the recorder rather than
+the subject, and the writer refuses one in any value of any fixture.
 
 ⚠ **`publisher_testpo.py` needs the network on every run, and there is no offline path.**
 Beside the value fixture it writes an *acquisition record* attesting where the published
@@ -215,6 +223,39 @@ needs no timezone database, no place-name service, and nothing switched back on.
 ⛔ Every such fixture is `reference_only`. What an implementation answered is evidence about
 that implementation — never about the sky, and never a tolerance anyone may adopt without
 measuring it themselves.
+
+### Timing a boundary, where the artifact cannot regenerate
+
+⛔ **`probe6b_ffi.py` writes the only file this repository produces that does *not* regenerate
+byte for byte**, and it says so in its own first note rather than leaving it to be discovered
+from a diff. Its subject is a duration, and a duration is not a property of the callee alone.
+
+⭐ **So it publishes ratios and records durations only as environment context**, with the same
+standing as the host record. A figure in nanoseconds is the wrong *shape* for a claim about a
+binding, in the way a band expressed in an absolute distance was the wrong shape for a claim
+about a state vector — and the same do-nothing function was measured at 24, 39 and 47 ns on
+one machine depending on when it was asked and how the loop around it was written.
+
+Three things make the ratios worth having, and each is a rule in `src/saakshi/timing.py`:
+
+* ⛔ **the clock is coarser than the subject** — 100 ns steps against calls costing tens of
+  nanoseconds, so **no individual call is ever timed**. Every figure is a mean over a declared
+  count, and a batch too short to clear a hundred clock steps is refused rather than recorded;
+* ⭐ **the call-site form is part of the number.** Handing a callee a pre-built argument tuple
+  is not the same act as compiling the arguments into the call site, and the difference was
+  measured at about 40 % for this binding while vanishing for a Python function. Each rung is
+  measured all three ways and the form is stated on every row;
+* ⛔ **a repeated call is not a repeated computation.** A timing loop asks one question many
+  times; a callee may answer the second asking far more cheaply. Every rung whose cost could
+  depend on which question is asked is measured over one request repeated *and* over distinct
+  requests — and of the two rungs here that do real work, one is sensitive by a factor of
+  about thirty-three and the other is not.
+
+⛔ **The generator refuses to write if any of its four controls fails.** A timing harness has
+no known answer to check itself against, so what is checked is its ability to report a
+difference that is there and none where there is none — including **a pair built to differ by
+a stated factor**, because a null control alone is satisfied by a harness that measures
+nothing at all. See `docs/measurements/2026-08-14-ffi-baseline.md`.
 
 ### Acquired data
 
