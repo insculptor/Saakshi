@@ -70,6 +70,33 @@ PRIVATE_BY_DESIGN: dict[str, str] = {
     "docs/local": "cross-repository notes, git-ignored for that reason",
 }
 
+#: ⛔ **EXEMPT FROM THE CONTENT PASS ONLY. EVERY PATH BELOW IS STILL SCANNED AS A PATH.**
+#:
+#: The textual reference acquires other people's published texts into a cache, and the words
+#: inside them were chosen by their authors. ⭐ Measured, on the first two texts acquired: one
+#: of them contains a reserved name twice — as the name of a sage, in a work of the tradition
+#: a consumer of this repository was itself named after. It is there by construction rather
+#: than by accident, and the next classical text will contain it too.
+#:
+#: ⚠ **A check that always fires is a check nobody reads**, and the exemption that ends that
+#: is the one that has to be argued rather than assumed. Three things make it safe:
+#:
+#: * nothing here is authored by this repository, and nothing here is ever committed — the
+#:   two committed scopes are untouched, and it is a commit that cannot be recalled;
+#: * ⭐ what this repository *writes* from these texts is scanned exactly as before. The
+#:   fixtures quote from them, and a quotation carrying a reserved name is refused like any
+#:   other content;
+#: * ⛔ and the exemption is **content only**. The failure the working-tree scan exists for
+#:   was a *directory bearing a reserved name*, planted by a parallel session. That failure
+#:   is unchanged here: every path under the cache is still listed and still matched, so a
+#:   consumer-named directory appearing inside it is refused exactly as it is anywhere else.
+FOREIGN_CONTENT: dict[str, str] = {
+    "cache": (
+        "acquired third-party source material - not authored here, never committed, and "
+        "digest-pinned in the fixtures. ⛔ Its PATHS are still scanned"
+    ),
+}
+
 #: ⚠ Patterns beyond the names themselves. A public repository can leak an unreleased
 #: project's *shape* without ever naming it — internal document identifiers are the usual
 #: way. These are the ones this estate uses.
@@ -225,16 +252,27 @@ def _relative_paths(root: Path) -> list[str]:
     return found
 
 
-def exemption(relative_path: str) -> str | None:
-    """The reason `relative_path` is private by design, or `None` if it is not.
-
-    ⚠ Matched by whole path component, never by string prefix: `docs/local` must not
-    quietly exempt a `docs/local-notes/` somebody creates next to it.
-    """
-    for path, reason in PRIVATE_BY_DESIGN.items():
+def _under(relative_path: str, listed: dict[str, str]) -> str | None:
+    """⚠ Matched by whole path component, never by string prefix: `docs/local` must not
+    quietly exempt a `docs/local-notes/` somebody creates next to it."""
+    for path, reason in listed.items():
         if relative_path == path or relative_path.startswith(path + "/"):
             return reason
     return None
+
+
+def exemption(relative_path: str) -> str | None:
+    """The reason `relative_path` is exempt from **both** passes, or `None`."""
+    return _under(relative_path, PRIVATE_BY_DESIGN)
+
+
+def content_exemption(relative_path: str) -> str | None:
+    """The reason `relative_path`'s **contents** are not scanned, or `None`.
+
+    ⛔ A path exempt here is still listed and still matched *as a path*. The two passes catch
+    different things and only one of them is being narrowed.
+    """
+    return exemption(relative_path) or _under(relative_path, FOREIGN_CONTENT)
 
 
 def _report(description: str, scope: str, hits: list[str]) -> list[str]:
@@ -259,7 +297,7 @@ def scan_working_tree(
         hits = []
         for line in _git_grep(["--no-index", "-I", "-inE", pattern, "--", "."], root):
             relative_path = line.split(":", 1)[0]
-            if exemption(relative_path) is None:
+            if content_exemption(relative_path) is None:
                 hits.append(line)
         if hits:
             failures.extend(_report(description, "in the working tree", hits))
@@ -338,6 +376,9 @@ def main() -> int:
     for path, reason in PRIVATE_BY_DESIGN.items():
         present = "" if (ROOT / path).exists() else "  [absent]"
         print(f"  exempt: {path} — {reason}{present}")
+    for path, reason in FOREIGN_CONTENT.items():
+        present = "" if (ROOT / path).exists() else "  [absent]"
+        print(f"  exempt (contents only, PATHS still scanned): {path} — {reason}{present}")
     if failures:
         print()
         print("\n".join(failures))

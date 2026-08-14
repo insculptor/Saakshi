@@ -153,3 +153,71 @@ def test_undecodable_bytes_do_not_abort_the_scan(repo):
     (repo / "odd.txt").write_bytes(b"acme \x90\xff and more\n")
 
     assert "in the working tree" in "\n".join(failures(repo))
+
+
+# --- the content-only exemption for acquired source material ---------------------------
+
+
+def test_a_reserved_name_inside_an_acquired_text_is_not_reported(repo):
+    """⭐ The false positive that would otherwise fire forever.
+
+    ⛔ Measured on the first two texts the textual reference acquired: one of them names a
+    sage whose name is also a reserved name, twice. It is a work of the tradition the
+    consumer was itself named after, so the collision is there by construction rather than
+    by accident, and the next classical text carries it too. A check that always fires is a
+    check nobody reads.
+    """
+    cache = repo / "cache" / "textual"
+    cache.mkdir(parents=True)
+    (cache / "some-published-text.txt").write_text(
+        "the sage acme also opines that the third house\n", encoding="utf-8"
+    )
+
+    assert failures(repo) == []
+
+
+def test_a_planted_directory_under_the_cache_is_still_refused(repo):
+    """⛔ The narrowing is CONTENT ONLY, and this is the failure it must not touch.
+
+    The working-tree scan exists because a parallel session wrote a consumer-named directory
+    into this clone. Exempting the cache wholesale would have reopened exactly that hole in
+    the one directory a parallel session is most likely to write into.
+    """
+    planted = repo / "cache" / "acme-fixtures"
+    planted.mkdir(parents=True)
+    (planted / "rows.jsonl").write_text('{"row": 1}\n', encoding="utf-8")
+
+    report = "\n".join(failures(repo))
+    assert "a working-tree PATH" in report
+    assert "acme" in report
+
+
+def test_what_the_repository_writes_from_an_acquired_text_is_still_scanned(repo):
+    """⛔ A fixture quotes its sources, and a quotation carrying a reserved name is a leak."""
+    (repo / "out" / "textual").mkdir(parents=True)
+    (repo / "out" / "textual" / "rules.jsonl").write_text(
+        '{"quoted": "the sage acme also opines"}\n', encoding="utf-8"
+    )
+
+    assert "in the working tree" in "\n".join(failures(repo))
+
+
+def test_the_content_only_exemption_does_not_exempt_the_path(repo):
+    """⚠ The two passes are separate, and only one of them was narrowed."""
+    for path in check.FOREIGN_CONTENT:
+        assert check.content_exemption(path) is not None
+        assert check.exemption(path) is None
+
+
+def test_the_content_exemption_also_covers_the_fully_private_paths(repo):
+    """A path exempt from both passes must not be reported by the content pass either."""
+    for path in check.PRIVATE_BY_DESIGN:
+        assert check.content_exemption(path) is not None
+
+
+def test_the_content_only_exemption_matches_whole_components_only(repo):
+    """⚠ `cache` must not quietly exempt a `cache-of-consumer-notes/` created beside it."""
+    (repo / "cache-notes").mkdir(parents=True)
+    (repo / "cache-notes" / "x.md").write_text("acme owes us\n", encoding="utf-8")
+
+    assert failures(repo)
