@@ -33,7 +33,13 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
 import swisseph as swe  # noqa: E402
 
-from saakshi.fixture import Header, bits, describe_reserved_names, write_jsonl  # noqa: E402
+from saakshi.fixture import (  # noqa: E402
+    Header,
+    bits,
+    describe_reserved_names,
+    redact_environment,
+    write_jsonl,
+)
 from saakshi.provenance import generator_for, host_record, today  # noqa: E402
 from saakshi.swiss import (  # noqa: E402
     MODES,
@@ -234,7 +240,9 @@ def sample_mode(
                 "section": section,
                 "epoch_id": epoch_id,
                 "where": where,
-                "detail": str(exc)[:300],
+                # ⛔ Redact before truncating. The other order can cut a path in half and
+                #    leave the half that still names the machine.
+                "detail": redact_environment(str(exc))[:300],
             }
         )
 
@@ -245,7 +253,7 @@ def sample_mode(
                 "epoch_id": epoch_id,
                 "where": where,
                 "error": type(exc).__name__,
-                "detail": str(exc)[:200],
+                "detail": redact_environment(str(exc))[:200],
             }
         )
 

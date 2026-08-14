@@ -45,6 +45,7 @@ from saakshi.acquisition import AcquisitionError, USER_AGENT, retrieve  # noqa: 
 from saakshi.fixture import (  # noqa: E402
     Header,
     describe_reserved_names,
+    redact_environment,
     write_jsonl,
 )
 from saakshi.provenance import generator_for, host_record, today  # noqa: E402
@@ -182,10 +183,12 @@ def main() -> int:
             response = parse(retrieval.payload, query=query)
         except ServiceFormatError as exc:
             outcome = "classification_stale"
-            detail = {"refusal": str(exc)}
+            detail = {"refusal": redact_environment(str(exc))}
         except AcquisitionError as exc:
+            # ⚠ This one quotes a cache path, so it is the likeliest of the three to name
+            #   the machine rather than the service.
             outcome = "not_observed"
-            detail = {"refusal": str(exc)}
+            detail = {"refusal": redact_environment(str(exc))}
         else:
             state_now = dict(response.service_state)
             state_then = dict(baseline["service_state"])

@@ -17,6 +17,8 @@ from saakshi.fixture import (
     Generator,
     Header,
     bits,
+    find_absolute_path,
+    redact_environment,
     validate_filename,
     validate_header,
     write_jsonl,
@@ -348,6 +350,74 @@ def test_the_default_reserved_list_is_described_honestly():
 
     assert reserved_names()  # never empty — the default always applies
     assert "reserved-name check" in describe_reserved_names()
+
+
+# --- absolute paths ---------------------------------------------------------------------
+#
+# ⛔ Found in a shipped artifact by the working-tree scan, not by any of these tests: a
+# library's own error message quoted the temporary directory the recorder was run from. The
+# generator had already decided not to record that directory; the library put it in anyway.
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        "not found in PATH 'C:\\Users\\somebody\\ephe'",
+        "not found in PATH 'C:/Users/somebody/ephe'",
+        "not found in PATH '/home/somebody/ephe'",
+        "not found in PATH '\\\\server\\share\\ephe'",
+    ],
+)
+def test_an_absolute_path_in_a_value_is_refused(text):
+    with pytest.raises(FixtureContractError, match="absolute path"):
+        validate_header(numeric(oracle={"toolkit": "x", "note": text}), where="t")
+
+
+def test_an_absolute_path_in_a_row_is_refused(tmp_path):
+    with pytest.raises(FixtureContractError, match="absolute path"):
+        write_jsonl(
+            tmp_path / "states.jsonl",
+            numeric(),
+            [{"section": "position", "detail": "read from /var/lib/ephe/x.se1"}],
+        )
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        # ⛔ The regression that the first draft of the rule actually had: a URL ends in a
+        #    letter, a colon and a slash, so it looked exactly like a drive-absolute path
+        #    and would have refused every generator that records a publisher's address.
+        "https://ssd.jpl.nasa.gov/ftp/eph/planets/ascii/de440/testpo.440",
+        "kernel/publisher-test-file-acquisition.jsonl",
+        "swisseph.houses_ex: error",
+        "2.0817e-17 au/day",
+        "the library is AGPL-3.0; it is called here, never redistributed",
+    ],
+)
+def test_what_is_not_an_absolute_path_survives_untouched(text):
+    assert find_absolute_path(text) is None
+    assert redact_environment(text) == text
+    validate_header(numeric(oracle={"toolkit": "x", "note": text}), where="t")
+
+
+def test_redaction_keeps_everything_that_made_the_message_evidence():
+    """⭐ Which entry point spoke and which file it wanted are the evidence. The directory
+    is the machine, and only the machine is removed."""
+    said = redact_environment(
+        "swisseph.rise_trans: SwissEph file 'sepl_12.se1' not found in "
+        "PATH 'C:\\Users\\somebody\\Temp\\scratchpad'"
+    )
+    assert "swisseph.rise_trans" in said
+    assert "sepl_12.se1" in said
+    assert "somebody" not in said
+    assert find_absolute_path(said) is None
+    validate_header(numeric(oracle={"toolkit": "x", "note": said}), where="t")
+
+
+def test_a_redacted_message_says_that_something_was_removed():
+    """⚠ Otherwise a reader cannot tell a redaction from a library that printed nothing."""
+    assert "removed" in redact_environment("in PATH '/home/somebody/ephe'")
 
 
 @pytest.mark.parametrize("name", ["states.bin", "states.csv", "states.jsonl.gz"])

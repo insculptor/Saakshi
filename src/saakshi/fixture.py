@@ -148,6 +148,68 @@ def describe_reserved_names() -> str:
 
 
 # --------------------------------------------------------------------------------------
+# Absolute paths, and why a fixture may not carry one
+# --------------------------------------------------------------------------------------
+
+#: ⛔ **A THIRD PARTY'S ERROR MESSAGE IS UNTRUSTED TEXT THAT MAY QUOTE THE MACHINE.**
+#:
+#: Found by the working-tree scan, in a shipped artifact: a recorded library refusal read
+#: ``SwissEph file 'sepl_12.se1' not found in PATH '<an absolute path>'``, and the path was
+#: the temporary directory the recorder happened to be run from. Two defects in one field,
+#: and neither is visible from the generator that wrote it:
+#:
+#: * the path contained a **reserved name**, which is how it was caught at all; and
+#: * ⭐ it contained a **session-scoped directory**, so a file claiming byte-for-byte
+#:   reproducibility could only ever reproduce inside the one dead session that wrote it.
+#:
+#: ⭐ **The generator had already decided not to record the directory.** The oracle block
+#: names each data file by digest and deliberately carries no path. The path arrived anyway,
+#: through the one field whose content is chosen by the library rather than by us — which is
+#: why the rule below is enforced at write time over every string in the file, and is not a
+#: note asking three generators to remember.
+_ABSOLUTE_PATH_PATTERNS = (
+    # A Windows drive-absolute path, either slash. Stops at whitespace or a quote.
+    # ⛔ The lookbehind is not decoration. Without it this matched the tail of every
+    #    recorded URL — `https://host/...` ends in a letter, a colon and a slash, so the
+    #    pattern fired on `s://host/...` and would have refused four generators that record
+    #    a publisher's address, which is evidence rather than environment.
+    re.compile(r"(?<![A-Za-z0-9_])[A-Za-z]:[\\/][^\s'\"]*"),
+    # A UNC share.
+    re.compile(r"\\\\[^\s'\"]+"),
+    # ⚠ A POSIX absolute path needs at least one interior separator, and the lookbehind is
+    #   what keeps a URL out of it: in ``https://host/ftp/eph`` the ``/ftp`` is preceded by a
+    #   letter and the ``//`` by a slash, so neither can start a match. A recorded URL is
+    #   evidence about a publisher; an absolute path is a fact about this machine.
+    re.compile(r"(?<![A-Za-z0-9:/._~-])/(?:[^/\s'\"]+/)+[^/\s'\"]*"),
+)
+
+#: What replaces one. ⚠ It names the *kind* of thing removed, so a reader of the fixture can
+#: tell a redaction from a library that printed nothing.
+REDACTED_PATH = "<absolute path removed: it names this machine, not the library>"
+
+
+def redact_environment(text: str) -> str:
+    """Strip absolute filesystem paths out of a message written by somebody else.
+
+    ⭐ Everything that makes the message evidence survives — which entry point spoke, which
+    file it wanted, what it refused. Only the part that describes the recorder's own machine
+    is removed, and its removal is stated rather than silent.
+    """
+    for pattern in _ABSOLUTE_PATH_PATTERNS:
+        text = pattern.sub(REDACTED_PATH, text)
+    return text
+
+
+def find_absolute_path(text: str) -> str | None:
+    """The first absolute path in `text`, or `None`."""
+    for pattern in _ABSOLUTE_PATH_PATTERNS:
+        match = pattern.search(text)
+        if match:
+            return match.group(0)
+    return None
+
+
+# --------------------------------------------------------------------------------------
 # Per-kind field law
 # --------------------------------------------------------------------------------------
 
@@ -434,8 +496,28 @@ def _validate_locus(locus: Any, *, where: str, kind: str) -> None:
 def _scan_keys(
     node: Any, *, where: str, path: str, reserved: Sequence[str] | None = None
 ) -> None:
-    """Reserved-name discipline, over **keys** only."""
+    """Reserved-name discipline over **keys**, and absolute-path discipline over **values**.
+
+    ⚠ The two rules are different on purpose, and the difference is the point:
+
+    * a reserved name in a **key** is refused, because a key is a permanent identifier;
+    * a reserved name in a **value** is permitted — ``generator.repo`` must carry this
+      repository's own name, and a value records origin;
+    * ⛔ an **absolute path** in a value is refused whatever it names. It is not a claim
+      about the subject, it is a description of the machine that ran the recorder, and it
+      makes a reproducibility claim false on every other machine. Use
+      :func:`redact_environment` on any text a third party wrote.
+    """
     names = tuple(reserved) if reserved is not None else reserved_names()
+    if isinstance(node, str):
+        found = find_absolute_path(node)
+        if found is not None:
+            raise FixtureContractError(
+                f"{where}: {path}: an absolute path ({found!r}) may never be written into a "
+                "fixture — it describes the recorder's machine rather than the subject, and "
+                "it makes the file's byte-for-byte claim false anywhere else. If this is a "
+                "message a library wrote, pass it through redact_environment() first"
+            )
     if isinstance(node, Mapping):
         for key, value in node.items():
             if not isinstance(key, str):

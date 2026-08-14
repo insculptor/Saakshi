@@ -37,7 +37,12 @@ from saakshi.civil import (  # noqa: E402
     resolve,
     tzdb_identity,
 )
-from saakshi.fixture import Header, describe_reserved_names, write_jsonl  # noqa: E402
+from saakshi.fixture import (  # noqa: E402
+    Header,
+    describe_reserved_names,
+    redact_environment,
+    write_jsonl,
+)
 from saakshi.leaves import digest, flatten, verify_bits  # noqa: E402
 from saakshi.provenance import generator_for, host_record, today  # noqa: E402
 from saakshi.surface import DEFAULT_SURFACE, Surface, load  # noqa: E402
@@ -379,7 +384,7 @@ def main() -> int:
                             "grid_id": instant.grid_id,
                             "section": section,
                             "error": type(exc).__name__,
-                            "detail": str(exc)[:200],
+                            "detail": redact_environment(str(exc))[:200],
                         }
                     )
                     continue
