@@ -14,5 +14,11 @@ requests==2.34.2
 # --- R3: the Swiss Ephemeris generators (AGPL; the reason this repository is AGPL) --------
 pyswisseph==2.10.3.2
 
+# --- R6: textual authority ---------------------------------------------------------------
+# ⭐ The extractor is part of the RENDERING a locus is resolved into, not a convenience: a
+#    different extractor produces a different document, so the version is pinned here and
+#    recorded on every fixture it renders.
+pypdf==5.1.0
+
 # --- development --------------------------------------------------------------------------
 pytest==8.4.2
