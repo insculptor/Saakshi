@@ -228,9 +228,17 @@ under a right-looking name.
 
 ```bash
 python -m pytest -q                      # the contract's refusals
-python tools/check_public_tree.py        # no reserved name reaches a commit
+python tools/check_public_tree.py        # no reserved name reaches a commit, or waits to
 ```
 
-⚠ The second scans **committed** content and **every reachable commit**, because a name
-removed in a later commit is still published by the earlier one. It exits non-zero when
-`config/reserved-names.txt` is missing rather than passing on an empty list.
+⚠ The second scans **every reachable commit**, because a name removed in a later commit is
+still published by the earlier one. It exits non-zero when `config/reserved-names.txt` is
+missing rather than passing on an empty list.
+
+⭐ It also scans **the working tree** — every path and every text file, tracked or not,
+**ignored or not**. A name that is only on disk has not been published, so deleting the
+path is the whole fix; but an untracked path is invisible to a scan of commits, and a
+single `git add -A` publishes it permanently. ⛔ Being git-ignored buys a path nothing
+here, deliberately: ignoring one is how the same failure comes back under a different name
+in a different path. The short list of paths that exist *to hold* private material is
+exempt, and every run prints it.
