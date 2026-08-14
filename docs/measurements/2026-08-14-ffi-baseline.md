@@ -62,22 +62,27 @@ it. ⚠ Every figure includes the loop the call sits in; that loop is measured a
 
 | Rung | Arity | Against the anchor |
 |---|---|---|
-| the loop, with no call in it | — | **0.35 – 0.43** |
+| the loop, with no call in it | — | **0.33 – 0.43** |
 | a Python function, one argument | 1 | 1.02 – 1.06 |
-| a Python function, four arguments | 4 | 1.20 – 1.30 |
-| a standard-library C function, no arguments | 0 | 0.95 – 1.12 |
-| **the binding, no arguments** | 0 | **0.95 – 1.12** |
-| **the binding, one argument** | 1 | **1.46 – 2.15** |
-| **the binding, four arguments** | 4 | **2.30 – 3.48** |
-| the binding, one body's position | 3 | **197 – 201** |
-| the binding, a full set of house cusps | 4 | **124 – 131** |
+| a Python function, four arguments | 4 | 1.17 – 1.30 |
+| a standard-library C function, no arguments | 0 | 0.94 – 1.14 |
+| **the binding, no arguments** | 0 | **0.93 – 1.14** |
+| **the binding, one argument** | 1 | **1.44 – 2.20** |
+| **the binding, four arguments** | 4 | **2.28 – 3.75** |
+| the binding, one body's position | 3 | **190 – 210** |
+| the binding, a full set of house cusps | 4 | **120 – 135** |
 
-⚠ **Every figure on this page is an interval across three runs on one machine, not a
-digit**, and the wide ones are wide for two different reasons that the page keeps apart: the
-top two rows span the **three call-site forms**, which is a finding rather than an error bar
-(section 4), while the last two rows span **runs**, which is noise. The artifact separates
-them — a ratio's spread across rounds is on its own row, and its spread across forms is a
-row of its own kind.
+⛔ **These are ranges observed over the runs behind this page — not bounds a further run
+must satisfy**, and the distinction is not a formality: an interval fitted to what has
+already happened is an envelope, and a first draft of this page quoted one that the very next
+emission fell outside in twelve places. What *is* measured, in the artifact itself, is the
+movement: a ratio's median moved **1.3 % typically and 4.8 % at worst** between two
+traversals at one commit.
+
+⚠ **And the two kinds of width are kept apart rather than averaged.** A range across the
+three **call-site forms** — which is what makes the binding rows wide — is a finding, and it
+is section 4. A range across **runs** is noise. The artifact separates them too: a ratio's
+spread across rounds sits on the ratio, and its spread across forms is a row of its own kind.
 
 ---
 
@@ -99,8 +104,8 @@ rather than left to whoever assembles the list.
 
 | | against the same-arity Python function | against the binding's own zero-argument rung |
 |---|---|---|
-| one argument | **1.39 – 2.10** | **1.55 – 2.01** |
-| four arguments | **1.95 – 2.93** | **2.43 – 3.35** |
+| one argument | **1.38 – 2.12** | **1.55 – 2.05** |
+| four arguments | **1.94 – 2.95** | **2.40 – 3.40** |
 
 The same comparison inside pure Python moves far less: one argument costs about 1.04 anchors
 and four about 1.25.
@@ -133,15 +138,15 @@ The same callee, the same argument values, three ways of writing the call:
 
 | Rung | unpacked | local names | literal |
 |---|---|---|---|
-| a Python function, one argument | 1.05 – 1.06 | 1.03 – 1.04 | 1.02 – 1.04 |
-| a Python function, four arguments | 1.20 – 1.23 | 1.25 – 1.27 | 1.27 – 1.30 |
-| **the binding, one argument** | **1.46 – 1.58** | **2.13 – 2.14** | **2.12 – 2.15** |
-| **the binding, four arguments** | **2.30 – 2.42** | **3.43 – 3.57** | **3.45 – 3.58** |
+| a Python function, one argument | 1.03 – 1.06 | 1.03 – 1.04 | 1.02 – 1.04 |
+| a Python function, four arguments | 1.17 – 1.23 | 1.25 – 1.27 | 1.27 – 1.30 |
+| **the binding, one argument** | **1.44 – 1.58** | **2.13 – 2.16** | **2.12 – 2.16** |
+| **the binding, four arguments** | **2.28 – 2.42** | **3.43 – 3.66** | **3.45 – 3.71** |
 
 ⭐ **The pure-Python rungs move by a few per cent across the three forms; the binding rungs by
-about half again** — 47 % at one argument, 51 % at four, which is comparable to the entire
-cost of an empty crossing. ⚠ The intervals above are across runs; the finding is the gap
-**between columns**, and it is far larger than any interval inside one.
+about half again** — comparable to the entire cost of an empty crossing. ⚠ The intervals
+inside each cell are across runs and are worth a few per cent; the finding is the gap
+**between columns**, which is an order of magnitude larger than that.
 
 The direction is worth reading: handing this binding a pre-built tuple is the **cheapest**
 form, while for the anchor it is the dearest.
@@ -169,7 +174,7 @@ request repeated, or a distinct request every time.
 | a Python function, one / three / four arguments | 0.99 – 1.03 |
 | the binding, one argument | 0.98 – 0.99 |
 | the binding, four arguments | 1.00 – 1.02 |
-| **the binding, one body's position** | **33 – 37** |
+| **the binding, one body's position** | **33 – 38** |
 | the binding, a full set of house cusps | 1.01 – 1.03 |
 
 ⭐ **The position call answers a repeated request thirty-odd times more cheaply than a new
@@ -195,9 +200,9 @@ report none where there is none. ⛔ **The generator refuses to write if any con
 
 | Control | Expected | Measured |
 |---|---|---|
-| the anchor against a second reading of itself | 1.0 | **0.99 – 1.01** |
+| the anchor against a second reading of itself | 1.0 | **0.98 – 1.01** |
 | every arity a binding is measured at also has a pure-Python and a C rung | none missing | none missing |
-| a pair built to perform the anchor a hundred times | ≥ 20 | **66 – 83** |
+| a pair built to perform the anchor a hundred times | ≥ 20 | **66 – 84** |
 | distinct arguments cost nothing by themselves, where the callee cannot notice them | 1.0 | **0.99 – 1.03** |
 
 ⭐ **The third and fourth exist because the first two are satisfied by a harness that measures
@@ -216,31 +221,54 @@ a duration is not a property of the callee alone. It is declared in the file its
 `reproducibility` row and the first header note — rather than left for a consumer to discover
 from a diff.
 
-**What a re-run should reproduce**
+⭐ **So the generator traverses the whole ladder twice and publishes the comparison.** A
+statement about what a file reproduces is a claim like any other, and made in prose it is
+untested. The second traversal exists only to test it.
 
-* the ordering of the ladder, **for every pair the artifact reports as having held in every
-  round**. That claim is made pair by pair rather than over the whole list, because rungs the
-  harness cannot separate change places for no reason but noise — and the artifact publishes
-  both sets, with each pair's own ratio, so the obvious hypothesis can be checked instead of
-  taken. Across the runs behind this page, 75 to 89 of the 91 pairs held in every round, and
-  the ones that did not are the pairs whose ratio is one within its own spread;
-* each ratio, within the spread stated on its own row;
-* every verdict: the four controls, and each rung's repetition sensitivity.
+**Measured, in the file, by the same instrument on the same day:**
+
+| | |
+|---|---|
+| published ratios whose second median fell inside the first traversal's per-round interval | **39 of 39** |
+| median movement of a ratio between traversals | **1.3 %** |
+| largest movement of a ratio between traversals | **4.8 %** |
+| repetition-sensitivity verdicts that agreed | **7 of 7** |
+
+⛔⛔ **And the ordering claim I first wrote was too strong — the second traversal is what
+caught it.** "The ordering of every pair that held in every round" sounds like a claim about a
+re-run and is not one: **three to four pairs per call-site form** that held in every round of
+the first traversal changed places in the second, all of them pairs whose ratio is one within
+its own spread. A pair that held in every round of one run is a separation *that run* could
+see.
+
+So the artifact publishes **three nested sets** per form, and only the smallest is a claim
+about a re-run: every pair compared; the pairs that held in every round; and the pairs
+**separated by at least 10 % in every round**. The reproducible ordering is the third.
 
 **What a re-run will not reproduce** — any nanosecond figure, the exact digits of any ratio,
-the spreads themselves, or the ordering of the pairs the file reports as changing places.
+the spreads themselves, and the ordering of any pair outside the separated set.
 
 ⛔ **A byte comparison of this file reports a difference every time and means nothing by it.**
-Compare orderings and check that each ratio's interval overlaps.
+For each ratio, check that the other run's median falls inside this file's per-round interval;
+then compare the separated-pair lists and the verdicts.
+
+⚠ **Two traversals minutes apart on one machine is the weakest form of this check**, and the
+artifact says so on the row. It cannot speak for a different day, a different load or a
+different interpreter build. A consumer re-running the generator is performing the stronger
+version of the same comparison — which is why the file publishes the intervals it would be
+compared against.
 
 ⚠ **A write-up of a timing probe cannot quote the shipped artifact's own digits either**, and
 the reason is worth stating rather than working around. Committing this page moves the commit
 the artifact is stamped with; re-emitting to restore the stamp moves the digits; correcting
-the page to match moves the commit again. ⭐ **The regress terminates the moment the page
-quotes intervals instead of digits** — every figure above is an interval across three runs on
-this machine, and the shipped file's own numbers fall inside them. That is not a workaround
-for the artifact's instability. It is the same claim the artifact makes about itself, applied
-to the page that describes it.
+the page to match moves the commit again.
+
+⭐ **What terminates the regress is not quoting intervals — it is saying what the intervals
+are.** A first draft of this page quoted the envelope of the runs it was drafted from, as
+though a further run would fall inside it; the very next emission fell outside in twelve
+places, by one to five per cent. Every figure here is now labelled as the **range observed so
+far**, beside the **measured** run-to-run movement, and a shipped number a few per cent
+outside one of these ranges is what this page predicts rather than a discrepancy with it.
 
 ---
 

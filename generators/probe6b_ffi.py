@@ -55,6 +55,7 @@ from saakshi.timing import (  # noqa: E402
     clock_record,
     ordering_record,
     ratio,
+    reproduction_record,
     refuse_unless_all_pass,
     run_interleaved,
     standard_controls,
@@ -449,6 +450,57 @@ def mechanism_bridge_rows(readings: dict[tuple[str, str], Any]) -> list[dict[str
     return rows
 
 
+def published_ratio_keys(
+    ops: list[Operation], rungs: list[SequenceRung]
+) -> list[tuple[str, str, str, str | None]]:
+    """Every ratio this file publishes, enumerated once.
+
+    ⛔ **Kept in step with the row builders by counting, not by care.** The reproduction check
+    is only as wide as this list, so a ratio the rows publish and this list forgets would be
+    a figure nobody re-measured — reported inside a file whose headline claim is about what
+    reproduces. `main` counts the ratio objects in the built rows against this list and
+    refuses on a mismatch.
+    """
+    mirrors = _mirror_ids(ops)
+    arity_zero = {
+        op.callee_kind: op.id
+        for op in ops
+        if op.arity == 0 and op.id in (ANCHOR, "stdlib_c_arity_0", "binding_arity_0")
+    }
+    keys: list[tuple[str, str, str, str | None]] = []
+    for op in ops:
+        for form in CALL_FORMS:
+            if op.id != ANCHOR:
+                keys.append((op.id, ANCHOR, form, None))
+            mirror = mirrors.get(("pure_python", op.arity))
+            if mirror is not None and op.callee_kind in ("stdlib_c", "binding"):
+                keys.append((op.id, mirror, form, None))
+            base = arity_zero.get(op.callee_kind)
+            if base is not None and op.arity not in (None, 0):
+                keys.append((op.id, base, form, None))
+    for form in CALL_FORMS[1:]:
+        keys.append((ANCHOR, ANCHOR, form, CALL_FORMS[0]))
+    for rung in rungs:
+        keys.append((rung.id, rung.id, "distinct_requests", "one_request_repeated"))
+        if rung.mirror_of:
+            for variant in SEQUENCE_VARIANTS:
+                keys.append((rung.id, rung.mirror_of, variant, None))
+    for rung in MECHANISM_CONTROL_RUNGS:
+        keys.append((rung, rung, "one_request_repeated", "unpacked"))
+    return keys
+
+
+def count_published_ratios(node: Any) -> int:
+    """How many ratio objects the built rows actually carry."""
+    if isinstance(node, dict):
+        if {"against", "median", "spread_fraction_of_median"} <= set(node):
+            return 1
+        return sum(count_published_ratios(value) for value in node.values())
+    if isinstance(node, list):
+        return sum(count_published_ratios(item) for item in node)
+    return 0
+
+
 def reproducibility_row(readings: dict[tuple[str, str], Any]) -> dict[str, Any]:
     return {
         "finding": "reproducibility",
@@ -461,21 +513,27 @@ def reproducibility_row(readings: dict[tuple[str, str], Any]) -> dict[str, Any]:
             "than left to be discovered from a diff"
         ),
         "what_a_re_run_should_reproduce": [
+            "each ratio, within the spread stated on its own row — checked, see the "
+            "`reproduction` row",
+            "every verdict: the controls, and each rung's repetition sensitivity — checked",
             "the ordering of the ladder, for every pair the `ordering` rows report as "
-            "having held in every round",
-            "each ratio, within the spread stated on its own row",
-            "every verdict: the controls, and each rung's repetition sensitivity",
+            "`separated_pairs`",
         ],
         "what_a_re_run_will_not_reproduce": [
             "any figure in nanoseconds, including the anchor's",
             "the exact digits of any ratio",
             "the spreads themselves, which are a property of what else the machine was doing",
-            "the ordering of rungs the `ordering` rows report as changing places",
+            "⛔ the ordering of rungs the `ordering` rows report as changing places — AND "
+            "NOT ONLY THOSE. A pair that held in every round of one run is a separation that "
+            "run could see; a second run at this commit reordered several such pairs, all of "
+            "them pairs whose ratio is one within its own spread. The reproducible ordering "
+            "claim is about `separated_pairs`, which is the smaller set",
         ],
         "how_to_compare_two_runs": (
-            "compare orderings and check that each ratio's interval overlaps the other run's. "
-            "A byte comparison of this file reports a difference every time and means nothing "
-            "by it"
+            "for each ratio, check that the other run's median falls inside this file's "
+            "per-round interval for it; then compare the `separated_pairs` lists and the "
+            "verdicts. ⛔ A byte comparison of this file reports a difference every time and "
+            "means nothing by it"
         ),
         "how_to_use_a_ratio_on_another_machine": (
             "measure the anchor there — a Python function that takes no arguments and "
@@ -561,6 +619,12 @@ def build_header(
         record_date=today(),
         request={
             "rounds": rounds,
+            "traversals": 2,
+            "traversals_note": (
+                "the whole ladder is measured twice. The first traversal is what the rows "
+                "report; the second exists only to measure what the first reproduces, and "
+                "is reported in the `reproduction` row"
+            ),
             "warmup_rounds_discarded": WARMUP_ROUNDS,
             "clock": clock["clock"],
             "anchor": ANCHOR,
@@ -605,6 +669,7 @@ def build_header(
             "mechanism_bridge": "the same callee measured by both loops, in the same rounds",
             "ordering": "which pairs of rungs held their order in every round",
             "control": "a check on the harness, with what it measured and whether it held",
+            "reproduction": "the second traversal, compared against the first",
             "reproducibility": "⛔ what a re-run will and will not reproduce",
         },
         summary=summary,
@@ -758,19 +823,48 @@ def main() -> int:
           f"{args.rounds} round(s)")
 
     span_floor = SPAN_FLOOR_IN_CLOCK_STEPS * clock["measured_step_nanoseconds"]
-    batches = run_interleaved(
-        ops,
-        sequence_rungs=rungs,
-        rounds=args.rounds,
-        warmup_rounds=WARMUP_ROUNDS,
-        minimum_span_nanoseconds=span_floor,
-    )
-    readings = summarise(batches)
 
+    def traverse() -> dict[tuple[str, str], Any]:
+        return summarise(
+            run_interleaved(
+                ops,
+                sequence_rungs=rungs,
+                rounds=args.rounds,
+                warmup_rounds=WARMUP_ROUNDS,
+                minimum_span_nanoseconds=span_floor,
+            )
+        )
+
+    readings = traverse()
     controls = standard_controls(readings, ops, sequence_readings=readings)
     for control in controls:
         print(f"control {control.id}: {'held' if control.passed else 'FAILED'}")
     refuse_unless_all_pass(controls)  # ⛔ nothing is written beside a control that failed
+
+    # ⭐ The second traversal is not a repeat for confidence. This file's headline claim is
+    #    about what survives a re-run, and a claim of that kind made in prose is untested.
+    print("second traversal, to measure what this file reproduces")
+    second = traverse()
+    keys = published_ratio_keys(ops, rungs)
+    ordering_forms = list(CALL_FORMS) + list(SEQUENCE_VARIANTS)
+    reproduction = reproduction_record(
+        readings,
+        second,
+        keys,
+        ordering_forms=ordering_forms,
+        what_was_checked=(
+            "every ratio this file publishes: each rung against the anchor and against its "
+            "same-arity pure-Python and same-kind zero-argument comparators, in every "
+            "call-site form; the anchor across forms; every repetition sensitivity and its "
+            "mirror ratios; and the loop bridge"
+        ),
+    )
+    print(
+        "reproduction: "
+        f"{reproduction['ratios_whose_second_median_fell_inside_the_first_per_round_interval']}"
+        f" of {reproduction['ratios_checked']} ratios inside; largest median moved "
+        f"{reproduction['largest_movement_of_a_median'] * 100:.1f} percent"
+    )
 
     rows: list[dict[str, Any]] = [{"finding": "clock", **clock}]
     rows += call_site_form_rows(readings)
@@ -778,10 +872,21 @@ def main() -> int:
     rows += call_site_sensitivity_rows(ops, readings)
     rows += repeated_call_rows(rungs, readings)
     rows += mechanism_bridge_rows(readings)
-    rows += [ordering_record(readings, form=form) for form in CALL_FORMS]
-    rows += [ordering_record(readings, form=variant) for variant in SEQUENCE_VARIANTS]
+    rows += [ordering_record(readings, form=form) for form in ordering_forms]
     rows += [control.as_row() for control in controls]
+    rows.append(reproduction)
     rows.append(reproducibility_row(readings))
+
+    # ⛔ The reproduction check is only as wide as the enumerated key list, so a ratio the
+    #    rows publish and that list forgets is a figure nobody re-measured — inside a file
+    #    whose headline claim is about what reproduces. Counted, not trusted.
+    published = count_published_ratios(rows)
+    if published != len(keys):
+        raise RuntimeError(
+            f"the rows carry {published} ratio(s) and the reproduction check enumerated "
+            f"{len(keys)}. Every published ratio must be re-measured, so this mismatch is a "
+            "refusal rather than a partial check"
+        )
 
     header = build_header(
         script=script,

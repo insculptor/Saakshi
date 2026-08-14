@@ -30,6 +30,7 @@ from saakshi.timing import (
     HEAVY_MULTIPLE,
     MECHANISM_CONTROL_RUNGS,
     NULL_TWIN,
+    SEPARATION_MARGIN,
     SEQUENCE_VARIANTS,
     CallSiteRefused,
     Control,
@@ -51,7 +52,9 @@ from saakshi.timing import (
     ordering_record,
     ratio,
     refuse_unless_all_pass,
+    reproduction_record,
     run_interleaved,
+    separated_pairs,
     standard_operations,
     standard_sequence_rungs,
     summarise,
@@ -347,6 +350,109 @@ def test_an_ordering_that_held_everywhere_says_so():
     record = ordering_record(readings, form="unpacked")
     assert record["identical_in_every_round"] is True
     assert record["pairs_that_changed_places"] == []
+
+
+def test_a_pair_can_hold_in_every_round_and_still_not_be_separated():
+    """⛔ The distinction the second run forced. `held` is not a claim about a re-run.
+
+    ⭐ Two rungs four per cent apart, never once out of order, and still inside the margin —
+    so the artifact reports them as ordered *in this run* and not as an ordering a re-run is
+    expected to see. Measured on the real ladder, pairs of exactly this kind changed places
+    between two runs at one commit.
+    """
+    readings = {
+        ("cheap", "unpacked"): _reading("cheap", "unpacked", (100.0, 100.0, 100.0)),
+        ("barely_dearer", "unpacked"): _reading("barely_dearer", "unpacked", (104.0,) * 3),
+        ("clearly_dearer", "unpacked"): _reading("clearly_dearer", "unpacked", (400.0,) * 3),
+    }
+    record = ordering_record(readings, form="unpacked", margin=SEPARATION_MARGIN)
+    assert record["pairs_that_held_in_every_round"] == 3
+    assert record["pairs_separated_by_the_margin"] == 2
+    assert ["cheap", "barely_dearer"] not in record["separated_pairs"]
+    assert ["cheap", "clearly_dearer"] in record["separated_pairs"]
+
+
+def test_the_separated_set_is_a_subset_of_the_set_that_held():
+    ledger = Ledger()
+    ops = [_op(ledger, "a", 3), _op(ledger, "b", 5), _op(ledger, "c", 50)]
+    readings = _run(ops, ledger)
+    for form in CALL_FORMS:
+        record = ordering_record(readings, form=form)
+        assert record["pairs_separated_by_the_margin"] <= record["pairs_that_held_in_every_round"]
+        assert record["pairs_that_held_in_every_round"] <= record["pairs_compared"]
+
+
+def test_separation_uses_the_worst_round_not_the_typical_one():
+    """⚠ One round out of the margin disqualifies the pair; a median would hide it."""
+    readings = {
+        ("cheap", "unpacked"): _reading("cheap", "unpacked", (100.0, 100.0, 100.0)),
+        ("dear", "unpacked"): _reading("dear", "unpacked", (200.0, 200.0, 105.0)),
+    }
+    assert separated_pairs(readings, form="unpacked", margin=1.10) == []
+    assert ordering_record(readings, form="unpacked")["pairs_that_held_in_every_round"] == 1
+
+
+# --------------------------------------------------------------------------------------
+# ⛔ A file that cannot regenerate has to measure what it does reproduce
+# --------------------------------------------------------------------------------------
+
+
+def test_a_second_traversal_identical_to_the_first_reports_no_movement():
+    readings = {
+        ("a", "unpacked"): _reading("a", "unpacked", (10.0, 12.0)),
+        ("b", "unpacked"): _reading("b", "unpacked", (40.0, 44.0)),
+    }
+    record = reproduction_record(
+        readings,
+        readings,
+        [("b", "a", "unpacked", None)],
+        ordering_forms=["unpacked"],
+        what_was_checked="one ratio",
+    )
+    assert record["ratios_checked"] == 1
+    assert record["ratios_whose_second_median_fell_inside_the_first_per_round_interval"] == 1
+    assert record["largest_movement_of_a_median"] == 0.0
+    assert record["ordering"][0]["separated_in_the_first_and_not_the_second"] == []
+
+
+def test_a_second_traversal_landing_outside_the_first_interval_is_counted_as_outside():
+    """⭐ The check has to be able to fail, or reporting that it passed says nothing."""
+    first = {
+        ("a", "unpacked"): _reading("a", "unpacked", (10.0, 10.0)),
+        ("b", "unpacked"): _reading("b", "unpacked", (40.0, 40.0)),
+    }
+    second = {
+        ("a", "unpacked"): _reading("a", "unpacked", (10.0, 10.0)),
+        ("b", "unpacked"): _reading("b", "unpacked", (90.0, 90.0)),
+    }
+    record = reproduction_record(
+        first,
+        second,
+        [("b", "a", "unpacked", None)],
+        ordering_forms=["unpacked"],
+        what_was_checked="one ratio",
+    )
+    assert record["ratios_whose_second_median_fell_inside_the_first_per_round_interval"] == 0
+    assert record["largest_movement_of_a_median"] == pytest.approx(1.25)
+
+
+def test_a_pair_that_stopped_being_separated_is_named_not_merely_counted():
+    first = {
+        ("a", "unpacked"): _reading("a", "unpacked", (10.0, 10.0)),
+        ("b", "unpacked"): _reading("b", "unpacked", (40.0, 40.0)),
+    }
+    second = {
+        ("a", "unpacked"): _reading("a", "unpacked", (10.0, 10.0)),
+        ("b", "unpacked"): _reading("b", "unpacked", (10.2, 10.2)),
+    }
+    record = reproduction_record(
+        first,
+        second,
+        [("b", "a", "unpacked", None)],
+        ordering_forms=["unpacked"],
+        what_was_checked="one ratio",
+    )
+    assert record["ordering"][0]["separated_in_the_first_and_not_the_second"] == [["a", "b"]]
 
 
 # --------------------------------------------------------------------------------------

@@ -688,8 +688,44 @@ def ladder_order(
     return tuple(r.op_id for r in rungs)
 
 
+#: How far apart two rungs must be before their order is expected to survive a re-run.
+#:
+#: ⛔ **Measured, not chosen for looking sensible.** "Held in every round" was the first
+#: reproducible-ordering claim this harness made, and a second run at the same commit broke
+#: three to four pairs per form — every one of them a pair whose ratio is one within its own
+#: spread. A pair that held in every round of *one* run is a separation that run could see;
+#: it is not a separation the next run will see. So the artifact publishes both, and the
+#: claim it makes about a re-run is about the separated set.
+SEPARATION_MARGIN = 1.10
+
+
+def separated_pairs(
+    readings: Mapping[tuple[str, str], Reading],
+    *,
+    form: str,
+    margin: float = SEPARATION_MARGIN,
+) -> list[list[str]]:
+    """The pairs one rung is dearer than another by at least `margin`, in every round."""
+    order = [
+        r.op_id
+        for r in sorted(
+            (r for key, r in readings.items() if key[1] == form),
+            key=lambda r: r.median_nanoseconds,
+        )
+    ]
+    found: list[list[str]] = []
+    for i, cheaper in enumerate(order):
+        for dearer in order[i + 1 :]:
+            if ratio(readings, numerator=dearer, denominator=cheaper, form=form).minimum >= margin:
+                found.append([cheaper, dearer])
+    return found
+
+
 def ordering_record(
-    readings: Mapping[tuple[str, str], Reading], *, form: str
+    readings: Mapping[tuple[str, str], Reading],
+    *,
+    form: str,
+    margin: float = SEPARATION_MARGIN,
 ) -> dict[str, Any]:
     """Whether the ladder's ordering held, pair by pair — measured, not claimed.
 
@@ -728,6 +764,7 @@ def ordering_record(
                         "minimum_ratio": pair_ratio.minimum,
                     }
                 )
+    separated = separated_pairs(readings, form=form, margin=margin)
     return {
         "finding": "ordering",
         "form": form,
@@ -737,12 +774,134 @@ def ordering_record(
         "pairs_compared": len(held) + len(swapped),
         "pairs_that_held_in_every_round": len(held),
         "pairs_that_changed_places": swapped,
+        "separation_margin": margin,
+        "pairs_separated_by_the_margin": len(separated),
+        "separated_pairs": separated,
         "meaning": (
-            "a pair that held in every round is a separation this harness can see and a "
-            "consumer can expect to reproduce. A pair that changed places is one it cannot "
-            "separate, which is information about the harness rather than about the callees"
+            "⚠ THREE NESTED SETS, AND ONLY THE SMALLEST IS A CLAIM ABOUT A RE-RUN. Every "
+            "pair was compared. A pair that held in every round is a separation THIS run "
+            "could see. A pair separated by the margin in every round is one a re-run is "
+            "expected to see too — and the difference between the middle set and the "
+            "smallest is not pedantry: a second run at the same commit reordered several "
+            "pairs from the middle set, all of them pairs whose ratio is one within its own "
+            "spread"
         ),
     }
+
+
+# --------------------------------------------------------------------------------------
+# ⛔ A file that cannot regenerate has to carry the measurement of what it does reproduce
+# --------------------------------------------------------------------------------------
+
+
+def reproduction_record(
+    first: Mapping[tuple[str, str], Reading],
+    second: Mapping[tuple[str, str], Reading],
+    ratio_keys: Sequence[tuple[str, str, str, str | None]],
+    *,
+    ordering_forms: Sequence[str],
+    margin: float = SEPARATION_MARGIN,
+    what_was_checked: str,
+) -> dict[str, Any]:
+    """Run the whole ladder a second time and report what survived.
+
+    ⭐ **An artifact that states it cannot be compared byte for byte owes a statement of what
+    *can* be compared, and a statement of that kind is a claim like any other.** Made in
+    prose it is untested; made here it is a measurement the file carries about itself, taken
+    by the same instrument in the same process on the same day.
+
+    ⚠ **And that is its limit, stated rather than left to be inferred.** Two traversals
+    minutes apart on one machine is the weakest form of this check. It cannot speak for a
+    different day, a different load, a different processor or a different interpreter build.
+    A consumer re-running the generator is performing the stronger version of exactly this
+    comparison, which is why the file publishes the intervals it would be compared against.
+    """
+    inside = 0
+    movements: list[tuple[float, str]] = []
+    for numerator, denominator, form, denominator_form in ratio_keys:
+        a = ratio(
+            first,
+            numerator=numerator,
+            denominator=denominator,
+            form=form,
+            denominator_form=denominator_form,
+        )
+        b = ratio(
+            second,
+            numerator=numerator,
+            denominator=denominator,
+            form=form,
+            denominator_form=denominator_form,
+        )
+        if a.minimum <= b.median <= a.maximum:
+            inside += 1
+        label = f"{numerator} over {denominator} ({form})"
+        movements.append((abs(b.median - a.median) / a.median, label))
+    movements.sort(reverse=True)
+    fractions = sorted(value for value, _ in movements)
+
+    ordering = []
+    for form in ordering_forms:
+        held_first = {tuple(p) for p in _held_pairs(first, form=form)}
+        held_second = {tuple(p) for p in _held_pairs(second, form=form)}
+        separated_first = {tuple(p) for p in separated_pairs(first, form=form, margin=margin)}
+        separated_second = {tuple(p) for p in separated_pairs(second, form=form, margin=margin)}
+        ordering.append(
+            {
+                "form": form,
+                "pairs_that_held_in_every_round_first": len(held_first),
+                "pairs_that_held_in_every_round_second": len(held_second),
+                "held_in_the_first_and_not_the_second": sorted(
+                    list(pair) for pair in held_first - held_second
+                ),
+                "pairs_separated_by_the_margin_first": len(separated_first),
+                "pairs_separated_by_the_margin_second": len(separated_second),
+                "separated_in_the_first_and_not_the_second": sorted(
+                    list(pair) for pair in separated_first - separated_second
+                ),
+            }
+        )
+    return {
+        "finding": "reproduction",
+        "method": (
+            "the whole ladder was traversed a second time, in the same process and at the "
+            "same commit, and the second traversal was compared against the first"
+        ),
+        "what_was_checked": what_was_checked,
+        "ratios_checked": len(ratio_keys),
+        "ratios_whose_second_median_fell_inside_the_first_per_round_interval": inside,
+        "largest_movement_of_a_median": movements[0][0] if movements else None,
+        "largest_movement_was": movements[0][1] if movements else None,
+        "median_movement_of_a_median": (
+            fractions[len(fractions) // 2] if fractions else None
+        ),
+        "ordering": ordering,
+        "limit": (
+            "⚠ two traversals minutes apart on one machine is the weakest form of this "
+            "check. It says nothing about a different day, a different load, a different "
+            "processor or a different interpreter build. A consumer re-running the generator "
+            "is performing the stronger version of the same comparison"
+        ),
+    }
+
+
+def _held_pairs(
+    readings: Mapping[tuple[str, str], Reading], *, form: str
+) -> list[list[str]]:
+    order = [
+        r.op_id
+        for r in sorted(
+            (r for key, r in readings.items() if key[1] == form),
+            key=lambda r: r.median_nanoseconds,
+        )
+    ]
+    found: list[list[str]] = []
+    for i, cheaper in enumerate(order):
+        for dearer in order[i + 1 :]:
+            pair = ratio(readings, numerator=dearer, denominator=cheaper, form=form)
+            if all(value > 1.0 for value in pair.per_round):
+                found.append([cheaper, dearer])
+    return found
 
 
 # --------------------------------------------------------------------------------------
