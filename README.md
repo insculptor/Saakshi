@@ -67,7 +67,7 @@ generators/          one script per fixture set; each is a recorder
   r3_swiss.py            the same grid under each ephemeris source, source asserted per row
   r5_continuity.py       what an earlier implementation answered, before it stops running
   probe6b_ffi.py         what crossing into the ephemeris binding costs, as ratios
-  r6_karaka_rules.py     what one located translation states, and one rule it does not
+  r6_karaka_rules.py     what two located copies state, where they fork, and what neither says
   r6_reduction_fork.py   a rule one chapter disagrees with its own illustrations about
   r6_reduction_example.py  a source's own worked figures, reproduced from what it printed
 src/saakshi/         the shared library
@@ -82,7 +82,7 @@ src/saakshi/         the shared library
   swiss.py               which ephemeris actually answered; ⛔ refuses to attribute a value
   timing.py              a timing ladder and its controls; ⛔ publishes ratios, never durations
   textual.py             the locus discipline; ⛔ a citation that does not resolve is refused
-  texts.py               the copies a locus resolves into; ⛔ emission never acquires
+  texts.py               the copies a locus resolves into; ⛔ presence of a script is not fidelity
 tests/               the contract's own negative tests
 config/              reserved names (local, not committed)
 out/                 generated fixtures (not committed; they are consumed elsewhere)
@@ -270,6 +270,38 @@ no known answer to check itself against, so what is checked is its ability to re
 difference that is there and none where there is none — including **a pair built to differ by
 a stated factor**, because a null control alone is satisfied by a harness that measures
 nothing at all. See `docs/measurements/2026-08-14-ffi-baseline.md`.
+
+### Corroborating a rule, where a second copy is a different kind of object
+
+⛔ **A rule resolved against one edition is *resolved*, not *corroborated*** — and the fix is
+not to run the same search over another file. A different translator, in a different
+language, does not print the first one's sentence, so each copy carries **its own locus and
+its own fragment**, and what is compared is what each copy *states*.
+
+⭐ Doing this once produced three findings worth stating in general:
+
+* **Agreement across languages is a stronger claim than agreement across printings.** Four
+  rules are stated by both copies; ⚠ two of them are the first copy's translator's *notes*,
+  which a second edition was expected to be unable to speak to at all. It establishes that a
+  rule is attested by two commentators — ⛔ never that the first translator's note says what
+  was recorded, which only another copy of *that* translation could witness.
+* ⛔ **A fork can be about a rule's scope rather than its content, and scope is the half that
+  moves results.** Both copies state that the ascending node's degrees are read backwards;
+  they attach it to sutras governing different determinations. It is recorded and **not
+  resolved** — which copy is right is not a recorder's question.
+* ⭐⭐ **Presence of a script is not fidelity of a script.** A copy carrying the original in
+  quantity makes a presence check answer *yes* while its machine reading has damaged the very
+  lines a primary locus would quote. `passage_fidelity` asks the second question, and asks it
+  **internally**: the copy's own commentary names a word as occurring in a passage, and the
+  rendered passage either contains it or does not. ⛔ Supplying a "correct" wording from
+  outside would be the unsourced claim this whole discipline refuses.
+
+⛔ **And an extent is a lower bound unless something establishes the alphabet is complete.**
+Three detectors over one copy's boundary markers found 9, 10 and 12 divisions; the union is
+14, and every miss was a different corruption of the same printed sentence. ⚠ Reported from
+the first detector alone, *"six divisions not found"* would have been published as a fact
+about the book when it was a fact about a regular expression — so no absence is measured over
+that copy at all. See `docs/measurements/2026-08-15-second-witness.md`.
 
 ### Acquired data
 
