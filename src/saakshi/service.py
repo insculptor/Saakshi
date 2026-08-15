@@ -277,9 +277,24 @@ def parse(payload: bytes, *, query: Mapping[str, str]) -> ServiceResponse:
 
 def _data_rows(text: str, *, where: str) -> tuple[tuple[str, ...], ...]:
     """The delimited data block, with its column header asserted rather than assumed."""
-    columns = _COLUMN_LINE.search(text)
-    if columns is None:
+    # ⛔ Located under the same rule as every other classified region: exactly one match, or
+    #    the run stops. ⚠ It used to take the first match and say nothing, and the asymmetry
+    #    was the whole defect — `_locate` refuses an ambiguous region on the argument that a
+    #    classification matching two places cannot say which one it describes, and that
+    #    argument does not become weaker for the one region this parser reads BY POSITION.
+    #    Measured before arming: the header matches exactly once in every response this
+    #    repository has sampled, so the rule refuses nothing that exists.
+    headers = list(_COLUMN_LINE.finditer(text))
+    if not headers:
         raise ServiceFormatError(f"{where}: no column header line in the response")
+    if len(headers) > 1:
+        raise ServiceFormatError(
+            f"{where}: the column header matched {len(headers)} times and must match once. "
+            "⛔ This parser reads the data block by position, so which header governs it is "
+            "not something the parser may settle by taking the first one — a second header "
+            "means the response carries a table this instrument has not identified."
+        )
+    columns = headers[0]
     found = tuple(part.strip() for part in columns.group(0).split(",") if part.strip())
     if found != _EXPECTED_COLUMNS:
         raise ServiceFormatError(

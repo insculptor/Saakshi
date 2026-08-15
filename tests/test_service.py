@@ -161,6 +161,33 @@ def test_reordered_columns_are_refused():
         parse(payload(swapped), query=QUERY)
 
 
+def test_a_second_column_header_is_refused():
+    """⛔ The one classified region that used to resolve its own ambiguity, silently.
+
+    Every other region goes through `_locate`, which refuses a pattern matching twice on
+    the argument that a classification matching two places cannot say which one it
+    describes. This one took the first match and said nothing — and it is the region the
+    data block is read against BY POSITION, so it is the one where being wrong is quietest.
+
+    ⚠ The second header here differs from the first. A parser taking the first match reads
+    every data line under a header that is not the one it was given.
+    """
+    twice = _RESULT.replace(
+        "            JDTDB,            Calendar Date (TDB),      X,      Y,      Z,     VX,     VY,     VZ,\n",
+        "            JDTDB,            Calendar Date (TDB),      X,      Y,      Z,     VX,     VY,     VZ,\n"
+        "            JDTDB,            Calendar Date (TDB),      Q,      Y,      Z,     VX,     VY,     VZ,\n",
+    )
+    with pytest.raises(ServiceFormatError, match="matched 2 times"):
+        parse(payload(twice), query=QUERY)
+
+
+def test_one_column_header_is_still_accepted():
+    """⭐ The control. A rule that refuses the ambiguous case and the ordinary one too has
+    not tightened anything, it has stopped the instrument working — and both halves were
+    measured against every response this repository has sampled before it was armed."""
+    assert parse(payload(), query=QUERY).data_rows
+
+
 def test_an_empty_data_block_is_refused():
     """⛔ An empty answer read as an answer is the failure the whole contract prevents."""
     empty = _RESULT.replace(
