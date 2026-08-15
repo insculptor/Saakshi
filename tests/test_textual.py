@@ -21,7 +21,9 @@ from saakshi.fixture import (
     Header,
     validate_header,
 )
+from saakshi.texts import DEVANAGARI, passage_fidelity, script_presence
 from saakshi.textual import (
+    REFUSAL_REASONS,
     SIGNS,
     AbsenceSearch,
     Edition,
@@ -535,3 +537,91 @@ def test_a_table_reading_states_the_count_it_was_checked_against():
     reading = TableReading(label="t", expected_cells=12, values=(1, 2))
     assert reading.as_json()["cells_expected"] == 12
     assert reading.as_json()["cells_read"] == 2
+
+
+# --- presence is not fidelity -------------------------------------------------------------
+#
+# ⭐ The copy that forced this apart carries a script in quantity and still cannot be cited
+#    for the one passage a claim rested on. ⛔ A repository owning only a presence check
+#    would have read its `True` as licence, so both directions are pinned here.
+
+
+def _fidelity_copy(body: str) -> Edition:
+    return edition(body)
+
+
+def test_a_passage_is_faithful_when_the_copy_agrees_with_itself():
+    body = "the sutra reads alpha beta gamma here. the commentary says it contains beta."
+    result = passage_fidelity(
+        _fidelity_copy(body),
+        passage="alpha beta gamma",
+        quoted_word="beta",
+        stated_at="the commentary",
+    )
+    assert result["faithful"] is True
+    assert result["occurrences_of_that_passage"] == 1
+    assert result["the_rendered_passage_contains_it"] is True
+
+
+def test_a_passage_is_not_faithful_when_it_lacks_the_word_the_copy_says_is_in_it():
+    # the rendering dropped 'beta' from the passage; the copy's own prose still names it
+    body = "the sutra reads alpha gxmma here. the commentary says it contains beta."
+    result = passage_fidelity(
+        _fidelity_copy(body),
+        passage="alpha gxmma",
+        quoted_word="beta",
+        stated_at="the commentary",
+    )
+    assert result["faithful"] is False
+    assert result["the_rendered_passage_contains_it"] is False
+
+
+def test_a_passage_that_does_not_resolve_is_not_faithful_either():
+    # ⛔ a passage occurring twice locates nothing, so it cannot be cited even if the word is
+    #    present in it — fidelity must not accept what resolution refuses
+    body = "alpha beta gamma and again alpha beta gamma."
+    result = passage_fidelity(
+        _fidelity_copy(body),
+        passage="alpha beta gamma",
+        quoted_word="beta",
+        stated_at="the commentary",
+    )
+    assert result["occurrences_of_that_passage"] == 2
+    assert result["faithful"] is False
+
+
+def test_a_passage_absent_from_the_copy_is_not_faithful():
+    result = passage_fidelity(
+        _fidelity_copy("nothing of the sort appears here."),
+        passage="alpha beta gamma",
+        quoted_word="beta",
+        stated_at="the commentary",
+    )
+    assert result["occurrences_of_that_passage"] == 0
+    assert result["faithful"] is False
+
+
+def test_presence_and_fidelity_are_different_questions_about_one_copy():
+    """⭐ The measured case, in miniature: the script is there and the passage is still wrong.
+
+    ⛔ This is the pairing the refusal rests on. A copy can carry a script in quantity and
+    have lost the very words a locus into it would quote.
+    """
+    body = "सूत्र: आत्साधिकः सप्तानासष्टानां वा । टीका में 'अष्टानाम्' शब्द है ।"
+    copy = _fidelity_copy(body)
+    presence = script_presence(copy, first=DEVANAGARI[0], last=DEVANAGARI[1])
+    fidelity = passage_fidelity(
+        copy,
+        passage="आत्साधिकः सप्तानासष्टानां वा",
+        quoted_word="अष्टानाम्",
+        stated_at="the commentary",
+    )
+    assert presence["present"] is True
+    assert presence["code_points_in_range"] > 0
+    assert fidelity["faithful"] is False
+
+
+def test_the_two_new_refusal_reasons_are_declared():
+    # ⛔ an undeclared reason reports a pass and carries no meaning to a reader grouping on it
+    assert "script_present_but_passage_not_faithful" in REFUSAL_REASONS
+    assert "extent_of_the_copy_is_a_lower_bound" in REFUSAL_REASONS

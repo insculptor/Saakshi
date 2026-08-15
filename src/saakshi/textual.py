@@ -262,6 +262,15 @@ REFUSAL_REASONS = frozenset(
         "table_not_legible_in_this_rendering",
         # the locus lands in a script this rendering did not preserve at all
         "script_not_present_in_this_rendering",
+        # ⭐ the script IS present, in quantity, and the passage is still not citable: the
+        # copy's own prose names a word as being in it that the rendered passage lacks.
+        # ⛔ Distinct from the reason above on purpose - a presence check answers yes here,
+        # and a recorder that owned only the one category would read that yes as licence.
+        "script_present_but_passage_not_faithful",
+        # ⭐ the extent this claim would be measured over is a lower bound rather than a
+        # measurement, so the claim cannot be sized. ⛔ Absences fail this way, and they fail
+        # silently: an absence over an unknown extent still prints a confident zero.
+        "extent_of_the_copy_is_a_lower_bound",
     }
 )
 

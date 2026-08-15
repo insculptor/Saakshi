@@ -1,4 +1,4 @@
-"""What one located text states about the significator series — and what it does not.
+"""What two located copies state about the significator series — and what neither does.
 
 ⛔ **The claim this file exists to make is not "a book says so".** It is that each recorded
 rule was *resolved*: the words quoted at each locus were searched for in a named copy, whose
@@ -6,10 +6,19 @@ address, digest, rendering and measured extent are all on the header, and were f
 exactly once. A citation nobody can resolve is not a citation, and prose asserting that a
 citation is good is a claim like any other, made in the one form that cannot be checked.
 
-⭐ **Three of the rules here sit in the translator's notes rather than in the sutras**, and
+⭐ **Two of the rules here sit in the translator's notes rather than in the sutras**, and
 the fixture says which is which on every row. They are printed on the same pages and are not
 the same authority: one is the text, the other is a modern reader of it. A consumer that
 took the notes for the text would be implementing a commentator under a sutra's name.
+
+⭐⭐ **There is a second witness now, and it did not simply agree.** A second copy — another
+translator, another language, and one that carries the sutras in their own script — answers
+all five rules: four corroborated, and one **forked**. ⛔ The fork is not about what the rule
+says. Both copies contain the rule that the ascending node's degrees are read backwards; they
+attach it to *different sutras governing different determinations*, and the one that matters
+is whether it applies when the series itself is ranked. ⭐ *A disagreement about a rule's
+scope moves more charts than a disagreement about its content*, and neither copy is corrected
+against the other here: which is right is not a recorder's question.
 
 ⭐ **The absence is a measurement, not an aside.** A widely repeated rule of this system is
 recorded here as *absent* — and an absence is only as wide as its alphabet and its copy, so
@@ -32,7 +41,14 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
 from saakshi.fixture import Header, describe_reserved_names, write_jsonl  # noqa: E402
 from saakshi.provenance import generator_for, today  # noqa: E402
-from saakshi.texts import CACHE, DEVANAGARI, acquire, load, script_presence  # noqa: E402
+from saakshi.texts import (  # noqa: E402
+    CACHE,
+    DEVANAGARI,
+    acquire,
+    load,
+    passage_fidelity,
+    script_presence,
+)
 from saakshi.textual import (  # noqa: E402
     NO_LICENCE_DETERMINATION,
     AbsenceSearch,
@@ -44,6 +60,18 @@ from saakshi.textual import (  # noqa: E402
 )
 
 EDITION = "jaimini_sutras_rao"
+
+#: ⭐ The second witness. A rule resolved against one edition is *resolved*, not
+#: *corroborated*, and every rule here rested on one copy, one translation, one translator
+#: until this copy was acquired.
+#:
+#: ⚠ **It is not the same kind of copy, and the difference is load-bearing.** The first is an
+#: English translation whose rendering carries no Sanskrit at all. This one carries the
+#: sutras in their own script and a Hindi commentary on them — so where they agree, two
+#: translators working in two languages agree, which is a stronger statement than two
+#: printings of one translator; and where they disagree, the disagreement is locatable in
+#: both rather than being one copy's silence.
+SECOND_EDITION = "jaimini_sutram_mishra"
 
 # --------------------------------------------------------------------------------------
 # The located rules
@@ -145,6 +173,115 @@ RULES: tuple[dict[str, Any], ...] = (
 )
 
 # --------------------------------------------------------------------------------------
+# The second witness
+# --------------------------------------------------------------------------------------
+
+#: What the second copy states about each rule above, quoted from ITS pages at ITS locus.
+#:
+#: ⛔ **A second witness is not the same fragment searched in another file.** The words are
+#: the edition's own property: a different translator, in a different language, does not
+#: print the first one's sentence. So each entry carries its own locus and its own fragment,
+#: and what is compared is what each copy *states* — never the two quotations, which could
+#: not match and would mean nothing if they did.
+#:
+#: ⚠ **Every fragment below is the second copy's COMMENTARY, not its sutra line.** That copy
+#: prints the sutras in their own script and its machine reading damaged them; see the
+#: fidelity control. So the second witness is a second *commentator* reading the same sutras,
+#: which is what it can honestly be and is stated as such on every row.
+CORROBORATION: tuple[dict[str, Any], ...] = (
+    {
+        "rule": "the_first_significator_is_the_highest_in_degrees",
+        "verdict": "corroborated",
+        "locus": "adhyaya 1, pada 1, the commentary to sutra 11",
+        "fragment": (
+            "सूर्य से लेकर शनि पर्यन्त सातों में से अथवा राहु को मिलाकर आठौं ग्रहों में से "
+            "जिसके अंश सबसे अधिक होंगे, वही आत्मकारक होगा"
+        ),
+        "the_second_source_states": (
+            "of the seven from the Sun as far as Saturn, or of the eight bodies counting the "
+            "ascending node, the one holding the greatest degrees is the head of the series"
+        ),
+        "note": (
+            "⭐ the two copies state this one almost sentence for sentence, in two languages "
+            "and from two translators. ⚠ Including the part a consumer is most likely to "
+            "narrow: both offer the seven-body and eight-body reckonings and neither chooses"
+        ),
+    },
+    {
+        "rule": "the_second_significator_is_next_in_degrees",
+        "verdict": "corroborated",
+        "locus": "adhyaya 1, pada 1, the commentary to sutras 13 to 17",
+        "fragment": "आत्मकारक से कम अंशादि वाला ग्रह अमात्यकारक होता है",
+        "the_second_source_states": (
+            "the body holding fewer degrees than the head of the series takes the second place"
+        ),
+    },
+    {
+        "rule": "the_third_significator_is_next_again",
+        "verdict": "corroborated",
+        "locus": "adhyaya 1, pada 1, the commentary to sutras 13 to 17",
+        "fragment": "तब *उससे कम अंशादि वाला भ्रातृकारक",
+        "the_second_source_states": (
+            "the body holding fewer degrees again takes the third place"
+        ),
+        "note": (
+            "⚠ quoted with the machine reading's stray asterisk intact. ⛔ Removing it would "
+            "make the locus resolve against a document that exists only here"
+        ),
+    },
+    {
+        "rule": "a_tie_merges_two_places_and_the_node_fills_the_vacancy",
+        "verdict": "corroborated",
+        "locus": "adhyaya 1, pada 1, the commentary to sutra 11",
+        "fragment": (
+            "यदि दो या अधिक ग्रहों के अंश समान हों तो वे दोनों ही ग्रह आत्मकारक माने जाएँगे"
+        ),
+        "second_fragment": "उस स्थिति में राहु उस रिक्तता को पूरा करेगा",
+        "the_second_source_states": (
+            "where two or more bodies hold equal degrees both are taken as the head of the "
+            "series, which leaves the series one body short, and the ascending node fills the "
+            "place left empty"
+        ),
+        "note": (
+            "⭐⭐ THE RESULT THAT WAS NOT EXPECTED. This rule is the first copy's "
+            "TRANSLATOR'S NOTE rather than its sutra, and a note is one modern reader's "
+            "voice — so a second edition was expected to be unable to speak to it at all. It "
+            "speaks to both halves. ⚠ What that establishes is precise and is not that the "
+            "note is right: it is that the rule is attested by two commentators independently "
+            "rather than being one translator's gloss, which is a different and weaker claim "
+            "than a sutra stating it, and a stronger one than a single note"
+        ),
+    },
+    {
+        "rule": "the_node_is_ranked_by_reversed_degrees",
+        "verdict": "forked",
+        "locus": "adhyaya 2, pada 1, sutra 53 and its commentary",
+        "fragment": (
+            "राहु के भुक्तांश जानने के लिए राहु स्पष्ट के अंशों को ३०० में से घटाकर शेष का "
+            "ग्रहण करना चाहिए"
+        ),
+        "second_fragment": "केतु का ग्रहण इसलिए नहीं किया जाता",
+        "the_second_source_states": (
+            "that the node's degrees are read by subtracting its longitude from thirty — the "
+            "same mechanism the first copy's note states, and stated here as arithmetic "
+            "rather than as a description — but states it at a sutra governing a DIFFERENT "
+            "determination, and at the sutra founding the series it instead gives a different "
+            "reason for leaving the descending node out, that its degrees always equal the "
+            "ascending node's"
+        ),
+        "note": (
+            "⛔⛔ THE FORK IS ABOUT SCOPE, NOT ABOUT CONTENT, AND SCOPE IS THE CONSEQUENTIAL "
+            "HALF. Both copies contain the reversal. The first attaches it to the series "
+            "itself; the second attaches it to a later, narrower determination and does not "
+            "invoke it where the series is founded. ⭐ A consumer that reverses the node's "
+            "degrees when ranking the series is following the first copy's note, and the "
+            "second copy does not authorise it there — and because the node's rank changes "
+            "with the reading, so does the series, for any chart in which the node would place"
+        ),
+    },
+)
+
+# --------------------------------------------------------------------------------------
 # The absence
 # --------------------------------------------------------------------------------------
 
@@ -210,6 +347,48 @@ def rule_rows(edition, refusals: list[Refusal]) -> list[dict[str, Any]]:
     return rows
 
 
+def corroboration_rows(second) -> list[dict[str, Any]]:
+    """What the second copy states about each rule, at its own locus, in its own words.
+
+    ⛔ Every fragment is resolved in the second copy exactly as the first copy's are in it —
+    the `Locus` refuses at write time if a fragment does not occur exactly once, so a row
+    that reaches the file has been located rather than asserted.
+    """
+    rows: list[dict[str, Any]] = []
+    for entry in CORROBORATION:
+        locus = Locus(
+            # ⚠ the second copy speaks here through its commentator, never through its sutra
+            #   lines — see the fidelity control for why that is forced rather than chosen
+            source_kind="commentary",
+            edition=second,
+            locus=entry["locus"],
+            interpretation_status="restated",
+            fragment=entry["fragment"],
+        )
+        row: dict[str, Any] = {
+            "finding": "corroboration",
+            "rule": entry["rule"],
+            "verdict": entry["verdict"],
+            "the_second_source_states": entry["the_second_source_states"],
+            "locus": locus.as_json(),
+        }
+        if entry.get("second_fragment"):
+            # ⛔ A second passage carrying the other half of the claim. It is resolved on its
+            #    own rather than concatenated: two passages that are pages apart do not form
+            #    one quotation, and joining them would produce a fragment found nowhere.
+            row["second_locus"] = Locus(
+                source_kind="commentary",
+                edition=second,
+                locus=entry["locus"],
+                interpretation_status="restated",
+                fragment=entry["second_fragment"],
+            ).as_json()
+        if entry.get("note"):
+            row["note"] = entry["note"]
+        rows.append(row)
+    return rows
+
+
 def refusals_for(edition) -> list[Refusal]:
     """What was considered and not written down. ⚠ Named, because a count caps nothing."""
     return [
@@ -253,31 +432,78 @@ def refusals_for(edition) -> list[Refusal]:
                 "this one if the two disagree"
             ),
         ),
+        # ⭐ The "a second witness to any rule recorded above" refusal that stood here through
+        #   four hand-offs is DISCHARGED: a second copy is in hand and every rule is answered
+        #   by it, four corroborated and one forked. ⛔ It is replaced rather than deleted,
+        #   because what the second copy could NOT be asked is a narrower refusal and not no
+        #   refusal at all.
         Refusal(
-            subject="a second witness to any rule recorded above",
+            subject=(
+                "a witness to the first copy's TRANSLATOR'S NOTES as that translator's own "
+                "words"
+            ),
             reason="no_edition_in_hand",
             detail=(
-                "every rule here rests on one copy of one translation. ⚠ That is a weaker "
-                "state than a fork, not a stronger one: a fork at least establishes that two "
-                "readings exist, and a single witness establishes only what one translator "
-                "printed"
+                "two of the rules here are printed in the first copy's notes rather than in "
+                "its sutras. ⭐ The second copy speaks to both, and that is worth having — but "
+                "it speaks as another commentator on the same sutras, which establishes that "
+                "a rule is attested twice and never that the first translator's note says "
+                "what this file records it saying. ⛔ Only another copy of THAT translation "
+                "can witness that, and the copy in hand is the only one held"
             ),
-            what_would_close_it="a second translation of the same work, acquired and resolved",
+            what_would_close_it=(
+                "a second printing of the first translation, acquired and resolved against "
+                "the same loci"
+            ),
+        ),
+        Refusal(
+            subject="any sutra of this work as the second copy prints it",
+            reason="script_present_but_passage_not_faithful",
+            detail=(
+                "⚠ this refusal exists because the obvious check passes. The second copy "
+                "carries the original's script in quantity, so a presence test answers yes — "
+                "and its machine reading still damaged the sutra lines while capturing the "
+                "commentary around them cleanly. Measured on the sutra the series is founded "
+                "on: the copy's own commentary names a word as occurring in that sutra, and "
+                "the sutra as rendered does not contain it. ⛔ Quoting the line would publish "
+                "the machine reading's damage under the text's own name"
+            ),
+            what_would_close_it=(
+                "a rendering of that copy whose sutra lines are faithful, or a copy of the "
+                "original in a rendering that can be checked against itself the same way"
+            ),
+        ),
+        Refusal(
+            subject="an absence measured over the second copy",
+            reason="extent_of_the_copy_is_a_lower_bound",
+            detail=(
+                "the absence recorded in this file is measured over the first copy only. ⛔ It "
+                "is not extended to the second, and the reason is not effort: three detectors "
+                "were run over that copy's boundary markers and each measured a different "
+                "extent, because the machine reading damaged the same closing sentence "
+                "differently at every occurrence. Its extent is therefore a lower bound, and "
+                "an absence taken over a lower bound reports the recorder's alphabet as the "
+                "book's silence. ⚠ A second alphabet would also be needed, in a second script"
+            ),
+            what_would_close_it=(
+                "an extent for that copy established by something other than a search for "
+                "spellings a reader had to think of first"
+            ),
         ),
     ]
 
 
-def build_header(script: Path, edition, resolved: int, refusals, controls) -> Header:
+def build_header(script: Path, edition, second, resolved: int, refusals, controls) -> Header:
     return Header(
         fixture_kind="textual_rule",
         reference="R6",
         generator=generator_for(script),
         generated=today(),
         title=(
-            "The significator series as one located translation states it, and one widely "
-            "repeated rule it does not"
+            "The significator series as two located copies state it, one rule they place "
+            "differently, and one widely repeated rule neither states"
         ),
-        oracle=source_oracle([edition], resolved=resolved, refused=len(refusals)),
+        oracle=source_oracle([edition, second], resolved=resolved, refused=len(refusals)),
         # ⚠ The containing locus. Each rule row carries its own, more precise one; this is
         #   the sutra at which the series is founded and from which every later place hangs.
         locus=Locus(
@@ -294,15 +520,31 @@ def build_header(script: Path, edition, resolved: int, refusals, controls) -> He
             ),
             "claims_refused": len(refusals),
             **refusal_summary(refusals),
+            "rules_answered_by_the_second_copy": len(CORROBORATION),
+            "of_which_corroborated": sum(
+                1 for c in CORROBORATION if c["verdict"] == "corroborated"
+            ),
+            "of_which_forked": sum(1 for c in CORROBORATION if c["verdict"] == "forked"),
+            "what_the_second_copy_settles_and_what_it_does_not": (
+                "⭐ where the two agree, two translators working in two languages agree, which "
+                "no second printing of one translation could establish. ⛔ Where they differ "
+                "the difference is recorded as a fork rather than resolved: which copy is "
+                "right is not a question a recorder may settle, and both are located"
+            ),
             "the_absence": (
                 "one rule was searched for and not found. ⛔ It is an absence from the extent "
-                "measured, in the spellings listed, in this rendering - see the absence row, "
-                "which enumerates every hit rather than counting them"
+                "measured, in the spellings listed, in ONE rendering - the first copy's. It "
+                "is deliberately not extended to the second, whose extent is a lower bound; "
+                "see the absence row and the matching refusal"
             ),
             "controls": {control["control"]: control["held"] for control in controls},
         },
         row_schema={
             "rule": "one located statement, with the locus it was resolved at",
+            "corroboration": (
+                "what the second copy states about one rule above, at its own locus and in "
+                "its own words, with a verdict of corroborated or forked"
+            ),
             "absence": "a rule searched for and not found, with its alphabet and its extent",
             "refused": "a claim considered and not written down, with what would close it",
             "control": "a check on this file's own method, with what it measured",
@@ -323,9 +565,20 @@ def build_header(script: Path, edition, resolved: int, refusals, controls) -> He
             "lists every spelling searched with its own hit count, locates every hit rather "
             "than counting it, and states the measured extent it holds over. The copy is a "
             "part of the work: nothing is claimed about the parts it does not contain.",
-            "⚠ EVERY RULE HERE RESTS ON ONE WITNESS. One copy, one translation, one "
-            "translator. That is recorded as a refusal rather than left as an impression, "
-            "because a rule resolved against a single edition is resolved, not corroborated.",
+            "⭐⭐ THERE ARE TWO WITNESSES NOW, AND THE SECOND ONE FORKED RATHER THAN AGREED "
+            "ON THE RULE THAT MATTERS MOST. Four of the five rules are corroborated by a "
+            "second copy in a second language by a second translator. The fifth - how the "
+            "eighth body's degrees are read - is contained in both copies and PLACED "
+            "DIFFERENTLY by them: the first attaches it to the series itself, the second to a "
+            "later and narrower determination. ⛔ The fork is not resolved here. Which copy is "
+            "right is not a recorder's question, and a consumer ranking the series by reversed "
+            "degrees is following one copy against the other rather than following the source.",
+            "⚠ THE SECOND COPY SPEAKS THROUGH ITS COMMENTATOR AND NOT THROUGH ITS SUTRAS, AND "
+            "THAT WAS FORCED. It carries the original's script in quantity - so the presence "
+            "check that stands for 'no primary text is reachable' answers yes for it - and its "
+            "machine reading still damaged the sutra lines while capturing the commentary "
+            "cleanly. ⭐ Presence of a script is not fidelity of a script, and the two are "
+            "measured separately because the first would otherwise be read as the second.",
             "⛔ R6 RECORDS WHAT A TEXT STATES AND NOTHING ELSE. Not that the statement is "
             "correct, not that this repository holds it, not that any consumer should "
             "implement it. " + NO_LICENCE_DETERMINATION + ".",
@@ -349,10 +602,12 @@ def main() -> int:
     print(describe_reserved_names())
 
     if args.acquire:
-        record = acquire(EDITION, cache=args.cache, today=today())
-        print(f"acquired {EDITION}: {record['copy_bytes']} bytes, status {record['http_status']}")
+        for key in (EDITION, SECOND_EDITION):
+            record = acquire(key, cache=args.cache, today=today())
+            print(f"acquired {key}: {record['copy_bytes']} bytes, status {record['http_status']}")
 
     edition = load(EDITION, cache=args.cache)
+    second = load(SECOND_EDITION, cache=args.cache)
     print(
         f"edition {EDITION}: {edition.rendering.kind} via {edition.rendering.produced_by}, "
         f"{edition.rendering.characters} characters"
@@ -363,7 +618,24 @@ def main() -> int:
         f"{len(edition.extent['divisions_looked_for'])} divisions found"
     )
 
+    print(
+        f"edition {SECOND_EDITION}: {second.rendering.kind}, "
+        f"{second.rendering.characters} characters; extent "
+        f"{len(second.extent['divisions_found'])} of "
+        f"{len(second.extent['divisions_looked_for'])} divisions found"
+    )
+
     script_check = script_presence(edition, first=DEVANAGARI[0], last=DEVANAGARI[1])
+    second_script = script_presence(second, first=DEVANAGARI[0], last=DEVANAGARI[1])
+    # ⚠ The passage is the sutra the whole series hangs on, and the word is one the copy's
+    #   OWN commentary states is in it. ⛔ Nothing here supplies a "correct" wording from
+    #   outside: that would be the unsourced claim this discipline exists to refuse.
+    second_fidelity = passage_fidelity(
+        second,
+        passage="आत्साधिकः कला दिभिनभोग: सप्तानासष्टानां वा",
+        quoted_word="अष्टानाम्",
+        stated_at="adhyaya 1, pada 1, the commentary to sutra 11",
+    )
     controls = [
         {
             "finding": "control",
@@ -388,10 +660,33 @@ def main() -> int:
                 "source this file has never seen"
             ),
         },
+        # ⭐⭐ The second copy inverts the control above, and that is why the pair is kept.
+        #    It DOES carry the script, so a presence test answers yes for it - and the same
+        #    machine reading damaged the sutra lines. ⛔ Had this file owned only the presence
+        #    control, the yes would have been read as licence to cite the original.
+        {
+            "finding": "control",
+            "control": "the_second_copy_carries_the_script_and_is_still_not_citable_for_it",
+            "measured": {
+                "presence": second_script,
+                "fidelity": second_fidelity,
+            },
+            "held": bool(second_script["present"] and not second_fidelity["faithful"]),
+            "meaning": (
+                "⭐ PRESENCE IS NOT FIDELITY, MEASURED RATHER THAN ARGUED. The second copy "
+                "carries the original's script in quantity and its rendering of the sutra "
+                "this series is founded on still cannot be cited: the copy's own commentary "
+                "names a word as occurring in that sutra and the rendered sutra lacks it. ⛔ "
+                "This control holds when BOTH are true, so it fails if the script ever goes "
+                "missing and equally if the passage ever becomes faithful - either would mean "
+                "the refusal built on it has stopped describing the copy"
+            ),
+        },
     ]
 
     refusals = refusals_for(edition)
     rows = rule_rows(edition, refusals)
+    rows += corroboration_rows(second)
 
     absence = AbsenceSearch(
         claim=ABSENT_CLAIM,
@@ -425,7 +720,7 @@ def main() -> int:
             "check out is evidence of nothing and reads as evidence"
         )
 
-    header = build_header(script, edition, len(RULES), refusals, controls)
+    header = build_header(script, edition, second, len(RULES), refusals, controls)
     path = args.out / "textual" / "significator-series-rules.jsonl"
     count = write_jsonl(path, header, rows)
     print(f"wrote {count} rows -> {path}")
@@ -433,6 +728,12 @@ def main() -> int:
         f"resolved {len(RULES)} rule(s), refused {len(refusals)}; "
         f"{sum(absence.hits.values())} hit(s) across {len(ALPHABET)} spelling(s), "
         "none of them the rule searched for"
+    )
+    corroborated = sum(1 for c in CORROBORATION if c["verdict"] == "corroborated")
+    forked = sum(1 for c in CORROBORATION if c["verdict"] == "forked")
+    print(
+        f"second witness: {corroborated} corroborated, {forked} forked, "
+        f"across {len(CORROBORATION)} rule(s)"
     )
     return 0
 
