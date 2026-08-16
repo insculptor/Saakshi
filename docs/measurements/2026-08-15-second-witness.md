@@ -50,6 +50,13 @@ narrower subject rather than deleted.
 
 ## 3. The fork, which is about scope rather than content
 
+> ⛔⛔⛔ **THIS SECTION IS WITHDRAWN.** Measured 2026-08-16: the second copy **does** invoke
+> the reversal where the series is founded — its commentary to that sutra states the rule in
+> full, two paragraphs below the passage this section was written from. The verdict is
+> **corroborated**. ⭐ The error was an absence asserted over a passage nobody searched:
+> *a different reason found is not the absence of the reason you were looking for.* See
+> `2026-08-16-the-fork-that-was-not-there.md`. The rest of this page stands.
+
 ⛔ **Both copies contain the rule that the ascending node's degrees are read backwards. They
 attach it to different sutras, governing different determinations.**
 
@@ -163,4 +170,6 @@ copy it names rather than against whichever text is to hand.
 * ⛔ The **absence** recorded in the fixture is still measured over one copy, and is not
   extended.
 * ⚠ The fork is **recorded, not resolved**, and resolving it would need a third copy or the
-  original in a faithful rendering.
+  original in a faithful rendering. ⛔ **WITHDRAWN 2026-08-16 — there was no fork, and no
+  third copy was needed: the second copy answered it, in the passage this session did not
+  search.**
