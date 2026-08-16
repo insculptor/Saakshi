@@ -26,8 +26,11 @@ from saakshi.textual import (
     REFUSAL_REASONS,
     SIGNS,
     AbsenceSearch,
+    Alignment,
     Edition,
+    Fork,
     Locus,
+    PassageAbsence,
     Refusal,
     Rendering,
     TableReading,
@@ -625,3 +628,209 @@ def test_the_two_new_refusal_reasons_are_declared():
     # ⛔ an undeclared reason reports a pass and carries no meaning to a reader grouping on it
     assert "script_present_but_passage_not_faithful" in REFUSAL_REASONS
     assert "extent_of_the_copy_is_a_lower_bound" in REFUSAL_REASONS
+
+
+# --- a fork is a presence AND an absence, and only the presence ever gets measured -----
+#
+# ⛔⛔ These exist because the unarmed version failed in production. A fork was published
+# holding that one copy did not state a rule where another did; the rule stood two paragraphs
+# below the passage the reading was formed from, in the copy said to be silent. ⭐ Every test
+# below is a defect that reading would have had to survive.
+
+#: ⚠ One rule, stated in TWO carrying forms — as arithmetic in one passage and as description
+#: in another. That is the shape that defeated the recorder, so it is the shape tested.
+TWO_FORM_BODY = (
+    "Front matter mentioning none of it.\n"
+    "SUTRA ONE MARKER. The head of the series is whichever holds the highest degrees. "
+    "The node must also be considered, taking the remainder after subtracting from thirty.\n"
+    "SUTRA TWO MARKER. A different matter altogether, with no bearing on the node.\n"
+    "SUTRA THREE MARKER. For the node the reverse is understood.\n"
+    "SUTRA FOUR MARKER. Closing matter.\n"
+)
+
+#: ⭐ Read off the copy, and off BOTH carrying forms of the rule.
+BOTH_FORMS = ("reverse", "subtracting from thirty")
+
+
+def other_edition(text: str = TWO_FORM_BODY) -> Edition:
+    ed = edition(text)
+    return Edition(
+        key="second_copy",
+        identity=ed.identity,
+        language=ed.language,
+        witness=ed.witness,
+        rendering=Rendering(
+            kind="transcription",
+            produced_by="this test",
+            sha256=digest(text),
+            characters=len(text),
+        ),
+        extent=ed.extent,
+        text=text,
+    )
+
+
+def passage_absence(**over) -> PassageAbsence:
+    base = dict(
+        claim="that this copy does not state the rule where the series is founded",
+        edition=other_edition(),
+        passage_label="sutra one",
+        after="SUTRA ONE MARKER.",
+        before="SUTRA TWO MARKER.",
+        alphabet=BOTH_FORMS,
+        alphabet_read_from="read off this copy's own statements of the rule",
+    )
+    base.update(over)
+    return PassageAbsence(**base)
+
+
+def stating_locus() -> Locus:
+    return Locus(
+        source_kind="commentary",
+        edition=edition(),
+        locus="chapter one",
+        interpretation_status="restated",
+        fragment="The first rule is stated here, once and only once.",
+    )
+
+
+def fork(**over) -> Fork:
+    base = dict(
+        rule="the_node_is_ranked_by_reversed_degrees",
+        subject="whether the rule reaches the ranking of the series",
+        stated_by=stating_locus(),
+        absent_from=passage_absence(),
+    )
+    base.update(over)
+    return Fork(**base)
+
+
+def test_the_null_control_a_genuinely_silent_passage_yields_a_fork():
+    """⭐ The accepting case, so the refusals below are known not to refuse everything."""
+    silent = passage_absence(
+        passage_label="sutra two", after="SUTRA TWO MARKER.", before="SUTRA THREE MARKER."
+    )
+    assert silent.hits == {"reverse": 0, "subtracting from thirty": 0}
+    assert silent.established
+    row = fork(absent_from=silent).as_row()
+    assert row["finding"] == "fork"
+    assert row["and_measured_absent_from"]["established"] is True
+
+
+def test_the_published_defect_a_fork_whose_passage_states_the_rule_is_refused():
+    """⛔⛔ The exact shape of the withdrawn finding: the 'silent' copy is not silent."""
+    refuted = passage_absence()
+    assert refuted.hits["subtracting from thirty"] == 1
+    assert not refuted.established
+    with pytest.raises(TextualError) as excinfo:
+        fork(absent_from=refuted)
+    # ⭐ The refusal NAMES the word that refutes it — a reader must not have to go looking.
+    assert "subtracting from thirty" in str(excinfo.value)
+
+
+def test_the_obvious_alphabet_alone_would_have_confirmed_the_error():
+    """⚠⚠ THE UNCOMFORTABLE CONTROL, AND THE REASON THE ALPHABET RULE IS NOT ENOUGH.
+
+    ⭐⭐⭐ Searching the passage for the rule's *ordinary word* finds nothing, because the
+    copy states the rule there in its other carrying form. The absence is then `established`
+    and the fork is accepted — and it is **wrong**. ⛔ This instrument does not escape its
+    alphabet, and a test that pretended otherwise would be the defect one level up. What the
+    row carries instead is the alphabet itself, so a reader can see what was not looked for.
+    """
+    one_form = passage_absence(alphabet=("reverse",))
+    assert one_form.hits == {"reverse": 0}
+    assert one_form.established  # ⛔ established, and false
+    assert fork(absent_from=one_form).as_row()["finding"] == "fork"
+
+
+def test_a_spelling_absent_from_the_whole_copy_is_refused_as_guessed():
+    """⛔ A zero from a guessed spelling is indistinguishable from a passage's silence."""
+    with pytest.raises(TextualError) as excinfo:
+        passage_absence(alphabet=("reverse", "widdershins"))
+    assert "widdershins" in str(excinfo.value)
+
+
+def test_an_absence_with_no_alphabet_searched_nothing():
+    with pytest.raises(TextualError):
+        passage_absence(alphabet=())
+
+
+def test_a_passage_bounded_by_an_ambiguous_landmark_is_refused():
+    """⛔ Inherited from `region`, and it is what makes the bound a measurement."""
+    doubled = TWO_FORM_BODY + "SUTRA ONE MARKER. printed a second time.\n"
+    with pytest.raises(TextualError):
+        passage_absence(edition=other_edition(doubled)).hits
+
+
+def test_a_fork_naming_one_copy_on_both_sides_is_refused():
+    """⛔ A copy disagreeing with itself is a different finding and is recorded as one."""
+    same = passage_absence(edition=edition(TWO_FORM_BODY))
+    with pytest.raises(TextualError) as excinfo:
+        fork(stated_by=stating_locus(), absent_from=same)
+    assert "both sides" in str(excinfo.value)
+
+
+def test_a_passage_absence_row_declares_its_bound_and_its_alphabet():
+    row = passage_absence(
+        passage_label="sutra two", after="SUTRA TWO MARKER.", before="SUTRA THREE MARKER."
+    ).as_row()
+    assert row["spellings_searched"] == list(BOTH_FORMS)
+    assert [h["spelling"] for h in row["hits_by_spelling"]] == list(BOTH_FORMS)
+    assert "lower bound" in row["bounded_by"]
+    assert "alphabet" in row["limit"]
+
+
+# --- two copies number AND order the sutras differently --------------------------------
+
+
+def alignment(**over) -> Alignment:
+    anchor_first = Locus(
+        source_kind="translation", edition=edition(), locus="anchor",
+        interpretation_status="restated",
+        fragment="The first rule is stated here, once and only once.",
+    )
+    anchor_second = Locus(
+        source_kind="translation", edition=other_edition(), locus="anchor",
+        interpretation_status="restated", fragment="SUTRA ONE MARKER.",
+    )
+    base = dict(
+        label="whether two numbers name one place",
+        anchor_in_first=anchor_first, anchor_first_number=48,
+        anchor_in_second=anchor_second, anchor_second_number=50,
+        first_number=50, second_number=52,
+    )
+    base.update(over)
+    return Alignment(**base)
+
+
+def test_an_offset_that_carries_is_reported_as_carrying():
+    a = alignment()
+    assert a.offset_at_the_anchor == 2 and a.offset_at_these_loci == 2
+    assert a.offset_holds
+
+
+def test_an_offset_that_does_not_carry_is_reported_and_claims_nothing():
+    """⛔⛔ The real pair: 2 at the anchor, 3 at the sutra under comparison.
+
+    ⭐ A recorder carrying the anchor's offset lands on a different sutra and concludes the
+    two copies attach the rule to different determinations — which is what was published.
+    ⚠ And a false result must NOT be read as "different places": the class says only that
+    arithmetic on sutra numbers cannot settle it.
+    """
+    a = alignment(second_number=53)
+    assert not a.offset_holds
+    row = a.as_json()
+    assert row["offset_measured_at_the_anchor"] == 2
+    assert row["offset_at_these_loci"] == 3
+    assert row["the_anchors_offset_holds_at_these_loci"] is False
+    assert "does NOT mean" in row["what_a_false_result_means"]
+
+
+def test_the_across_copies_refusal_reason_is_declared():
+    assert "place_in_the_work_not_established_across_copies" in REFUSAL_REASONS
+    Refusal(
+        subject="that two copies state a rule at the same sutra",
+        reason="place_in_the_work_not_established_across_copies",
+        detail="the copies reorder the sutras, so no single offset describes the pair",
+        what_would_close_it="a copy printing both scripts for the same sutra",
+    )

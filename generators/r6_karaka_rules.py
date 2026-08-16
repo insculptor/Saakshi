@@ -11,14 +11,17 @@ the fixture says which is which on every row. They are printed on the same pages
 the same authority: one is the text, the other is a modern reader of it. A consumer that
 took the notes for the text would be implementing a commentator under a sutra's name.
 
-⭐⭐ **There is a second witness now, and it did not simply agree.** A second copy — another
-translator, another language, and one that carries the sutras in their own script — answers
-all five rules: four corroborated, and one **forked**. ⛔ The fork is not about what the rule
-says. Both copies contain the rule that the ascending node's degrees are read backwards; they
-attach it to *different sutras governing different determinations*, and the one that matters
-is whether it applies when the series itself is ranked. ⭐ *A disagreement about a rule's
-scope moves more charts than a disagreement about its content*, and neither copy is corrected
-against the other here: which is right is not a recorder's question.
+⭐⭐ **There is a second witness, and it answers all five rules — every one corroborated.**
+Another translator, another language, and a copy that carries the sutras in their own script.
+
+⛔⛔⛔ **The fifth rule was published from this file as a FORK, and the fork was not there.**
+The withdrawn reading held that the second copy invoked the ascending node's reversed degrees
+only at a later, narrower determination and not where the series is founded. That copy's
+commentary to the founding sutra states the rule in full, two paragraphs below the passage
+the reading was formed from. ⭐⭐⭐ *A different reason found is not the absence of the reason
+you were looking for* — the recorder read "it says X here" as "it does not say Y here", over
+a passage nobody searched. The correction is a row, not a silent edit, and a fork is now
+refused at write time unless its absence half has been measured over a bounded passage.
 
 ⭐ **The absence is a measurement, not an aside.** A widely repeated rule of this system is
 recorded here as *absent* — and an absence is only as wide as its alphabet and its copy, so
@@ -52,7 +55,9 @@ from saakshi.texts import (  # noqa: E402
 from saakshi.textual import (  # noqa: E402
     NO_LICENCE_DETERMINATION,
     AbsenceSearch,
+    Alignment,
     Locus,
+    PassageAbsence,
     Refusal,
     collect_occurrences,
     refusal_summary,
@@ -60,6 +65,33 @@ from saakshi.textual import (  # noqa: E402
 )
 
 EDITION = "jaimini_sutras_rao"
+
+# --------------------------------------------------------------------------------------
+# The passage the withdrawn fork rested on
+# --------------------------------------------------------------------------------------
+
+#: ⛔ The two landmarks bounding the second copy's commentary to the founding sutra, each of
+#: which resolves exactly once. ⚠ The opening one is the sutra line itself, quoted in the
+#: damaged spelling the machine reading produced — which is why it may bound a region and may
+#: not be cited as the sutra: see the fidelity refusal.
+FOUNDING_PASSAGE_OPENS = "आत्साधिकः कला दिभिनभोग: सप्तानासष्टानां वा ॥११॥"
+FOUNDING_PASSAGE_CLOSES = "ईष्टे बन्धमोक्षयोः ॥१२॥"
+
+#: ⭐⭐ Every spelling read off THIS copy, and specifically off its OTHER statement of the
+#: same rule. ⛔ Not off the concept: the concept's ordinary word (`विपरीत`) occurs **zero**
+#: times in the passage under search, while the rule is stated there in full — because this
+#: copy gives the rule as arithmetic in one place and as description in another. An alphabet
+#: assembled from the idea rather than from the other copy's wording confirms the very
+#: absence it was built to test.
+REVERSAL_ALPHABET: tuple[str, ...] = (
+    "विपरीत",      # the copy's word at sutra 53's commentary, describing the rule
+    "भुक्तांश",     # the copy's term for the degrees the rule reads, same commentary
+    "घटाकर",       # the copy's word for the subtraction that performs it, same commentary
+    "व्युत्क्रम",    # the copy's word for reversed order, used of counting elsewhere
+    "उल्टा",
+    "उल्टी",
+    "वक्र",
+)
 
 #: ⭐ The second witness. A rule resolved against one edition is *resolved*, not
 #: *corroborated*, and every rule here rested on one copy, one translation, one translator
@@ -254,32 +286,89 @@ CORROBORATION: tuple[dict[str, Any], ...] = (
     },
     {
         "rule": "the_node_is_ranked_by_reversed_degrees",
-        "verdict": "forked",
-        "locus": "adhyaya 2, pada 1, sutra 53 and its commentary",
+        # ⛔⛔⛔ THIS ROW READ `forked` WHEN IT WAS PUBLISHED, AND THE FORK WAS NOT THERE.
+        #    See the `correction` row and the control built on the passage that refutes it.
+        "verdict": "corroborated",
+        "locus": "adhyaya 1, pada 1, the commentary to sutra 11 - the sutra founding the series",
         "fragment": (
+            "यदि राहु सर्वाधिक भुक्तांश वाला हो (एतदर्थ राहु के स्पष्टांशों को ३० ' में से "
+            "घटाकर शेष को लें) तो वह भी आत्मकारक हो सकता है"
+        ),
+        "second_locus": "adhyaya 2, pada 1, sutra 53 and its commentary",
+        "second_fragment": (
             "राहु के भुक्तांश जानने के लिए राहु स्पष्ट के अंशों को ३०० में से घटाकर शेष का "
             "ग्रहण करना चाहिए"
         ),
-        "second_fragment": "केतु का ग्रहण इसलिए नहीं किया जाता",
         "the_second_source_states": (
-            "that the node's degrees are read by subtracting its longitude from thirty — the "
-            "same mechanism the first copy's note states, and stated here as arithmetic "
-            "rather than as a description — but states it at a sutra governing a DIFFERENT "
-            "determination, and at the sutra founding the series it instead gives a different "
-            "reason for leaving the descending node out, that its degrees always equal the "
-            "ascending node's"
+            "that the node's degrees are read by subtracting its longitude from thirty, and "
+            "states it in BOTH places the question arises: in the commentary to the sutra "
+            "FOUNDING the series, where it says the node must be considered in determining "
+            "the head of the series and gives the subtraction in parentheses; and again at "
+            "the later sutra governing the narrower determination. ⭐ The same mechanism the "
+            "first copy's note states, given here as arithmetic rather than as description"
         ),
         "note": (
-            "⛔⛔ THE FORK IS ABOUT SCOPE, NOT ABOUT CONTENT, AND SCOPE IS THE CONSEQUENTIAL "
-            "HALF. Both copies contain the reversal. The first attaches it to the series "
-            "itself; the second attaches it to a later, narrower determination and does not "
-            "invoke it where the series is founded. ⭐ A consumer that reverses the node's "
-            "degrees when ranking the series is following the first copy's note, and the "
-            "second copy does not authorise it there — and because the node's rank changes "
-            "with the reading, so does the series, for any chart in which the node would place"
+            "⛔⛔⛔ THIS ROW WAS PUBLISHED AS A FORK AND THE FORK WAS NOT THERE. The withdrawn "
+            "reading held that the second copy did not invoke the reversal where the series "
+            "is founded, on the strength of that copy giving a DIFFERENT reason at the "
+            "founding sutra for leaving the descending node out — which it does, and which is "
+            "still located below. ⭐⭐⭐ But *a different reason found is not the absence of "
+            "the reason you were looking for*: the reversal stands two paragraphs further "
+            "down the same commentary, applied by name to the head of the series. ⚠ The "
+            "passage was never searched, and nothing required it to be"
         ),
     },
 )
+
+#: ⭐ The reading that was published and is now withdrawn. ⛔ It is written down rather than
+#: quietly replaced: this file has been handed over, and an artifact that changes a verdict
+#: without saying so asks a reader to trust that nothing else moved.
+WITHDRAWN = {
+    "finding": "correction",
+    "rule": "the_node_is_ranked_by_reversed_degrees",
+    "what_was_published": (
+        "that the two copies FORK on this rule: that both contain the reversal of the "
+        "ascending node's degrees, that the first attaches it to the sutra founding the "
+        "series while the second attaches it only to a later and narrower determination, and "
+        "that a consumer reversing the node when ranking the series therefore follows one "
+        "copy against the other"
+    ),
+    "what_refutes_it": (
+        "the second copy's own commentary to the founding sutra, which states that the node "
+        "must be considered in determining the head of the series and gives the subtraction "
+        "that reverses its degrees, in parentheses, two paragraphs below the passage the "
+        "withdrawn reading was formed from. ⭐ Located, and occurring exactly once"
+    ),
+    "what_is_published_now": (
+        "that the rule is CORROBORATED, at the founding sutra and at the later determination "
+        "alike, by both copies"
+    ),
+    "how_the_error_was_made": (
+        "⛔⛔ AN ABSENCE WAS ASSERTED OVER A PASSAGE NOBODY SEARCHED. The recorder read the "
+        "founding sutra's commentary far enough to find the second copy giving a different "
+        "ground for excluding the descending node, and read *it says X here* as *it does not "
+        "say Y here*. ⭐ The five located fragments in that session each resolved exactly "
+        "once and five deliberate mutations of them were each refused — and none of that "
+        "touched the claim built on top of them. *A refusal control proves the fragments you "
+        "wrote are located; it says nothing about the finding you assembled out of them*"
+    ),
+    "what_would_have_caught_it": (
+        "⚠ and this is the uncomfortable half: an absence search over that passage in the "
+        "OBVIOUS alphabet would have confirmed the fork. The ordinary word for the reversal "
+        "is absent from the founding commentary — measured, zero occurrences — because the "
+        "copy states the rule there as ARITHMETIC and elsewhere as DESCRIPTION. ⭐⭐⭐ The "
+        "alphabet that catches it is the one read off the SAME RULE AS THE OTHER COPY STATES "
+        "IT, carrying form by carrying form. *A walker that knows one carrying form has "
+        "measured the wrong subject* — the same sentence as the extent defect before it, one "
+        "level up"
+    ),
+    "what_is_armed_now": (
+        "a fork is refused at write time unless its absence half is established over a "
+        "passage bounded by two landmarks that each resolve exactly once, in an alphabet "
+        "every spelling of which is attested somewhere in that copy. ⛔ Run against the "
+        "withdrawn fork, it refuses it and names the two words that refute it"
+    ),
+}
 
 # --------------------------------------------------------------------------------------
 # The absence
@@ -376,10 +465,13 @@ def corroboration_rows(second) -> list[dict[str, Any]]:
             # ⛔ A second passage carrying the other half of the claim. It is resolved on its
             #    own rather than concatenated: two passages that are pages apart do not form
             #    one quotation, and joining them would produce a fragment found nowhere.
+            # ⚠ It carries its OWN locus label where the two passages are at different loci.
+            #   Labelling a passage with a neighbour's locus is how a reading gets attributed
+            #   to a sutra it does not stand under, which is the defect this file corrects.
             row["second_locus"] = Locus(
                 source_kind="commentary",
                 edition=second,
-                locus=entry["locus"],
+                locus=entry.get("second_locus", entry["locus"]),
                 interpretation_status="restated",
                 fragment=entry["second_fragment"],
             ).as_json()
@@ -500,8 +592,8 @@ def build_header(script: Path, edition, second, resolved: int, refusals, control
         generator=generator_for(script),
         generated=today(),
         title=(
-            "The significator series as two located copies state it, one rule they place "
-            "differently, and one widely repeated rule neither states"
+            "The significator series as two located copies state it, a fork this file "
+            "published and has withdrawn, and one widely repeated rule neither states"
         ),
         oracle=source_oracle([edition, second], resolved=resolved, refused=len(refusals)),
         # ⚠ The containing locus. Each rule row carries its own, more precise one; this is
@@ -525,11 +617,22 @@ def build_header(script: Path, edition, second, resolved: int, refusals, control
                 1 for c in CORROBORATION if c["verdict"] == "corroborated"
             ),
             "of_which_forked": sum(1 for c in CORROBORATION if c["verdict"] == "forked"),
+            "a_verdict_published_here_has_been_withdrawn": (
+                "⛔⛔⛔ ONE. The fifth rule was published as a FORK and is now CORROBORATED. "
+                "The withdrawn reading held that the second copy did not invoke the node's "
+                "reversed degrees where the series is founded; that copy's commentary to the "
+                "founding sutra states the rule in full, two paragraphs below the passage the "
+                "reading was formed from. ⭐ The correction row carries what was published, "
+                "what refutes it, how the error was made and what is armed against it"
+            ),
             "what_the_second_copy_settles_and_what_it_does_not": (
                 "⭐ where the two agree, two translators working in two languages agree, which "
                 "no second printing of one translation could establish. ⛔ Where they differ "
                 "the difference is recorded as a fork rather than resolved: which copy is "
-                "right is not a question a recorder may settle, and both are located"
+                "right is not a question a recorder may settle, and both are located. ⚠ And a "
+                "fork is now REFUSED AT WRITE TIME unless its absence half is measured over a "
+                "bounded passage - because the one fork this file published had no such "
+                "measurement behind it and was wrong"
             ),
             "the_absence": (
                 "one rule was searched for and not found. ⛔ It is an absence from the extent "
@@ -546,6 +649,14 @@ def build_header(script: Path, edition, second, resolved: int, refusals, control
                 "its own words, with a verdict of corroborated or forked"
             ),
             "absence": "a rule searched for and not found, with its alphabet and its extent",
+            "correction": (
+                "a reading this file PUBLISHED and has withdrawn, with what refutes it, how "
+                "the error was made and what is armed against its recurrence"
+            ),
+            "alignment": (
+                "whether two copies' sutra numbers for one rule can be shown to name the same "
+                "place in the work, measured against a neighbouring sutra both copies print"
+            ),
             "refused": "a claim considered and not written down, with what would close it",
             "control": "a check on this file's own method, with what it measured",
         },
@@ -565,14 +676,22 @@ def build_header(script: Path, edition, second, resolved: int, refusals, control
             "lists every spelling searched with its own hit count, locates every hit rather "
             "than counting it, and states the measured extent it holds over. The copy is a "
             "part of the work: nothing is claimed about the parts it does not contain.",
-            "⭐⭐ THERE ARE TWO WITNESSES NOW, AND THE SECOND ONE FORKED RATHER THAN AGREED "
-            "ON THE RULE THAT MATTERS MOST. Four of the five rules are corroborated by a "
-            "second copy in a second language by a second translator. The fifth - how the "
-            "eighth body's degrees are read - is contained in both copies and PLACED "
-            "DIFFERENTLY by them: the first attaches it to the series itself, the second to a "
-            "later and narrower determination. ⛔ The fork is not resolved here. Which copy is "
-            "right is not a recorder's question, and a consumer ranking the series by reversed "
-            "degrees is following one copy against the other rather than following the source.",
+            "⛔⛔⛔ THIS FILE PUBLISHED A FORK ON THE RULE THAT MATTERS MOST, AND THE FORK "
+            "WAS NOT THERE. All five rules are corroborated by a second copy in a second "
+            "language by a second translator - including the fifth, how the eighth body's "
+            "degrees are read, which was published as placed differently by the two copies. "
+            "The second copy states it where the series is founded AND at the later "
+            "determination, as the first does. ⭐⭐⭐ The withdrawn reading was an ABSENCE "
+            "NOBODY MEASURED: the recorder found the second copy giving a different ground "
+            "for excluding the descending node at the founding sutra, and read 'it says X "
+            "here' as 'it does not say Y here'. *A different reason found is not the absence "
+            "of the reason you were looking for.* See the correction row.",
+            "⚠ AND THE OBVIOUS CHECK WOULD HAVE CONFIRMED THE ERROR. The ordinary word for "
+            "the reversal occurs ZERO times in the passage that states the rule, because that "
+            "copy gives it there as arithmetic and elsewhere as description. ⭐ The alphabet "
+            "that catches it is the one read off the same rule AS THE OTHER COPY STATES IT, "
+            "carrying form by carrying form - the same lesson as the boundary-marker defect "
+            "before it, one level up.",
             "⚠ THE SECOND COPY SPEAKS THROUGH ITS COMMENTATOR AND NOT THROUGH ITS SUTRAS, AND "
             "THAT WAS FORCED. It carries the original's script in quantity - so the presence "
             "check that stands for 'no primary text is reachable' answers yes for it - and its "
@@ -684,9 +803,124 @@ def main() -> int:
         },
     ]
 
-    refusals = refusals_for(edition)
+    # ⭐ The measurement that withdrew the fork, kept as a control rather than as prose. It
+    #   asserts the OPPOSITE of what the withdrawn reading needed: the passage said to be
+    #   silent is not silent. ⛔ It fails the day that passage stops containing the rule,
+    #   which is exactly when the withdrawal would stop being justified.
+    refuting_passage = PassageAbsence(
+        claim=(
+            "the withdrawn reading's claim: that the second copy does not invoke the "
+            "reversal of the node's degrees where the series is founded"
+        ),
+        edition=second,
+        passage_label="adhyaya 1, pada 1, the commentary to sutra 11",
+        after=FOUNDING_PASSAGE_OPENS,
+        before=FOUNDING_PASSAGE_CLOSES,
+        alphabet=REVERSAL_ALPHABET,
+        alphabet_read_from=(
+            "every spelling read off this copy — four off its own commentary to sutra 53, "
+            "where it states the same rule, and three off its use of reversed order "
+            "elsewhere. ⛔ None was guessed from the idea, and each is attested in this copy"
+        ),
+    )
+
+    # ⭐⭐ The two copies number AND order the sutras differently, so no offset describes the
+    #    pair. Measured at the neighbouring sutra both copies print.
+    alignment = Alignment(
+        label=(
+            "whether the two copies' loci for the later determination are the same sutra"
+        ),
+        anchor_in_first=Locus(
+            source_kind="translation",
+            edition=edition,
+            locus="adhyaya 2, pada 1, sutra 48",
+            interpretation_status="restated",
+            fragment=(
+                "SU. 48.-Brahmani sanaupatayorva tataha. If Sani, Rahu or Ketu becomes Brahma,"
+            ),
+        ),
+        anchor_first_number=48,
+        anchor_in_second=Locus(
+            source_kind="translation",
+            edition=second,
+            locus="adhyaya 2, pada 1, sutra 50",
+            interpretation_status="restated",
+            fragment="ब्रह्मणि शनो पातयोर्वा ततः ॥५०॥",
+        ),
+        anchor_second_number=50,
+        first_number=50,
+        second_number=53,
+    )
+
+    # ⛔ Appended after the three standing controls because these two WITHDRAW a published
+    #   finding, and a reader should meet them beside the correction row.
+    controls += [
+        {
+            "finding": "control",
+            "control": "the_passage_the_withdrawn_fork_called_silent_is_not_silent",
+            "measured": refuting_passage.as_row(),
+            # ⭐ The control asserts the passage DOES contain the rule, so it holds when the
+            #   absence does NOT. ⚠ It fails the day that passage stops containing it — which
+            #   is the day the withdrawal would stop being justified.
+            "held": not refuting_passage.established,
+            "meaning": (
+                "⭐⭐⭐ THE FORK PUBLISHED FROM THIS FILE RESTED ON AN ABSENCE NOBODY "
+                "MEASURED. The second copy's commentary to the founding sutra states the "
+                "reversal in full. ⚠ And the ordinary word for it is absent from that "
+                "passage - measured, zero - so an absence search in the obvious alphabet "
+                "would have CONFIRMED the fork: the copy gives the rule there as arithmetic "
+                "and elsewhere as description. ⛔ An alphabet built from the idea rather than "
+                "from the other copy's own wording tests nothing"
+            ),
+        },
+        {
+            "finding": "control",
+            "control": "no_single_offset_describes_the_two_copies_numbering",
+            "measured": alignment.as_json(),
+            # ⭐ Holds when the anchor's offset does NOT carry: the claim being controlled is
+            #   that arithmetic on sutra numbers is unsafe across this pair, and it is.
+            "held": not alignment.offset_holds,
+            "meaning": (
+                "⛔⛔ A DIFFERENCE OF SUTRA NUMBER READS EXACTLY LIKE A DIFFERENCE OF PLACE. "
+                "The offset measured at the neighbouring sutra both copies print is 2; at the "
+                "sutra under comparison it is 3, because the copies ORDER the sutras "
+                "differently. ⭐ A recorder carrying the neighbour's offset lands on a "
+                "different sutra and concludes the two copies attach the rule to different "
+                "determinations - which is what was published. Identity of place is refused "
+                "rather than asserted"
+            ),
+        },
+    ]
+
+    refusals = refusals_for(edition) + [
+        Refusal(
+            subject=(
+                "that the two copies state the reversal at the SAME sutra of the later "
+                "determination"
+            ),
+            reason="place_in_the_work_not_established_across_copies",
+            detail=(
+                "both copies state it, and where in the work each states it cannot be settled "
+                "from their numbering. ⭐ Measured at the neighbouring sutra both print: the "
+                "offset is 2 there, 2 again at the sutra after the disputed one, and 3 at the "
+                "disputed one itself — because the copies do not merely renumber, they "
+                "REORDER, one placing a sutra before the pair that the other places after. "
+                "⛔⛔ An offset carried from any neighbour lands on a different sutra "
+                "entirely, which is how a difference of numbering becomes a published "
+                "difference of doctrine. ⚠ Settling it from the sutras' own words would need "
+                "to match a roman transliteration against a Devanagari line, and no authority "
+                "for that is held here"
+            ),
+            what_would_close_it=(
+                "a copy that prints both scripts for the same sutra, or a stated concordance "
+                "between the two copies' numbering, resolvable in a named copy"
+            ),
+        ),
+    ]
     rows = rule_rows(edition, refusals)
     rows += corroboration_rows(second)
+    rows.append(dict(WITHDRAWN))
+    rows.append({"finding": "alignment", **alignment.as_json()})
 
     absence = AbsenceSearch(
         claim=ABSENT_CLAIM,

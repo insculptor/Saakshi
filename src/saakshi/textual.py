@@ -271,6 +271,11 @@ REFUSAL_REASONS = frozenset(
         # measurement, so the claim cannot be sized. ⛔ Absences fail this way, and they fail
         # silently: an absence over an unknown extent still prints a confident zero.
         "extent_of_the_copy_is_a_lower_bound",
+        # ⭐ two copies locate the same rule and it cannot be established that they locate it
+        # at the same PLACE in the work. ⛔ Not a disagreement about the rule: a limit on what
+        # comparing two copies' own numbering can settle, when they order the sutras
+        # differently and no offset describes the pair.
+        "place_in_the_work_not_established_across_copies",
     }
 )
 
@@ -478,6 +483,119 @@ class AbsenceSearch:
         }
 
 
+@dataclass(frozen=True)
+class PassageAbsence:
+    """That a **located passage** does not state something — bounded by the passage.
+
+    ⭐⭐ **THE BOUND IS THE PASSAGE, NOT THE EXTENT, AND THAT IS THE WHOLE DIFFERENCE.**
+    `AbsenceSearch` above is bounded by how much of the work the copy contains, so it cannot
+    honestly be run over a copy whose extent is a *lower bound*: an absence over an unknown
+    quantity still prints a confident zero. A passage delimited by two landmarks that each
+    resolve exactly once is bounded by something measured — the region between them — and a
+    copy's extent being unknown does not make the region between two located landmarks
+    unknown. ⇒ This is the one absence that may be taken over such a copy.
+
+    ⛔ **What it does NOT escape is the alphabet.** An absence established by searching one
+    spelling is an absence of that spelling, in a passage or in a work alike, and a machine
+    reading of a scan damages the same word differently at every occurrence. So every
+    spelling is listed with its own hit count, and where each was *read off the copy* is
+    recorded — ⛔ a guessed spelling that matches nothing is indistinguishable, in the
+    output, from a passage that genuinely does not contain the thing.
+
+    ⭐⭐⭐ **AND IT EXISTS BECAUSE ITS ABSENCE COST THIS REPOSITORY A PUBLISHED FINDING.** A
+    fork was recorded on the strength of one copy stating something *else* at a locus, and
+    "it says X here" was read as "it does not say Y here". The rule said to be missing stood
+    two paragraphs further down the same commentary. ⛔ *A different reason found is not the
+    absence of the reason you were looking for* — and nothing in the file said the region had
+    never been searched, because nothing had required it to be.
+    """
+
+    claim: str
+    edition: Edition
+    passage_label: str
+    #: The landmarks delimiting the passage. ⛔ Each must resolve exactly once, or the region
+    #: is not a region — see `region`.
+    after: str
+    before: str
+    alphabet: Sequence[str]
+    #: Where each spelling in the alphabet was read off the copy. ⚠ Free text, and required:
+    #: it is the only thing in the row that distinguishes a searched alphabet from a guessed
+    #: one, and the two look identical when both return zero.
+    alphabet_read_from: str
+
+    def __post_init__(self) -> None:
+        """⛔ Every spelling must be attested somewhere in this copy, or it was guessed.
+
+        ⭐ A spelling that occurs **zero** times in the whole rendering cannot distinguish
+        *the passage does not say this* from *the recorder does not know how this copy spells
+        it*, and it contributes a reassuring zero to the row either way. This repository has
+        already been burnt by exactly that: seven boundary-marker spellings were written by
+        guessing the regular form, six matched nothing at all, and the one that matched was
+        right by luck. ⚠ Attestation is the cheapest available proof that an alphabet was
+        read off the copy rather than out of the reader's head — and it is not proof that the
+        alphabet is *complete*, which nothing here claims.
+        """
+        if not self.alphabet:
+            raise TextualError(
+                f"{self.passage_label}: an absence with no alphabet searched nothing"
+            )
+        body = self.edition.normalised
+        unattested = [s for s in self.alphabet if normalise(s) not in body]
+        if unattested:
+            raise TextualError(
+                f"{self.passage_label}: {unattested} occur nowhere in "
+                f"{self.edition.key}, so they were guessed rather than read off it. ⛔ A "
+                "spelling absent from the whole copy reports the recorder's vocabulary as "
+                "the passage's silence, and it does so with a zero that looks like evidence"
+            )
+
+    @property
+    def passage(self) -> str:
+        return region(
+            self.edition, label=self.passage_label, after=self.after, before=self.before
+        )
+
+    @property
+    def hits(self) -> dict[str, int]:
+        body = self.passage
+        return {spelling: body.count(normalise(spelling)) for spelling in self.alphabet}
+
+    @property
+    def established(self) -> bool:
+        """⛔ True only when every listed spelling is absent from the passage."""
+        return not any(self.hits.values())
+
+    def as_row(self) -> dict[str, Any]:
+        counts = self.hits
+        passage = self.passage
+        return {
+            "finding": "passage_absence",
+            "claim": self.claim,
+            "edition": self.edition.key,
+            "passage": self.passage_label,
+            "passage_characters": len(passage),
+            "spellings_searched": list(self.alphabet),
+            "hits_by_spelling": [
+                {"spelling": spelling, "hits": counts[spelling]} for spelling in self.alphabet
+            ],
+            "hits_in_total": sum(counts.values()),
+            "established": self.established,
+            "where_the_spellings_came_from": self.alphabet_read_from,
+            "bounded_by": (
+                "the region between two landmarks that each resolve exactly once in this "
+                "rendering. ⭐ That bound is measured, so this absence does NOT depend on how "
+                "much of the work the copy contains - which is why it may be taken over a "
+                "copy whose extent is a lower bound, where an absence over the work may not"
+            ),
+            "limit": (
+                "⛔ still only as wide as its alphabet. A spelling not listed was not looked "
+                "for, and a machine reading of a scan can damage the same word differently "
+                "at every occurrence - so a zero here is a zero for these spellings in this "
+                "region of this rendering, and is not the passage's silence"
+            ),
+        }
+
+
 def collect_occurrences(
     edition: Edition, spelling: str, *, window: int = 200
 ) -> list[tuple[str, str]]:
@@ -493,6 +611,154 @@ def collect_occurrences(
             return out
         out.append((spelling, body[max(0, found - window) : found + window]))
         start = found + len(needle)
+
+
+# --------------------------------------------------------------------------------------
+# Comparing two copies: alignment first, disagreement only after
+# --------------------------------------------------------------------------------------
+
+
+@dataclass(frozen=True)
+class Alignment:
+    """That a locus in one copy and a locus in another are **the same place in the work**.
+
+    ⭐⭐ **TWO COPIES NUMBER THE SUTRAS DIFFERENTLY, AND A DIFFERENCE OF NUMBER READS
+    EXACTLY LIKE A DIFFERENCE OF PLACE.** Where one copy prints a rule at "sutra 50" and
+    another prints it at "sutra 53", a recorder comparing the two by their numbers concludes
+    that they attach the rule to different sutras governing different determinations. ⛔ That
+    conclusion is available without anyone having checked, it is entirely plausible, and it
+    is what this repository published.
+
+    ⭐ So the offset is **measured against an anchor**: a *neighbouring* sutra whose words
+    both copies print, located in each. The anchor's two numbers give the offset; the offset
+    then says whether the two loci under comparison are one place or two. ⛔ Nothing here
+    infers an offset from position, from proximity or from subject matter — an anchor is a
+    passage located in both copies or there is no alignment.
+    """
+
+    label: str
+    anchor_in_first: Locus
+    anchor_first_number: int
+    anchor_in_second: Locus
+    anchor_second_number: int
+    first_number: int
+    second_number: int
+
+    @property
+    def offset_at_the_anchor(self) -> int:
+        """How much higher the second copy's numbering runs, measured at the anchor."""
+        return self.anchor_second_number - self.anchor_first_number
+
+    @property
+    def offset_at_these_loci(self) -> int:
+        return self.second_number - self.first_number
+
+    @property
+    def offset_holds(self) -> bool:
+        """⛔ Whether the anchor's offset carries to the loci. A measurement, not a verdict.
+
+        ⚠ **False does not mean the two loci are different places, and true would not mean
+        they are the same one.** It means arithmetic on sutra numbers does not settle the
+        question — which is the only thing this class is entitled to say.
+        """
+        return self.offset_at_these_loci == self.offset_at_the_anchor
+
+    def as_json(self) -> dict[str, Any]:
+        return {
+            "label": self.label,
+            "anchor": {
+                "why_an_anchor": (
+                    "a sutra NEIGHBOURING the two under comparison, whose words both copies "
+                    "print, located in each. ⛔ Without one, a difference of sutra number "
+                    "cannot be told from a difference of place in the work"
+                ),
+                "in_the_first_copy": self.anchor_in_first.as_json(),
+                "numbered_in_the_first_copy": self.anchor_first_number,
+                "in_the_second_copy": self.anchor_in_second.as_json(),
+                "numbered_in_the_second_copy": self.anchor_second_number,
+            },
+            "offset_measured_at_the_anchor": self.offset_at_the_anchor,
+            "numbered_in_the_first_copy": self.first_number,
+            "numbered_in_the_second_copy": self.second_number,
+            "offset_at_these_loci": self.offset_at_these_loci,
+            "the_anchors_offset_holds_at_these_loci": self.offset_holds,
+            "what_a_false_result_means": (
+                "⛔ that the two copies do not merely NUMBER the sutras differently - they "
+                "ORDER them differently, so no single offset describes the pair and identity "
+                "of place cannot be settled by arithmetic on sutra numbers at all. ⚠ It does "
+                "NOT mean the two loci are different places in the work"
+            ),
+            "limit": (
+                "⛔ measured at ONE anchor, in this pair of renderings. An offset that holds "
+                "here may not be carried elsewhere without its own anchor - and in this pair "
+                "it demonstrably does not: the offset is the same on either side of the "
+                "sutra under comparison and different at it"
+            ),
+        }
+
+
+@dataclass(frozen=True)
+class Fork:
+    """Two copies disagreeing — where **both halves** of the disagreement are measured.
+
+    ⭐⭐⭐ **A FORK IS A PRESENCE AND AN ABSENCE, AND ONLY THE PRESENCE EVER GETS
+    MEASURED.** One copy states the rule: that half resolves, occurs exactly once, and
+    passes every control this module owns. The other copy is said not to state it — ⛔ and
+    that half is an *absence*, which is the harder claim, and it is the one a recorder makes
+    by reading a page and forming an impression.
+
+    ⛔ **This class refuses to be written unless the absence was measured**, over a passage
+    bounded by two located landmarks, in an alphabet read off the copy. It is armed because
+    the unarmed version failed: a fork published by this repository asserted that the second
+    copy did not invoke a rule where the series is founded, and the rule stood two paragraphs
+    below, in the same commentary, in the passage nobody had searched. ⭐ *The accepting run
+    is not the evidence* — five fragments each resolving exactly once said nothing whatever
+    about the claim built on top of them.
+
+    ⚠ Refusing here is not a shortfall. A disagreement that cannot be measured on both sides
+    is a disagreement this instrument has not established, and recording it as one would
+    publish a recorder's impression wearing a citation's clothes.
+    """
+
+    rule: str
+    subject: str
+    #: The copy that states the rule, at the locus it states it.
+    stated_by: Locus
+    #: ⛔ The copy said NOT to state it — as a measured absence over a bounded passage.
+    absent_from: PassageAbsence
+
+    def __post_init__(self) -> None:
+        if self.stated_by.edition.key == self.absent_from.edition.key:
+            raise TextualError(
+                f"{self.rule}: a fork is between two copies, and both sides of this one name "
+                f"{self.stated_by.edition.key!r}. ⛔ A copy disagreeing with itself is a "
+                "different finding and is not recorded as a fork"
+            )
+        if not self.absent_from.established:
+            hits = {k: v for k, v in self.absent_from.hits.items() if v}
+            raise TextualError(
+                f"{self.rule}: the copy this fork says is silent is NOT silent - "
+                f"{self.absent_from.passage_label!r} in {self.absent_from.edition.key} "
+                f"contains {hits}. ⛔ A fork is a presence AND an absence, and the absence "
+                "half was not established. Record what the second copy actually states, as a "
+                "corroboration or as its own located reading; do not record a disagreement "
+                "the passage refutes"
+            )
+
+    def as_row(self) -> dict[str, Any]:
+        return {
+            "finding": "fork",
+            "rule": self.rule,
+            "subject": self.subject,
+            "stated_by": self.stated_by.as_json(),
+            "and_measured_absent_from": self.absent_from.as_row(),
+            "what_makes_this_a_fork_rather_than_an_impression": (
+                "⭐ both halves are measured. The stating copy's words are located and occur "
+                "exactly once; the silent copy's silence is measured over a passage bounded "
+                "by two located landmarks, in spellings read off that copy. ⛔ A fork whose "
+                "absence half is not established is refused at write time"
+            ),
+        }
 
 
 # --------------------------------------------------------------------------------------
