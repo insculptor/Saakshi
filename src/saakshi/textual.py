@@ -194,6 +194,25 @@ class Edition:
     def normalised(self) -> str:
         return normalise(self.text)
 
+    @property
+    def searchable_characters(self) -> int:
+        """How much text a locus can actually be resolved against. ⛔ Not `rendering.characters`.
+
+        ⭐⭐⭐ **MEASURED, BECAUSE THE TWO CAME APART ON A REAL COPY AND THE DIFFERENCE WAS
+        THE WHOLE STORY.** A printing acquired by this repository is 219 pages of scanned
+        page images with no text layer at all. Its extractor returned one empty string per
+        page and joined them with newlines, so `rendering.characters` reports **218** — the
+        page count minus one, and nothing else — while the searchable text is **empty**.
+        ⛔ A guard written the obvious way, `rendering.characters == 0`, does not fire on it.
+        ⚠ *A summary that collapses many values into one has stopped measuring the thing it
+        names* — this time on the header field a reader is most likely to trust.
+        """
+        return len(self.normalised)
+
+    @property
+    def carries_searchable_text(self) -> bool:
+        return self.searchable_characters > 0
+
     def as_json(self) -> dict[str, Any]:
         return {
             "identity": self.identity,
@@ -201,6 +220,19 @@ class Edition:
             "witness": self.witness.as_json(),
             "rendering": self.rendering.as_json(),
             "extent": dict(self.extent),
+            # ⭐ Emitted beside the rendering rather than folded into it, because the pair is
+            #   the finding: one number can be large while the other is zero.
+            "searchable": {
+                "characters_a_locus_can_resolve_against": self.searchable_characters,
+                "carries_searchable_text": self.carries_searchable_text,
+                "why_this_is_not_the_renderings_character_count": (
+                    "⛔ they came apart on a copy in this repository's own cache. A PDF of "
+                    "219 scanned page images yields one empty string per page; joined with a "
+                    "newline apiece the rendering reports 218 characters, which is the page "
+                    "count minus one and is not text. ⚠ A check written against the "
+                    "rendering's count would pass a copy nothing can be searched in"
+                ),
+            },
         }
 
 
@@ -276,6 +308,18 @@ REFUSAL_REASONS = frozenset(
         # comparing two copies' own numbering can settle, when they order the sutras
         # differently and no offset describes the pair.
         "place_in_the_work_not_established_across_copies",
+        # ⭐⭐ A COPY IS HELD, IT IS THE RIGHT WORK, AND NOTHING IN IT CAN BE SEARCHED. Its
+        # pages are images and its rendering carries no text. ⛔ Distinct from every reason
+        # above because the copy is not missing, not out of extent and not unfaithful: it is
+        # present and mute. ⚠ This is the state in which every absence looks established, so
+        # it is named rather than left to be inferred from a row of zeroes.
+        "rendering_carries_no_searchable_text",
+        # ⭐⭐⭐ THE COPY CARRIES A SECOND COMMENTING HAND, AND A PRINTING THAT ONE HAND
+        # REVISED CANNOT WITNESS THE OTHER HAND'S OWN WORDS. ⛔ Not a doubt about whether the
+        # words are located - they are - but about whom they belong to: a reviser who
+        # rewrites silently leaves no mark, so agreement between two revised printings
+        # attests the revision and not the translator.
+        "revised_printing_cannot_witness_the_unrevised_words",
     }
 )
 
@@ -439,6 +483,16 @@ class AbsenceSearch:
 
     ⚠ Every hit is **located**, not merely counted: the claim is that none of them says the
     thing, and a reader cannot check that against a number.
+
+    ⭐⭐⭐ **AND A THIRD LIMIT, WHICH IS THE ONE THAT LOOKS LIKE SUCCESS: THE COPY MUST HAVE
+    BEEN SHOWN TO SAY ANYTHING AT ALL.** An absence over a copy that rendered to nothing
+    returns zero for every spelling, over any alphabet, at any length — the strongest-looking
+    absence this module can produce and the emptiest. ⛔ It is not hypothetical: a printing
+    of the right work, retrieved and digested by this repository, is 219 pages of page images
+    whose rendering carries no text, and its extractor still reports 218 characters because
+    it joined the empty pages with newlines. ⇒ `positive_control` is a fragment the copy is
+    expected to contain, and it must resolve **exactly once** before any zero here is
+    written down.
     """
 
     claim: str
@@ -447,6 +501,37 @@ class AbsenceSearch:
     #: Each hit, as `(spelling, what stands around it)`.
     occurrences: Sequence[tuple[str, str]]
     what_the_hits_do_say: Sequence[str]
+    #: ⛔ Words this copy must be shown to contain, so that a zero elsewhere in it means
+    #: something. ⚠ Required, and required to resolve exactly once: an absence is a claim
+    #: about a copy that was read, and nothing else in this row distinguishes a copy that is
+    #: silent about the rule from a copy that is silent about everything.
+    positive_control: str = ""
+
+    def __post_init__(self) -> None:
+        """⛔ Refuse an absence over a copy that has not been shown to speak."""
+        if not self.edition.carries_searchable_text:
+            raise TextualError(
+                f"{self.edition.key}: an absence may not be measured over a copy whose "
+                "rendering carries no searchable text. ⛔ Every spelling returns zero because "
+                "nothing was ever read, and the row would be indistinguishable from a copy "
+                "that genuinely does not state the rule. ⚠ Note the rendering's own character "
+                f"count is {self.edition.rendering.characters}, which is not zero and is not "
+                "text"
+            )
+        if not self.positive_control.strip():
+            raise TextualError(
+                f"{self.edition.key}: an absence needs a positive control - words this copy "
+                "is expected to contain, resolved in it. ⛔ Without one the row cannot tell a "
+                "copy that is silent about the rule from a copy that is silent about "
+                "everything, and both print the same reassuring zero"
+            )
+        found = resolve(self.edition, self.positive_control)
+        if not found.resolved:
+            raise TextualError(
+                f"{self.edition.key}: the positive control occurs {found.occurrences} "
+                "time(s), so it does not show this copy was read. ⛔ An absence measured "
+                "beside a control that did not resolve is an absence over an unknown document"
+            )
 
     @property
     def hits(self) -> dict[str, int]:
@@ -473,6 +558,17 @@ class AbsenceSearch:
                 for spelling, context in self.occurrences
             ],
             "what_the_hits_do_say": list(self.what_the_hits_do_say),
+            # ⭐ The proof that the zeroes above were measured over a copy that speaks.
+            "the_copy_was_shown_to_be_readable_by": {
+                "quoted": normalise(self.positive_control),
+                "occurrences": resolve(self.edition, self.positive_control).occurrences,
+                "why_this_is_here": (
+                    "⛔ an absence over a copy that rendered to nothing returns zero for every "
+                    "spelling and is the strongest-looking absence this instrument can print. "
+                    "A copy in this repository's cache is 219 pages of page images whose "
+                    "rendering carries no text at all, so the guard is not hypothetical"
+                ),
+            },
             "established_over": dict(self.edition.extent),
             "limit": (
                 "⛔ this is an absence from the extent searched, in the spellings listed, in "
@@ -539,6 +635,21 @@ class PassageAbsence:
             raise TextualError(
                 f"{self.passage_label}: an absence with no alphabet searched nothing"
             )
+        # ⛔⛔ CHECKED BEFORE ATTESTATION, BECAUSE OTHERWISE THE RIGHT REFUSAL CARRIES THE
+        #    WRONG CAUSE. Over a copy that rendered to nothing every spelling is unattested,
+        #    so the attestation rule below fires and reports that the recorder GUESSED the
+        #    alphabet - sending the next reader to fix a vocabulary that was never the
+        #    problem. ⭐ Measured on a real copy in this repository's cache: 219 pages of page
+        #    images, rendering `characters` 218, searchable text empty.
+        if not self.edition.carries_searchable_text:
+            raise TextualError(
+                f"{self.passage_label}: {self.edition.key} renders to no searchable text, so "
+                "no passage in it can be bounded and no absence over it means anything. ⛔ "
+                "This is NOT an alphabet that was guessed - the alphabet was never given "
+                f"anything to match against. ⚠ Its rendering reports "
+                f"{self.edition.rendering.characters} characters, which is not zero and is "
+                "not text"
+            )
         body = self.edition.normalised
         unattested = [s for s in self.alphabet if normalise(s) not in body]
         if unattested:
@@ -592,6 +703,110 @@ class PassageAbsence:
                 "for, and a machine reading of a scan can damage the same word differently "
                 "at every occurrence - so a zero here is a zero for these spellings in this "
                 "region of this rendering, and is not the passage's silence"
+            ),
+        }
+
+
+@dataclass(frozen=True)
+class SecondHand:
+    """That one copy carries a commenting hand **other** than the one its notes are credited to.
+
+    ⭐⭐⭐ **A TRANSLATION WITH NOTES HAS TWO AUTHORITIES; A REVISED TRANSLATION WITH NOTES
+    HAS THREE, AND THE THIRD IS THE ONE NOBODY COUNTS.** This repository already separates
+    the text from the translator's notes and says so on every row, on the ground that a
+    consumer taking one for the other implements a modern commentator under a sutra's name.
+    ⛔ The copy those rows are resolved into carries a *further* hand: one that refers to the
+    translator by name in the third person, comments on his notes, and claims books of its
+    own. A file that counts two authorities where the copy has three attributes one hand's
+    words to another with exactly the confidence it attributes a sutra to the text.
+
+    ⭐ **Established from the copy, never from outside it.** The evidence is the copy
+    referring to the translator in the third person: a hand that writes *"Prof. Rao's
+    NOTES"* is not Prof. Rao. Each such passage must resolve exactly once, or the second hand
+    is a reader's impression rather than a located fact.
+
+    ⛔⛔ **AND THE HAND CANNOT BE NAMED, WHICH IS RECORDED RATHER THAN REPAIRED.** It claims
+    other works as its own, and turning those titles into a name would mean supplying an
+    authorship this repository does not hold — from the recorder's own memory, which is
+    precisely the unsourced claim the locus discipline exists to refuse. ⚠ So `named` is a
+    measurement over the copy and it is allowed to be false: *there is a second hand here and
+    this copy does not say whose it is* is a complete and checkable finding.
+    """
+
+    edition: Edition
+    #: The hand the notes are credited to, as this copy spells the name.
+    the_notes_are_credited_to: str
+    #: ⛔ Passages in which the copy speaks of that translator in the THIRD PERSON. Each must
+    #: resolve exactly once. Without one of these there is no second hand, only a reading.
+    speaks_of_the_translator_in_the_third_person: Sequence[str]
+    #: Passages in which the second hand claims work of its own. ⚠ Evidence that it is an
+    #: author rather than a compositor — and ⛔ never evidence of *which* author.
+    claims_work_of_its_own: Sequence[str]
+    #: The spellings by which this copy marks the second hand's material. ⚠ Read off the copy.
+    marked_by: Sequence[str]
+    #: Whether the second hand can be NAMED from this copy alone. ⛔ Measured, and false here.
+    named_within_this_copy: bool
+
+    def __post_init__(self) -> None:
+        if not self.edition.carries_searchable_text:
+            raise TextualError(
+                f"{self.edition.key}: a second hand cannot be established in a copy that "
+                "renders to no searchable text"
+            )
+        if not self.speaks_of_the_translator_in_the_third_person:
+            raise TextualError(
+                f"{self.edition.key}: a second hand is established by the copy speaking of "
+                "the translator in the third person, and no such passage was given. ⛔ "
+                "Without one this is a reader's impression of a change in voice"
+            )
+        for fragment in (
+            *self.speaks_of_the_translator_in_the_third_person,
+            *self.claims_work_of_its_own,
+        ):
+            found = resolve(self.edition, fragment)
+            if not found.resolved:
+                raise TextualError(
+                    f"{self.edition.key}: the passage {fragment[:60]!r} occurs "
+                    f"{found.occurrences} time(s), so it locates nothing. ⛔ A second hand is "
+                    "established from located passages or it is not established"
+                )
+
+    def as_row(self) -> dict[str, Any]:
+        return {
+            "finding": "hands_in_the_copy",
+            "edition": self.edition.key,
+            "the_notes_are_credited_to": self.the_notes_are_credited_to,
+            "how_many_commenting_hands_this_copy_carries": 2,
+            "the_copy_speaks_of_the_translator_in_the_third_person": [
+                {
+                    "quoted": normalise(f),
+                    "occurrences": resolve(self.edition, f).occurrences,
+                }
+                for f in self.speaks_of_the_translator_in_the_third_person
+            ],
+            "the_second_hand_claims_work_of_its_own": [
+                {
+                    "quoted": normalise(f),
+                    "occurrences": resolve(self.edition, f).occurrences,
+                }
+                for f in self.claims_work_of_its_own
+            ],
+            "the_second_hands_material_is_marked_by": list(self.marked_by),
+            "the_second_hand_is_named_within_this_copy": self.named_within_this_copy,
+            "why_it_is_not_named": (
+                "⛔ this copy carries no title page, no imprint and no preface in its "
+                "rendering. The second hand claims other works as its own, and turning those "
+                "titles into a name would mean supplying an authorship from the recorder's "
+                "own memory - the unsourced claim the whole locus discipline refuses. ⭐ *There "
+                "is a second hand here and this copy does not say whose* is the finding"
+            ),
+            "why_this_matters": (
+                "⭐⭐⭐ A TRANSLATION WITH NOTES HAS TWO AUTHORITIES AND A REVISED ONE HAS "
+                "THREE. Rows filed as *the translator's notes* claim a hand, not merely a "
+                "page - and in a copy carrying a second commentator that claim needs "
+                "measuring rather than assuming. ⛔ It also bounds what a further printing "
+                "could ever settle: a reviser who rewrites silently leaves no mark, so two "
+                "revised printings agreeing attest the revision and not the translator"
             ),
         }
 

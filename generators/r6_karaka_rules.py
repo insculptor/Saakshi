@@ -59,12 +59,67 @@ from saakshi.textual import (  # noqa: E402
     Locus,
     PassageAbsence,
     Refusal,
+    SecondHand,
     collect_occurrences,
     refusal_summary,
     source_oracle,
 )
 
 EDITION = "jaimini_sutras_rao"
+
+#: ⭐ The copy the standing refusal asked for — a second printing of the FIRST translation —
+#: acquired this session and refused for a reason nobody predicted. ⛔ 219 pages of scanned
+#: page images: the right work, retrievable, digested, and carrying no searchable text at all.
+SCANNED_PRINTING = "jaimini_sutras_rao_scanned_printing"
+
+# --------------------------------------------------------------------------------------
+# The second commenting hand in the first copy
+# --------------------------------------------------------------------------------------
+
+#: ⛔⛔⛔ THE FIRST COPY CARRIES TWO COMMENTATORS AND THIS FILE HAD COUNTED ONE. Every passage
+#: below is the copy speaking of the translator in the THIRD PERSON — a hand that writes
+#: "Prof. Rao's NOTES" is not Prof. Rao. ⭐ Located, each occurring exactly once.
+THIRD_PERSON_OF_THE_TRANSLATOR: tuple[str, ...] = (
+    (
+        "Though Suryanarain Rao has elucidated the abbreviations used by Jaimini to imply "
+        "numerals I propose to make some observations for the benefit of the reader"
+    ),
+    (
+        "* I have not meddled 'with the ' English rendering of this sutra by Prof. B. "
+        "Suryanarain Rao."
+    ),
+    "This is a rather tough stanza and Professor Rao's notes are not clear.",
+)
+
+#: ⚠ The second hand claiming books of its own. ⛔ Evidence that it is an AUTHOR; and not
+#: evidence of WHICH author — naming it would mean supplying an authorship from memory.
+SECOND_HAND_CLAIMS: tuple[str, ...] = (
+    "* I have discussed Rasi Dasa at considerable length in my book Studies in Jaimini Astrology.",
+    "* This has been clearly described in my work Manual of Hindu Astrology.",
+)
+
+#: ⭐ Every spelling read off THIS copy, from the passages above and the marker they carry.
+#: ⛔ Not guessed: the asterisk is the printed marker, and the rest are the second hand's own
+#: turns of phrase, each attested in the copy.
+SECOND_HAND_ALPHABET: tuple[str, ...] = (
+    "*",
+    "Prof.",
+    "Professor",
+    "my book",
+    "my work",
+    "my Studies",
+    "Studies in Jaimini Astrology",
+    "Manual of Hindu Astrology",
+    "I propose",
+    "I have not meddled",
+    "I understand it thus",
+    "come to our rescue",
+)
+
+#: The landmarks bounding the notes to the founding sutra — the passage both recorded
+#: translator's-note rules stand in. ⛔ Each resolves exactly once; checked, not assumed.
+NOTES_TO_SUTRA_11_OPEN = "SU. 11 .-Atmadhikaha kaladibhirna bhogassaptanamashtamva."
+NOTES_TO_SUTRA_11_CLOSE = "SU. 12 ."
 
 # --------------------------------------------------------------------------------------
 # The passage the withdrawn fork rested on
@@ -524,28 +579,91 @@ def refusals_for(edition) -> list[Refusal]:
                 "this one if the two disagree"
             ),
         ),
-        # ⭐ The "a second witness to any rule recorded above" refusal that stood here through
-        #   four hand-offs is DISCHARGED: a second copy is in hand and every rule is answered
-        #   by it, four corroborated and one forked. ⛔ It is replaced rather than deleted,
-        #   because what the second copy could NOT be asked is a narrower refusal and not no
-        #   refusal at all.
+        # ⭐⭐ The "second printing of the first translation" refusal has now been PUT TWICE
+        #   and narrowed twice. It is not closed, and the reason it is not closed changed:
+        #   the obstacle used to be that no such copy was held, and it is now that the copy
+        #   held is one a second hand revised.
         Refusal(
             subject=(
                 "a witness to the first copy's TRANSLATOR'S NOTES as that translator's own "
                 "words"
             ),
-            reason="no_edition_in_hand",
+            reason="revised_printing_cannot_witness_the_unrevised_words",
             detail=(
-                "two of the rules here are printed in the first copy's notes rather than in "
-                "its sutras. ⭐ The second copy speaks to both, and that is worth having — but "
-                "it speaks as another commentator on the same sutras, which establishes that "
-                "a rule is attested twice and never that the first translator's note says "
-                "what this file records it saying. ⛔ Only another copy of THAT translation "
-                "can witness that, and the copy in hand is the only one held"
+                "⭐ the question was RE-PUT this session, because the candidate that would "
+                "close it had been rejected against a question since replaced — and re-putting "
+                "it moved the obstacle rather than removing it. Measured in the first copy "
+                "itself: it carries a SECOND commenting hand, which names the translator in "
+                "the third person, comments on his notes and claims books of its own. ⛔ So "
+                "the printing this file resolves into is one a later hand worked over, and "
+                "two printings that hand revised would agree with each other about the "
+                "revision. ⚠ Sharper still, and read off the copy: that hand writes *I have "
+                "not meddled with the English rendering of THIS sutra* — a disclaimer scoped "
+                "to one sutra is worth making only by a hand that meddles elsewhere. ⭐ A "
+                "reviser who rewrites silently leaves no marker at all, so the absence of his "
+                "marks from a passage does not return the passage to the translator"
             ),
             what_would_close_it=(
-                "a second printing of the first translation, acquired and resolved against "
-                "the same loci"
+                "⭐ a printing of this translation that does NOT carry the second hand — and "
+                "that is now a TEST rather than a hope: acquire a candidate, search it for "
+                "the twelve spellings by which this copy marks that hand, and require zero "
+                "over the whole copy. ⛔⛔ The test is worthless without a positive control on "
+                "the same copy, because a copy that renders to nothing passes it perfectly — "
+                "measured, on the 219-page printing acquired this session"
+            ),
+        ),
+        # ⭐⭐⭐ THE CANDIDATE WAS ACQUIRED. This refusal is the reason it settled nothing, and
+        #    it is a reason no survey could have produced: it had to be fetched and rendered.
+        Refusal(
+            subject=(
+                "any locus at all in the second printing of the first translation acquired "
+                "this session"
+            ),
+            reason="rendering_carries_no_searchable_text",
+            detail=(
+                "⭐ the copy is held: retrieved, digested, 13 905 548 bytes, 219 pages. Every "
+                "page is an image and the file carries no text layer, so the rendering "
+                "resolves nothing and attests nothing — ⛔ including its own identity. The "
+                "work, the translator and the printing are known here only from the name the "
+                "host gives the file, which is a fact about a host and not about a book, and "
+                "is the same ground an earlier candidate was rejected on for naming no "
+                "translator. ⚠⚠ And the number that would have caught it does not: the "
+                "extractor returned one empty string per page and joined them with newlines, "
+                "so the rendering reports **218** characters — the page count minus one — "
+                "while the searchable text is empty. A guard written `characters == 0` passes "
+                "it"
+            ),
+            what_would_close_it=(
+                "a rendering of this printing that carries text — a machine reading produced "
+                "and published by its distributor, as the other two copies here were. ⛔ Not "
+                "one produced by this instrument: the errors would then be ours, and an "
+                "absence measured over our own machine reading would be measured over our own "
+                "mistakes"
+            ),
+        ),
+        # ⚠ Named because it is the prerequisite nobody had stated, and it is unmet.
+        Refusal(
+            subject=(
+                "that the copy this file resolves into is a DIFFERENT printing from any "
+                "other copy of this translation"
+            ),
+            reason="no_edition_in_hand",
+            detail=(
+                "⛔⛔ THE HELD COPY DOES NOT SAY WHICH PRINTING IT IS. Measured over its "
+                "rendering: *edition*, *Preface*, *Copyright*, *Publisher*, *Published* and "
+                "*Printed* occur ZERO times, and it carries no title page and no imprint. ⚠ Its "
+                "ONLY date-like number is a Samvat era count standing inside the translator's "
+                "own preliminary observations - *counts now as 1988* - which dates the writing "
+                "rather than the printing, and stands in an era this copy does not convert. ⭐ "
+                "So *a SECOND printing* is a claim that cannot be made from this side of the "
+                "comparison, however good the other copy is: two copies could be one printing "
+                "digitised twice, and every rule would come back corroborated across printings "
+                "for what was one printing read twice. ⚠ The same shape as two addresses "
+                "serving one scan"
+            ),
+            what_would_close_it=(
+                "an imprint, a title page or a preface legible in a rendering of this copy, "
+                "naming the printing it is"
             ),
         ),
         Refusal(
@@ -585,7 +703,7 @@ def refusals_for(edition) -> list[Refusal]:
     ]
 
 
-def build_header(script: Path, edition, second, resolved: int, refusals, controls) -> Header:
+def build_header(script: Path, edition, second, scanned, resolved: int, refusals, controls) -> Header:
     return Header(
         fixture_kind="textual_rule",
         reference="R6",
@@ -595,7 +713,13 @@ def build_header(script: Path, edition, second, resolved: int, refusals, control
             "The significator series as two located copies state it, a fork this file "
             "published and has withdrawn, and one widely repeated rule neither states"
         ),
-        oracle=source_oracle([edition, second], resolved=resolved, refused=len(refusals)),
+        # ⚠ THREE copies now, and the third resolves nothing. It is listed because a reader
+        #   checking this file must be able to see the copy that was acquired and refused —
+        #   a candidate rejected in prose is a claim, and a candidate carrying a witness, a
+        #   rendering and a measured extent of nothing is a measurement.
+        oracle=source_oracle(
+            [edition, second, scanned], resolved=resolved, refused=len(refusals)
+        ),
         # ⚠ The containing locus. Each rule row carries its own, more precise one; this is
         #   the sutra at which the series is founded and from which every later place hangs.
         locus=Locus(
@@ -634,6 +758,24 @@ def build_header(script: Path, edition, second, resolved: int, refusals, control
                 "bounded passage - because the one fork this file published had no such "
                 "measurement behind it and was wrong"
             ),
+            "how_many_commenting_hands_the_first_copy_carries": (
+                "⛔⛔⛔ TWO, AND THIS FILE HAD COUNTED ONE. Beside the translator whose notes "
+                "two rules here are filed under, the copy carries a second hand that names "
+                "him in the third person, says his notes are not clear, and claims books of "
+                "its own. ⭐ It cannot be NAMED from this copy - no title page, no imprint, no "
+                "preface - and naming it from the books it claims would supply an authorship "
+                "from the recorder's memory. ⚠ *There is a second hand here and this copy does "
+                "not say whose* is the finding, not a shortfall"
+            ),
+            "the_second_printing_question_was_re_put_and_did_not_close": (
+                "⭐ the candidate that would close it had been rejected against a question "
+                "since replaced, so the question was put again - and the obstacle MOVED "
+                "rather than lifting. It used to be that no second printing was held. It is "
+                "now that the printing this file resolves into is one a second hand revised, "
+                "and two printings that hand revised would agree about the revision. ⛔ A "
+                "printing was in fact acquired this session and settles nothing: 219 pages of "
+                "images, no searchable text"
+            ),
             "the_absence": (
                 "one rule was searched for and not found. ⛔ It is an absence from the extent "
                 "measured, in the spellings listed, in ONE rendering - the first copy's. It "
@@ -656,6 +798,11 @@ def build_header(script: Path, edition, second, resolved: int, refusals, control
             "alignment": (
                 "whether two copies' sutra numbers for one rule can be shown to name the same "
                 "place in the work, measured against a neighbouring sutra both copies print"
+            ),
+            "hands_in_the_copy": (
+                "that one copy carries a commenting hand OTHER than the one its notes are "
+                "credited to, established from the copy speaking of that translator in the "
+                "third person, with every such passage located"
             ),
             "refused": "a claim considered and not written down, with what would close it",
             "control": "a check on this file's own method, with what it measured",
@@ -698,6 +845,25 @@ def build_header(script: Path, edition, second, resolved: int, refusals, control
             "machine reading still damaged the sutra lines while capturing the commentary "
             "cleanly. ⭐ Presence of a script is not fidelity of a script, and the two are "
             "measured separately because the first would otherwise be read as the second.",
+            "⛔⛔⛔ THE COPY THESE RULES ARE RESOLVED INTO CARRIES TWO COMMENTING HANDS, AND "
+            "THIS FILE HAD COUNTED ONE. It has always said that the translator's notes are "
+            "not the sutras, on the ground that a consumer taking one for the other would "
+            "implement a modern commentator under a sutra's name. ⭐ A revised translation has "
+            "THREE authorities, and the third is the one nobody counts: this copy carries a "
+            "hand that writes 'Prof. Rao's NOTES', says 'Professor Rao's notes are not "
+            "clear', and claims books of its own. Its material is marked with an asterisk and "
+            "none of its twelve marks falls in the passage carrying the two note-rules - ⛔ "
+            "which establishes that the passage carries none of its MARKS, and not that it "
+            "carries the translator's words: a reviser who rewrites silently leaves no marker.",
+            "⭐⭐⭐ AN ABSENCE OVER A COPY THAT WAS NEVER READ IS THE STRONGEST-LOOKING "
+            "ABSENCE AND THE EMPTIEST, AND THIS FILE NOW HOLDS SUCH A COPY. The second "
+            "printing the standing refusal asked for was acquired: the right work, retrieved "
+            "and digested, 219 pages - every one an image. Every spelling returns zero over "
+            "it in any alphabet. ⚠ And the count that should catch it does not: the extractor "
+            "joined 219 empty pages with newlines, so the rendering reports 218 characters "
+            "while nothing is searchable, and a guard written `characters == 0` passes it. ⇒ "
+            "Both absence instruments now require a POSITIVE CONTROL - words the copy is "
+            "shown to contain - before any zero is written down.",
             "⛔ R6 RECORDS WHAT A TEXT STATES AND NOTHING ELSE. Not that the statement is "
             "correct, not that this repository holds it, not that any consumer should "
             "implement it. " + NO_LICENCE_DETERMINATION + ".",
@@ -721,12 +887,21 @@ def main() -> int:
     print(describe_reserved_names())
 
     if args.acquire:
-        for key in (EDITION, SECOND_EDITION):
+        for key in (EDITION, SECOND_EDITION, SCANNED_PRINTING):
             record = acquire(key, cache=args.cache, today=today())
             print(f"acquired {key}: {record['copy_bytes']} bytes, status {record['http_status']}")
 
     edition = load(EDITION, cache=args.cache)
     second = load(SECOND_EDITION, cache=args.cache)
+    # ⭐ The copy the standing refusal asked for. ⛔ It is loaded so that what it establishes
+    #   is MEASURED rather than described: 219 pages, a rendering reporting 218 characters,
+    #   and not one character a locus could resolve against.
+    scanned = load(SCANNED_PRINTING, cache=args.cache)
+    print(
+        f"edition {SCANNED_PRINTING}: {scanned.rendering.kind}, rendering reports "
+        f"{scanned.rendering.characters} characters; searchable "
+        f"{scanned.searchable_characters}"
+    )
     print(
         f"edition {EDITION}: {edition.rendering.kind} via {edition.rendering.produced_by}, "
         f"{edition.rendering.characters} characters"
@@ -892,6 +1067,42 @@ def main() -> int:
         },
     ]
 
+    # ⭐⭐⭐ THE SECOND COMMENTING HAND IN THE FIRST COPY — the finding of this session, and
+    #    the reason the second-printing question could not simply be re-put and answered.
+    hands = SecondHand(
+        edition=edition,
+        the_notes_are_credited_to="B. Suryanarain Rao",
+        speaks_of_the_translator_in_the_third_person=THIRD_PERSON_OF_THE_TRANSLATOR,
+        claims_work_of_its_own=SECOND_HAND_CLAIMS,
+        marked_by=SECOND_HAND_ALPHABET,
+        # ⛔ Measured, and false: the copy carries no title page, imprint or preface, and
+        #    naming the hand from the books it claims would supply an authorship from memory.
+        named_within_this_copy=False,
+    )
+
+    # ⭐ Whether the second hand's marks fall in the passage the two recorded note-rules stand
+    #   in. ⛔ Bounded by two landmarks that each resolve exactly once — the one absence that
+    #   may honestly be taken here — and its LIMIT is stated on the control rather than left
+    #   to be inferred: a silent revision leaves no marker, so this zero does not return the
+    #   passage to the translator.
+    second_hand_in_the_notes = PassageAbsence(
+        claim=(
+            "that the second commenting hand's marks stand in the notes to the founding "
+            "sutra, where both of this file's translator's-note rules are located"
+        ),
+        edition=edition,
+        passage_label="adhyaya 1, pada 1, the notes to sutra 11",
+        after=NOTES_TO_SUTRA_11_OPEN,
+        before=NOTES_TO_SUTRA_11_CLOSE,
+        alphabet=SECOND_HAND_ALPHABET,
+        alphabet_read_from=(
+            "every spelling read off this copy — the asterisk it prints as the second hand's "
+            "marker, and eleven of that hand's own turns of phrase, taken from the five "
+            "passages in which it speaks of the translator in the third person or claims work "
+            "of its own. ⛔ None was guessed, and each is attested in this copy"
+        ),
+    )
+
     refusals = refusals_for(edition) + [
         Refusal(
             subject=(
@@ -917,9 +1128,78 @@ def main() -> int:
             ),
         ),
     ]
+    controls += [
+        {
+            "finding": "control",
+            "control": "the_second_hands_marks_are_absent_from_the_notes_that_carry_two_rules",
+            "measured": second_hand_in_the_notes.as_row(),
+            "held": second_hand_in_the_notes.established,
+            "meaning": (
+                "⭐ the two rules this file files as THE TRANSLATOR'S NOTES stand in an "
+                "8 959-character passage bounded by the founding sutra and the next, and none "
+                "of the twelve spellings by which this copy marks its SECOND commenting hand "
+                "occurs in it. ⛔⛔ WHAT THIS DOES NOT ESTABLISH IS THE THING IT LOOKS LIKE: "
+                "the passage carries none of that hand's MARKS, which is not the same as "
+                "carrying the first translator's words. A reviser who rewrites silently leaves "
+                "no marker, and this copy's second hand says in its own voice that it "
+                "refrained from altering ONE sutra's rendering - a disclaimer scoped to one "
+                "sutra is worth making only by a hand that alters others"
+            ),
+        },
+        {
+            "finding": "control",
+            "control": "a_copy_that_renders_to_nothing_passes_every_absence_test",
+            "measured": {
+                "edition": scanned.key,
+                "pages_retrieved": 219,
+                "bytes_retrieved": scanned.witness.copy_bytes,
+                "the_renderings_own_character_count": scanned.rendering.characters,
+                "characters_a_locus_can_resolve_against": scanned.searchable_characters,
+                "what_the_218_characters_are": (
+                    "one newline per page boundary. The extractor returned an empty string "
+                    "for each of 219 image pages and joined them, so the count is the page "
+                    "count minus one and contains no text whatever"
+                ),
+                "would_a_guard_written_characters_equals_zero_fire": False,
+                # ⚠ A list of objects rather than a map keyed by the instrument's name. The
+                #   writer refuses a key that is not lower_snake_case, and it refused these.
+                "absence_instruments_run_against_this_copy": [
+                    {
+                        "instrument": "an absence over the whole copy",
+                        "outcome": "refused - the copy carries no searchable text",
+                    },
+                    {
+                        "instrument": "an absence over a bounded passage",
+                        "outcome": (
+                            "refused, and NAMING THE RIGHT CAUSE - before this session it "
+                            "refused too, but reported that the alphabet had been GUESSED, "
+                            "which would send a reader to fix a vocabulary that was never "
+                            "the problem"
+                        ),
+                    },
+                ],
+            },
+            "held": bool(
+                not scanned.carries_searchable_text and scanned.rendering.characters != 0
+            ),
+            "meaning": (
+                "⭐⭐⭐ AN ABSENCE OVER A COPY THAT WAS NEVER READ IS THE STRONGEST-LOOKING "
+                "ABSENCE THIS INSTRUMENT CAN PRINT AND THE EMPTIEST. This copy is the second "
+                "printing the standing refusal asked for: the right work, retrieved, digested "
+                "- and 219 pages of images. Every spelling returns zero over it, in any "
+                "alphabet, at any length. ⛔ And the number that should have caught it does "
+                "not: the rendering reports 218 characters, so a guard written `characters == "
+                "0` passes it. ⇒ Both absence instruments now require the copy to have been "
+                "SHOWN to speak, and this control holds only while that copy is both mute and "
+                "non-zero - the exact combination that made the hazard invisible"
+            ),
+        },
+    ]
+
     rows = rule_rows(edition, refusals)
     rows += corroboration_rows(second)
     rows.append(dict(WITHDRAWN))
+    rows.append(hands.as_row())
     rows.append({"finding": "alignment", **alignment.as_json()})
 
     absence = AbsenceSearch(
@@ -930,6 +1210,10 @@ def main() -> int:
             hit for spelling in ENUMERATED for hit in collect_occurrences(edition, spelling)
         ],
         what_the_hits_do_say=WHAT_THE_HITS_SAY,
+        # ⛔ The proof that the zeroes in this row were measured over a copy that speaks. It
+        #   is the founding sutra's own translated line — the passage every rule here hangs
+        #   from — and it resolves exactly once.
+        positive_control=RULES[0]["fragment"],
     )
     absence_row = absence.as_row()
     absence_row["spellings_whose_hits_are_enumerated"] = list(ENUMERATED)
@@ -954,7 +1238,7 @@ def main() -> int:
             "check out is evidence of nothing and reads as evidence"
         )
 
-    header = build_header(script, edition, second, len(RULES), refusals, controls)
+    header = build_header(script, edition, second, scanned, len(RULES), refusals, controls)
     path = args.out / "textual" / "significator-series-rules.jsonl"
     count = write_jsonl(path, header, rows)
     print(f"wrote {count} rows -> {path}")

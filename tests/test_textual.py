@@ -33,6 +33,7 @@ from saakshi.textual import (
     PassageAbsence,
     Refusal,
     Rendering,
+    SecondHand,
     TableReading,
     TextualError,
     Witness,
@@ -62,6 +63,10 @@ BODY = (
     "a phrase repeated twice appears here, and a phrase repeated twice appears again.\n"
     "End of First Pada. End of Second Pada.\n"
 )
+
+#: ⛔ Words the test copy is shown to contain, so that a zero measured in it means something.
+#: ⚠ Occurs exactly once in `BODY`, which is what an absence's positive control must do.
+CONTROL = "The first rule is stated here, once and only once."
 
 
 def edition(text: str = BODY, *, kind: str = "translation") -> Edition:
@@ -491,6 +496,7 @@ def test_an_absence_publishes_a_count_for_every_spelling_it_searched():
         edition=edition(),
         occurrences=[],
         what_the_hits_do_say=("nothing to the point",),
+        positive_control=CONTROL,
     )
     row = search.as_row()
     assert [entry["spelling"] for entry in row["hits_by_spelling"]] == list(search.alphabet)
@@ -505,6 +511,7 @@ def test_an_absence_row_keys_are_identifiers_and_never_the_search_terms():
         edition=edition(),
         occurrences=[],
         what_the_hits_do_say=(),
+        positive_control=CONTROL,
     )
     assert "First Rule" not in str(list(search.as_row()["hits_by_spelling"][0].keys()))
 
@@ -516,7 +523,12 @@ def test_every_occurrence_is_collected_and_never_a_sample():
 
 def test_an_absence_carries_the_measured_extent_it_holds_over():
     row = AbsenceSearch(
-        claim="c", alphabet=("nothing",), edition=edition(), occurrences=[], what_the_hits_do_say=()
+        claim="c",
+        alphabet=("nothing",),
+        edition=edition(),
+        occurrences=[],
+        what_the_hits_do_say=(),
+        positive_control=CONTROL,
     ).as_row()
     assert row["established_over"] == edition().extent
 
@@ -834,3 +846,226 @@ def test_the_across_copies_refusal_reason_is_declared():
         detail="the copies reorder the sutras, so no single offset describes the pair",
         what_would_close_it="a copy printing both scripts for the same sutra",
     )
+
+
+# --- a copy that renders to nothing ------------------------------------------------------
+#
+# ⭐⭐⭐ Every test below is built around one real copy: a printing of the right work,
+# retrieved and digested by this repository, whose 219 pages are all images. Its extractor
+# returned an empty string per page and joined them with newlines, so its rendering reports
+# **218** characters while nothing in it can be searched. ⛔ That combination — mute and
+# non-zero — is what made the hazard invisible, so the fixture reproduces it exactly.
+
+
+def mute_edition() -> Edition:
+    """A copy that rendered to nothing, with the non-zero character count the real one has."""
+    text = "\n" * 218
+    return Edition(
+        key="renders_to_nothing",
+        identity="219 pages of scanned page images, carrying no text layer",
+        language="en",
+        witness=Witness(
+            address="https://example.invalid/scan.pdf",
+            retrieved="2026-08-16",
+            http_status=200,
+            copy_sha256="0" * 64,
+            copy_bytes=13_905_548,
+        ),
+        rendering=Rendering(
+            kind="embedded_text_layer",
+            produced_by="pypdf 5.1.0",
+            sha256=digest(text),
+            # ⚠ The number a reader trusts, and it is the page count minus one.
+            characters=len(text),
+        ),
+        extent={"describes": "nothing was read", "complete": False},
+        text=text,
+    )
+
+
+def test_the_renderings_character_count_is_not_the_searchable_text():
+    """⛔ The guard everyone writes — `characters == 0` — does not fire on the real copy."""
+    mute = mute_edition()
+    assert mute.rendering.characters == 218
+    assert mute.searchable_characters == 0
+    assert not mute.carries_searchable_text
+
+
+def test_an_absence_is_refused_over_a_copy_that_renders_to_nothing():
+    """⭐⭐⭐ The strongest-looking absence this module can print, and the emptiest."""
+    with pytest.raises(TextualError) as caught:
+        AbsenceSearch(
+            claim="the rule is not in this copy",
+            alphabet=("Atmakaraka", "Amatyakaraka"),
+            edition=mute_edition(),
+            occurrences=[],
+            what_the_hits_do_say=(),
+            positive_control="anything at all",
+        )
+    assert "no searchable text" in str(caught.value)
+
+
+def test_an_absence_is_refused_without_a_positive_control():
+    """⛔ Nothing else in the row tells a copy silent about the rule from one silent about all."""
+    with pytest.raises(TextualError) as caught:
+        AbsenceSearch(
+            claim="c",
+            alphabet=("nothing",),
+            edition=edition(),
+            occurrences=[],
+            what_the_hits_do_say=(),
+        )
+    assert "positive control" in str(caught.value)
+
+
+def test_an_absence_is_refused_when_its_positive_control_does_not_resolve():
+    """⚠ A control that locates nothing shows nothing, and one found twice shows nothing either."""
+    for control in ("words this copy does not contain", "a phrase repeated twice appears"):
+        with pytest.raises(TextualError) as caught:
+            AbsenceSearch(
+                claim="c",
+                alphabet=("nothing",),
+                edition=edition(),
+                occurrences=[],
+                what_the_hits_do_say=(),
+                positive_control=control,
+            )
+        assert "positive control" in str(caught.value)
+
+
+def test_the_absence_row_carries_the_proof_that_the_copy_was_readable():
+    """⭐ The null control: a real absence still passes, and now says why its zeroes count."""
+    row = AbsenceSearch(
+        claim="c",
+        alphabet=("nothing",),
+        edition=edition(),
+        occurrences=[],
+        what_the_hits_do_say=(),
+        positive_control=CONTROL,
+    ).as_row()
+    assert row["the_copy_was_shown_to_be_readable_by"]["occurrences"] == 1
+    assert row["hits_in_total"] == 0
+
+
+def test_a_passage_absence_over_a_mute_copy_names_the_right_cause():
+    """⭐⭐⭐ It refused before this session too — and blamed the alphabet.
+
+    ⛔ The attestation rule fires over a mute copy because *every* spelling is unattested in
+    it, so the refusal arrived with the wrong cause attached and would send the next reader
+    to fix a vocabulary that was never the problem. ⚠ The two states must be told apart.
+    """
+    with pytest.raises(TextualError) as caught:
+        PassageAbsence(
+            claim="c",
+            edition=mute_edition(),
+            passage_label="p",
+            after="SU. 11",
+            before="SU. 12",
+            alphabet=("Prof.",),
+            alphabet_read_from="read off the copy",
+        )
+    message = str(caught.value)
+    assert "no searchable text" in message
+    assert "guessed" not in message.replace("NOT an alphabet that was guessed", "")
+
+
+def test_a_passage_absence_still_blames_the_alphabet_when_the_alphabet_is_guessed():
+    """⚠ The null control for the test above: the two causes must not have collapsed."""
+    with pytest.raises(TextualError) as caught:
+        PassageAbsence(
+            claim="c",
+            edition=edition(),
+            passage_label="p",
+            after="Chapter one.",
+            before="End of First Pada.",
+            alphabet=("a spelling nobody in this copy uses",),
+            alphabet_read_from="guessed, which is the defect",
+        )
+    assert "guessed" in str(caught.value)
+
+
+# --- more than one commenting hand in one copy --------------------------------------------
+
+HANDED = (
+    "Chapter one. The first rule is stated here, once and only once.\n"
+    "NOTES The lord of the sign is meant.\n"
+    "* I have not meddled with the rendering of this sutra by Prof. B. Suryanarain Rao.\n"
+    "* I have discussed this at length in my book Studies in Something Else.\n"
+    "End of First Pada. End of Second Pada.\n"
+)
+
+THIRD_PERSON = (
+    "* I have not meddled with the rendering of this sutra by Prof. B. Suryanarain Rao.",
+)
+OWN_WORK = ("* I have discussed this at length in my book Studies in Something Else.",)
+
+
+def test_a_second_hand_is_established_from_located_passages():
+    """⭐ A hand that writes of *Prof. Rao* in the third person is not Prof. Rao."""
+    row = SecondHand(
+        edition=edition(HANDED),
+        the_notes_are_credited_to="B. Suryanarain Rao",
+        speaks_of_the_translator_in_the_third_person=THIRD_PERSON,
+        claims_work_of_its_own=OWN_WORK,
+        marked_by=("*", "Prof."),
+        named_within_this_copy=False,
+    ).as_row()
+    assert row["how_many_commenting_hands_this_copy_carries"] == 2
+    assert row["the_copy_speaks_of_the_translator_in_the_third_person"][0]["occurrences"] == 1
+    assert row["the_second_hand_is_named_within_this_copy"] is False
+
+
+def test_a_second_hand_with_no_third_person_passage_is_refused():
+    """⛔ Otherwise it is a reader's impression of a change in voice."""
+    with pytest.raises(TextualError) as caught:
+        SecondHand(
+            edition=edition(HANDED),
+            the_notes_are_credited_to="B. Suryanarain Rao",
+            speaks_of_the_translator_in_the_third_person=(),
+            claims_work_of_its_own=OWN_WORK,
+            marked_by=("*",),
+            named_within_this_copy=False,
+        )
+    assert "third person" in str(caught.value)
+
+
+def test_a_second_hand_whose_passage_does_not_resolve_is_refused():
+    """⚠ Built by mutating the real passage, and the text is asserted to have changed."""
+    mutated = THIRD_PERSON[0].replace("meddled", "meddled at all")
+    assert mutated != THIRD_PERSON[0]
+    with pytest.raises(TextualError) as caught:
+        SecondHand(
+            edition=edition(HANDED),
+            the_notes_are_credited_to="B. Suryanarain Rao",
+            speaks_of_the_translator_in_the_third_person=(mutated,),
+            claims_work_of_its_own=(),
+            marked_by=("*",),
+            named_within_this_copy=False,
+        )
+    assert "occurs 0 time(s)" in str(caught.value)
+
+
+def test_a_second_hand_cannot_be_established_in_a_copy_that_renders_to_nothing():
+    with pytest.raises(TextualError):
+        SecondHand(
+            edition=mute_edition(),
+            the_notes_are_credited_to="B. Suryanarain Rao",
+            speaks_of_the_translator_in_the_third_person=THIRD_PERSON,
+            claims_work_of_its_own=(),
+            marked_by=("*",),
+            named_within_this_copy=False,
+        )
+
+
+def test_the_two_new_refusal_reasons_are_declared():
+    for reason in (
+        "rendering_carries_no_searchable_text",
+        "revised_printing_cannot_witness_the_unrevised_words",
+    ):
+        assert reason in REFUSAL_REASONS
+        Refusal(
+            subject="a subject",
+            reason=reason,
+            detail="a detail",
+            what_would_close_it="what would close it",
+        )

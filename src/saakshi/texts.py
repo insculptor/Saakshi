@@ -206,6 +206,39 @@ def _mishra_extent(text: str) -> dict[str, Any]:
     )
 
 
+def _scanned_printing_extent(text: str) -> dict[str, Any]:
+    """What a copy of page images establishes about its own contents. ⛔ Nothing.
+
+    ⭐⭐⭐ **THIS EXTENT EXISTS TO BE ZERO, AND A ZERO EXTENT IS THE MOST DANGEROUS
+    MEASUREMENT IN THIS MODULE.** The copy is a real printing of the right work, retrieved
+    from a real address and digested; every page of it is an image, and the rendering carries
+    no characters at all. ⛔ So *every* search over it returns zero, *every* absence over it
+    looks established, and nothing in a row of zeroes says whether the copy was silent or
+    was never read. ⚠ The markers below are the same ones the other printing's extent is
+    measured by, and they are looked for on purpose: finding none of them is what makes the
+    emptiness a *measurement* rather than an omission.
+    """
+    return measured_extent(
+        text,
+        markers=_JAIMINI_PADAS,
+        describes=(
+            "the padas whose closing marker is printed in this copy - of which there are "
+            "NONE, because this rendering carries no characters. ⛔ The copy is 219 pages of "
+            "scanned page images with no text layer, so the boundary markers are not missing "
+            "from the book: they were never read"
+        ),
+        beyond=(
+            "⛔⛔⛔ NOTHING WHATEVER, AND THAT INCLUDES ITS OWN IDENTITY. This rendering "
+            "carries zero characters, so it does not attest the work it contains, the "
+            "translator whose words it prints, or the printing it is. Those are known here "
+            "only from what the address names the file - which is a fact about a host and "
+            "not about a book. ⚠ NO SEARCH OVER THIS COPY MEANS ANYTHING, and an absence "
+            "measured over it would be the strongest-looking absence in this repository and "
+            "the emptiest: every spelling returns zero because nothing was ever read"
+        ),
+    )
+
+
 def _bphs_extent(text: str) -> dict[str, Any]:
     return measured_extent(
         text,
@@ -234,6 +267,34 @@ SOURCES: dict[str, Source] = {
         rendering_kind="embedded_text_layer",
         render=_pdf_text_layer,
         extent=_jaimini_extent,
+    ),
+    #: ⭐ A SECOND PRINTING OF THE FIRST TRANSLATION - the copy the standing refusal asked
+    #: for, acquired, and refused for a reason nobody had predicted. ⛔ It is the right work
+    #: and it is retrievable; it is 219 pages of page images and its rendering carries **zero
+    #: characters**, so not one locus can be resolved in it. ⚠ It is kept in this table rather
+    #: than dropped, because a copy that renders to nothing is the case every absence
+    #: instrument in this repository passes perfectly, and the only honest way to hold that
+    #: control is against a copy that actually exists.
+    "jaimini_sutras_rao_scanned_printing": Source(
+        key="jaimini_sutras_rao_scanned_printing",
+        identity=(
+            "a printing of the Jaimini Sutras in B. Suryanarain Rao's English translation, "
+            "offered under that description at the address recorded; 219 pages of scanned "
+            "page images in a PDF carrying no text layer. ⛔ THE COPY ITSELF ATTESTS NONE OF "
+            "THAT. Its rendering carries zero characters, so the work, the translator and the "
+            "printing are known here only from the name the host gives the file - which is a "
+            "fact about a host and not about a book, and is exactly the ground on which an "
+            "earlier candidate was rejected for naming no translator"
+        ),
+        language="en",
+        address=(
+            "https://www.ebharatisampat.in/pdfs/"
+            "ebharati-pdf-1619416068Jaimini-Sutras-Suryanarain-Rao-1949.pdf"
+        ),
+        filename="jaimini-sutras-rao-scanned-printing.pdf",
+        rendering_kind="embedded_text_layer",
+        render=_pdf_text_layer,
+        extent=_scanned_printing_extent,
     ),
     "jaimini_sutram_mishra": Source(
         key="jaimini_sutram_mishra",
