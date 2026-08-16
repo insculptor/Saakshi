@@ -17,7 +17,7 @@ worth keeping because each is a different failure.
 |---|---|
 | Two independent English translations | Both in copyright and sold commercially; no retrievable pinned copy. ⚠ Obtaining one is a purchase, not a fetch |
 | An English copy on a public archive, uploader named as creator | ⛔ **No translator identifiable anywhere in the item.** A copy whose translator cannot be named is not a second *witness* — it could be a re-typing of the first, and nothing in it would show that |
-| A fuller printing of the **same** translator | ⛔ Not a second witness at all. It would close the *extent* refusal and control the held part-copy, and it cannot corroborate a translation against itself |
+| A fuller printing of the **same** translator | ⛔ Not a second witness at all. It would close the *extent* refusal and control the held part-copy, and it cannot corroborate a translation against itself — ⚠ **RE-PUT 2026-08-16 and this rejection no longer applies**: it was true of the question then being asked, and stopped being true when the refusal was rewritten to the narrower subject of the translator's *notes*, which only such a printing can witness. ⭐ *A rejection recorded against a question that has since been replaced is not a rejection any more.* ⛔ Re-putting it moved the obstacle rather than lifting it — see `2026-08-16-the-second-hand.md` |
 | ⭐ **A Hindi translation with commentary, carrying the sutras in their own script** | **Taken.** A different translator, a different language, and the original alongside |
 
 ⚠ **A search by title returns a different work by the same author name** — the two top
@@ -39,6 +39,12 @@ hundreds of occurrences in it and the philosophical work's runs to single figure
 printing of one translation could have established. The first rule is stated almost sentence
 for sentence in both, including the part a consumer is most likely to narrow: both offer the
 seven-body and the eight-body reckoning, and neither chooses.
+
+> ⚠ **SUPERSEDED IN ONE WORD 2026-08-16 — "the first copy's translator's notes" assumes the
+> first copy has ONE commentator, and it has two.** That copy carries a further hand, which
+> names the translator in the third person and comments on his notes. The rows below stay
+> located and stay true; what moved is the confidence with which the *authority label* on two
+> of them may be read. See `2026-08-16-the-second-hand.md`.
 
 ⭐⭐ **Two of the corroborated rules are the first copy's translator's *notes*, and a second
 edition was expected to be unable to speak to them at all.** It speaks to both. ⚠ What that
