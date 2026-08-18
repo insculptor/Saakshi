@@ -73,6 +73,69 @@ def digest(text: str) -> str:
 
 
 # --------------------------------------------------------------------------------------
+# Which script a rendering is written in, and which script a search term needs
+# --------------------------------------------------------------------------------------
+
+#: The script buckets this repository distinguishes. ⚠ Deliberately coarse: the question
+#: being asked is *could this rendering express the words being searched for at all*, and a
+#: finer classification would answer a question nobody here has.
+_SCRIPT_RANGES: tuple[tuple[str, int, int], ...] = (
+    ("latin", 0x0041, 0x024F),
+    ("devanagari", 0x0900, 0x097F),
+    ("greek", 0x0370, 0x03FF),
+    ("cyrillic", 0x0400, 0x04FF),
+    ("telugu", 0x0C00, 0x0C7F),
+    ("kannada", 0x0C80, 0x0CFF),
+    ("tamil", 0x0B80, 0x0BFF),
+)
+
+
+def script_of(character: str) -> str | None:
+    """Which bucket a character's script falls in, or `None` if it carries no script.
+
+    ⚠ Digits, punctuation and whitespace return `None` rather than a bucket, and that is the
+    load-bearing part: an alphabet made only of marks names no script, so it cannot be
+    checked against a rendering, and the check below says so instead of passing it.
+
+    ⛔⛔ **THE `isalpha` TEST IS NOT TIDINESS, IT IS THE WHOLE MEASUREMENT.** Written as a
+    bare code-point range this function reported **6 077 Latin characters** in the copy it
+    was built to catch — a machine reading of an English book containing not one Latin
+    letter. Every one of the 6 077 was a brace, a bracket or a sign that happens to sit
+    inside the Latin block. ⭐ *A bucket that counts a rendering's punctuation as its script
+    answers yes for exactly the copy the question was asked about.*
+    """
+    if not character.isalpha():
+        return None
+    code = ord(character)
+    for name, first, last in _SCRIPT_RANGES:
+        if first <= code <= last:
+            return name
+    return None
+
+
+def scripts_in(text: str) -> dict[str, int]:
+    """How many code points of each script a string carries. ⛔ Only scripts it actually has."""
+    counts: dict[str, int] = {}
+    for character in text:
+        name = script_of(character)
+        if name is not None:
+            counts[name] = counts.get(name, 0) + 1
+    return counts
+
+
+def scripts_required_by(terms: Sequence[str]) -> set[str]:
+    """The scripts a set of search terms is written in.
+
+    ⛔ **A term carrying no script contributes nothing**, which is how the one spelling that
+    is a printed mark rather than a word stops standing in for eleven that are words.
+    """
+    required: set[str] = set()
+    for term in terms:
+        required.update(scripts_in(term))
+    return required
+
+
+# --------------------------------------------------------------------------------------
 # What a copy is, and how it got here
 # --------------------------------------------------------------------------------------
 
@@ -213,6 +276,24 @@ class Edition:
     def carries_searchable_text(self) -> bool:
         return self.searchable_characters > 0
 
+    @property
+    def scripts(self) -> dict[str, int]:
+        """Which scripts this rendering carries, and how much of each. ⭐ Measured.
+
+        ⛔⛔⛔ **BECAUSE `carries_searchable_text` IS NOT ENOUGH, AND A REAL COPY PROVED IT.**
+        A library scan of an English printing in this repository's cache renders to 246 777
+        searchable characters and **not one letter of the Latin alphabet**: the machine
+        reading was set to an Indic script and returned a quarter of a million characters of
+        noise. ⚠ Every guard asking *was this copy read* answers yes for it, and every
+        English word searched in it answers zero. ⇒ *A rendering that cannot express the
+        alphabet has not been searched in it*, and the only thing that says so is this.
+        """
+        return scripts_in(self.normalised)
+
+    def carries_script(self, script: str) -> bool:
+        """Whether a locus or a search term written in `script` could resolve here at all."""
+        return self.scripts.get(script, 0) > 0
+
     def as_json(self) -> dict[str, Any]:
         return {
             "identity": self.identity,
@@ -231,6 +312,21 @@ class Edition:
                     "newline apiece the rendering reports 218 characters, which is the page "
                     "count minus one and is not text. ⚠ A check written against the "
                     "rendering's count would pass a copy nothing can be searched in"
+                ),
+                # ⭐⭐⭐ Published beside the count for the same reason the count is published
+                #   beside the rendering's: the pair is the finding, one level down. A second
+                #   copy in this cache carries a quarter of a million searchable characters
+                #   and zero of the script its own book is printed in.
+                "scripts_this_rendering_carries": [
+                    {"script": name, "code_points": count}
+                    for name, count in sorted(self.scripts.items())
+                ],
+                "why_the_scripts_are_here": (
+                    "⛔ a large searchable count still does not mean a word can be found. A "
+                    "library scan of an English printing, held in this repository's cache, "
+                    "renders to 246 777 characters and NO LATIN AT ALL - the machine reading "
+                    "was set to an Indic script. ⚠ Every English spelling returns zero over "
+                    "it and every guard asking whether the copy was read answers yes"
                 ),
             },
         }
@@ -320,6 +416,18 @@ REFUSAL_REASONS = frozenset(
         # rewrites silently leaves no mark, so agreement between two revised printings
         # attests the revision and not the translator.
         "revised_printing_cannot_witness_the_unrevised_words",
+        # ⭐⭐⭐ THE COPY WAS READ, AND NOT IN THE ALPHABET THE CLAIM IS WRITTEN IN. A machine
+        # reading of an English printing that carries a quarter of a million characters and
+        # no Latin script at all. ⛔ Distinct from the mute copy above and strictly more
+        # dangerous: the mute copy fails every check that asks whether anything was read, and
+        # this one passes all of them while returning zero for every word in the book.
+        "rendering_carries_none_of_the_searched_script",
+        # ⭐⭐ AND THE GUARD AGAINST THE ABOVE HAS ITS OWN FAILURE MODE. A positive control is
+        # only evidence for the search it accompanies: one chosen in a script the alphabet is
+        # not written in resolves happily over a rendering the alphabet cannot touch. ⛔ Worse
+        # on a noise rendering, where nothing repeats and so EVERY candidate resolves exactly
+        # once - the condition meant to be the hardest becomes the easiest in the file.
+        "positive_control_is_not_in_the_searched_script",
     }
 )
 
@@ -518,12 +626,48 @@ class AbsenceSearch:
                 f"count is {self.edition.rendering.characters}, which is not zero and is not "
                 "text"
             )
+        # ⛔⛔ CHECKED BEFORE THE CONTROL, BECAUSE A CONTROL CANNOT REPAIR THIS. Measured on a
+        #    real copy: a library scan of an English printing whose machine reading carries
+        #    246 777 characters and no Latin at all. Every guard above passes it.
+        required = scripts_required_by(self.alphabet)
+        if not required:
+            raise TextualError(
+                f"{self.edition.key}: the alphabet searched is written in no script at all - "
+                "every spelling in it is punctuation or digits. ⛔ Nothing can establish that "
+                "this rendering could have expressed it, so the zeroes cannot be read"
+            )
+        missing = sorted(s_ for s_ in required if not self.edition.carries_script(s_))
+        if missing:
+            raise TextualError(
+                f"{self.edition.key}: the alphabet is written in {sorted(required)} and this "
+                f"rendering carries no {missing} at all, though it carries "
+                f"{self.edition.searchable_characters} searchable characters. ⛔ Every "
+                "spelling returns zero because the machine reading cannot express one of "
+                "them, not because the copy is silent - and this copy passes every check "
+                "that asks whether it was read"
+            )
         if not self.positive_control.strip():
             raise TextualError(
                 f"{self.edition.key}: an absence needs a positive control - words this copy "
                 "is expected to contain, resolved in it. ⛔ Without one the row cannot tell a "
                 "copy that is silent about the rule from a copy that is silent about "
                 "everything, and both print the same reassuring zero"
+            )
+        # ⭐⭐⭐ AND THE CONTROL MUST BE IN THE ALPHABET'S OWN SCRIPT. A control proves the
+        #    copy was read; it proves the copy was read IN THE SCRIPT IT IS WRITTEN IN, and
+        #    nothing more. ⛔ Over the library scan above, a control quoted from the copy's
+        #    own noise resolves exactly once - as 1 188 of 1 188 candidate fragments do,
+        #    because nothing in a noise rendering repeats - and would license a perfect
+        #    twelve-spelling absence in an alphabet the rendering contains none of.
+        control_scripts = scripts_in(self.positive_control)
+        if not required & set(control_scripts):
+            raise TextualError(
+                f"{self.edition.key}: the positive control is written in "
+                f"{sorted(control_scripts) or 'no script'} and the alphabet in "
+                f"{sorted(required)}. ⛔ A control in another script shows only that the copy "
+                "was read in THAT script, which is exactly the state this guard exists to "
+                "catch: it resolves, the row is written, and every zero in it is a property "
+                "of the machine reading"
             )
         found = resolve(self.edition, self.positive_control)
         if not found.resolved:
@@ -649,6 +793,30 @@ class PassageAbsence:
                 f"anything to match against. ⚠ Its rendering reports "
                 f"{self.edition.rendering.characters} characters, which is not zero and is "
                 "not text"
+            )
+        # ⛔⛔⛔ AND CHECKED BEFORE ATTESTATION FOR THE SAME REASON, AGAINST A SECOND CAUSE THE
+        #    FIRST FIX DID NOT COVER. The mute-copy check above was moved ahead of attestation
+        #    because over a blank copy the attestation rule fires and blames the recorder for
+        #    GUESSING. ⚠ A copy that renders to noise in the wrong script does it again: every
+        #    Latin spelling is unattested in it, and the cause is the machine reading, not the
+        #    vocabulary. ⭐ *A fix that names the right cause was written for one cause, and
+        #    the wrong cause has more than one.*
+        required = scripts_required_by(self.alphabet)
+        if not required:
+            raise TextualError(
+                f"{self.passage_label}: every spelling in this alphabet is punctuation or "
+                "digits, so it is written in no script and nothing can establish that this "
+                "rendering could express it"
+            )
+        missing = sorted(s_ for s_ in required if not self.edition.carries_script(s_))
+        if missing:
+            raise TextualError(
+                f"{self.passage_label}: {self.edition.key} carries no {missing} at all, "
+                f"though its rendering is {self.edition.searchable_characters} searchable "
+                f"characters long, and this alphabet is written in {sorted(required)}. ⛔ "
+                "This is NOT a guessed alphabet and NOT a silent copy - it is a machine "
+                "reading in the wrong script, which passes every check that asks whether the "
+                "copy was read and returns zero for every word in the book"
             )
         body = self.edition.normalised
         unattested = [s for s in self.alphabet if normalise(s) not in body]
@@ -809,6 +977,231 @@ class SecondHand:
                 "revised printings agreeing attest the revision and not the translator"
             ),
         }
+
+
+@dataclass(frozen=True)
+class NamedInAnotherCopy:
+    """A hand one copy cannot name, named by a different copy of the same translation.
+
+    ⭐⭐⭐ **THE ANSWER TO *THIS COPY DOES NOT SAY WHOSE* IS ANOTHER COPY THAT DOES.** A
+    previous session established that the printing every rule here resolves into carries a
+    second commenting hand and cannot name it: no title page, no imprint, no preface. ⛔ The
+    refusal at the time was not *we do not know who it is* — it was that naming it from the
+    books it claims would supply an authorship **out of the recorder's memory**. ⚠ That
+    refusal is discharged only by a copy that prints the name itself, and this is the shape
+    that discharge has to take.
+
+    ⛔ **A name found in one copy is not automatically the hand in the other**, and the tie
+    is the hard part. It is required here, and required to be *located on both sides*: a
+    fragment that resolves exactly once in each copy. The tie this was built for is the second
+    hand's own claim of a book, printed in both — ⭐ the very claim the earlier session refused
+    to turn into a name, now doing the work honestly, because the naming comes from the other
+    copy's page rather than from what the recorder happens to know about the book.
+
+    ⚠ **And the unnamed copy is re-checked.** If the name occurs in it after all, the earlier
+    *cannot be named from this copy* was wrong, and this class refuses rather than quietly
+    building on it.
+    """
+
+    #: What the hand is, as the unnamed copy shows it. ⚠ A description, never a name.
+    the_hand: str
+    unnamed_in: Edition
+    named_in: Edition
+    #: The name exactly as the naming copy prints it.
+    the_name_as_that_copy_prints_it: str
+    #: The passage in which that copy names it. ⛔ Must resolve exactly once there.
+    the_passage_that_names_it: str
+    #: What that copy says its own printing is. ⛔ Must resolve exactly once there.
+    the_printing_that_copy_declares: str
+    #: Fragments resolving **exactly once in BOTH copies**, tying one hand to the other.
+    #: ⛔ Without one of these, two copies have been read and nothing has been connected.
+    tied_to_the_unnamed_hand_by: Sequence[str]
+    what_this_does_not_establish: str
+
+    def __post_init__(self) -> None:
+        if self.unnamed_in.key == self.named_in.key:
+            raise TextualError(
+                f"{self.unnamed_in.key}: a copy cannot be the one that fails to name a hand "
+                "and the one that names it. ⛔ That is not a second copy, it is a re-reading"
+            )
+        for fragment, where in (
+            (self.the_passage_that_names_it, self.named_in),
+            (self.the_printing_that_copy_declares, self.named_in),
+        ):
+            found = resolve(where, fragment)
+            if not found.resolved:
+                raise TextualError(
+                    f"{where.key}: {fragment[:60]!r} occurs {found.occurrences} time(s), so "
+                    "it locates nothing. ⛔ A name and a printing are read off a page or they "
+                    "are supplied by the recorder"
+                )
+        # ⛔ The earlier finding is re-measured rather than trusted: if the name is in the
+        #    copy said not to name it, that copy was under-read and this row would build a
+        #    correct-looking attribution on a wrong absence.
+        occurrences = self.unnamed_in.normalised.count(
+            normalise(self.the_name_as_that_copy_prints_it)
+        )
+        if occurrences:
+            raise TextualError(
+                f"{self.unnamed_in.key}: the name occurs {occurrences} time(s) in the copy "
+                "said not to name the hand. ⛔ Then it was not unnamed there, and the finding "
+                "this row rests on is the thing that needs correcting"
+            )
+        if not self.tied_to_the_unnamed_hand_by:
+            raise TextualError(
+                f"{self.named_in.key}: a name in one copy is not the hand in another until "
+                "something located ties them. ⛔ Give a fragment resolving exactly once in "
+                "BOTH copies, or this row names a hand in a book nobody has connected to "
+                "this one"
+            )
+        for fragment in self.tied_to_the_unnamed_hand_by:
+            here = resolve(self.unnamed_in, fragment)
+            there = resolve(self.named_in, fragment)
+            if not (here.resolved and there.resolved):
+                raise TextualError(
+                    f"the tie {fragment[:50]!r} occurs {here.occurrences} time(s) in "
+                    f"{self.unnamed_in.key} and {there.occurrences} in {self.named_in.key}. "
+                    "⛔ A tie resolves on BOTH sides or it ties nothing - and two machine "
+                    "readings of one sentence differ, so a tie that fails here may be a fact "
+                    "about the readings rather than about the hands"
+                )
+
+    def as_row(self) -> dict[str, Any]:
+        return {
+            "finding": "hand_named_in_another_copy",
+            "the_hand": self.the_hand,
+            "unnamed_in": self.unnamed_in.key,
+            "named_in": self.named_in.key,
+            "the_name_as_that_copy_prints_it": self.the_name_as_that_copy_prints_it,
+            "the_passage_that_names_it": {
+                "quoted": normalise(self.the_passage_that_names_it),
+                "occurrences": resolve(
+                    self.named_in, self.the_passage_that_names_it
+                ).occurrences,
+            },
+            "the_printing_that_copy_declares": {
+                "quoted": normalise(self.the_printing_that_copy_declares),
+                "occurrences": resolve(
+                    self.named_in, self.the_printing_that_copy_declares
+                ).occurrences,
+            },
+            "the_name_occurs_in_the_unnamed_copy": 0,
+            "tied_to_the_unnamed_hand_by": [
+                {
+                    "quoted": normalise(f),
+                    "occurrences_in_the_unnamed_copy": resolve(
+                        self.unnamed_in, f
+                    ).occurrences,
+                    "occurrences_in_the_naming_copy": resolve(self.named_in, f).occurrences,
+                }
+                for f in self.tied_to_the_unnamed_hand_by
+            ],
+            "what_this_does_not_establish": self.what_this_does_not_establish,
+            "why_it_took_a_second_copy": (
+                "⛔ the earlier refusal was never *we cannot guess who this is*. It was that "
+                "turning the books the hand claims into a name would supply an authorship "
+                "from the recorder's own memory - the unsourced claim this discipline exists "
+                "to refuse. ⭐ A copy that prints the name on its own page discharges that "
+                "refusal and nothing else does, however obvious the guess"
+            ),
+        }
+
+
+@dataclass(frozen=True)
+class SelfContradiction:
+    """Two statements by one hand, in one copy, that cannot both be relied on.
+
+    ⭐⭐⭐ **THE MOST TEMPTING EVIDENCE IN A REVISED PRINTING IS THE REVISER SAYING HE
+    CHANGED NOTHING, AND THIS IS WHAT THAT IS WORTH.** A signed foreword acquired for this
+    repository states, in one paragraph, both *"I have not meddled with either the
+    translation or the notes"* and *"The translation herewith presented has been thoroughly
+    revised by me"*. ⛔ Neither is doubted here and neither is adopted: both are located,
+    both are quoted, and the pair is what is published — because a recorder who took the
+    first sentence would have retired a standing refusal on the strength of a claim the same
+    hand contradicts two sentences later.
+
+    ⚠ **This does not say the hand was dishonest**, and the row says so. It says that this
+    copy does not settle what was altered — which is a smaller and checkable claim, and the
+    only one the copy supports.
+    """
+
+    edition: Edition
+    the_hand: str
+    #: `(what it claims, the words that claim it)`. ⛔ Each fragment resolves exactly once.
+    statements: Sequence[tuple[str, str]]
+    why_they_cannot_both_be_relied_on: str
+    what_it_settles: str
+
+    def __post_init__(self) -> None:
+        if len(self.statements) < 2:
+            raise TextualError(
+                f"{self.edition.key}: one statement is not a contradiction. ⛔ Two located "
+                "statements, or this is a reader's unease about a sentence"
+            )
+        for _, fragment in self.statements:
+            found = resolve(self.edition, fragment)
+            if not found.resolved:
+                raise TextualError(
+                    f"{self.edition.key}: {fragment[:60]!r} occurs {found.occurrences} "
+                    "time(s), so it locates nothing. ⛔ A contradiction is between two things "
+                    "the copy was shown to say"
+                )
+
+    def as_row(self) -> dict[str, Any]:
+        return {
+            "finding": "the_copy_disagrees_with_itself",
+            "edition": self.edition.key,
+            "the_hand": self.the_hand,
+            "statements": [
+                {
+                    "claims": claims,
+                    "quoted": normalise(fragment),
+                    "occurrences": resolve(self.edition, fragment).occurrences,
+                }
+                for claims, fragment in self.statements
+            ],
+            "why_they_cannot_both_be_relied_on": self.why_they_cannot_both_be_relied_on,
+            "what_it_settles": self.what_it_settles,
+            "what_it_does_not_settle": (
+                "⛔ nothing about the hand's honesty, and nothing about which words were "
+                "changed. ⚠ A copy that disagrees with itself has told a reader that it is "
+                "not the authority for the question - which is a smaller claim than either "
+                "sentence taken alone, and is the only one the copy supports"
+            ),
+        }
+
+
+def discrimination_of_resolving_once(
+    edition: Edition, candidates: Sequence[str]
+) -> dict[str, Any]:
+    """How many of `candidates` resolve **exactly once** here. ⭐ A control on the controls.
+
+    ⭐⭐⭐ **"RESOLVES EXACTLY ONCE" IS THE CONDITION THIS REPOSITORY LEANS ON HARDEST, AND
+    ON ONE REAL COPY IT FILTERS NOTHING.** In an ordinary book a fragment resolving once is
+    evidence, because most short strings either recur or do not appear at all. In a machine
+    reading that returned noise nothing recurs — measured, 1 188 of 1 188 candidate fragments
+    resolved exactly once — so the hardest-looking condition in the file becomes the easiest,
+    and it is satisfied by a positive control that establishes nothing whatever.
+
+    ⛔ This measures that rather than asserting it: the number is what tells a reader whether
+    a resolution in a given copy is worth anything.
+    """
+    counts = [resolve(edition, c).occurrences for c in candidates if c.strip()]
+    once = sum(1 for c in counts if c == 1)
+    return {
+        "edition": edition.key,
+        "candidate_fragments_tried": len(counts),
+        "resolving_exactly_once": once,
+        "resolving_more_than_once": sum(1 for c in counts if c > 1),
+        "resolving_not_at_all": sum(1 for c in counts if c == 0),
+        "share_resolving_exactly_once": (round(once / len(counts), 6) if counts else None),
+        "what_a_share_near_one_means": (
+            "⛔ that resolving exactly once distinguishes nothing in this copy. It is the "
+            "expected state of a rendering in which nothing repeats - a machine reading that "
+            "returned noise - and it makes a positive control free to obtain and worthless "
+            "to hold"
+        ),
+    }
 
 
 def collect_occurrences(

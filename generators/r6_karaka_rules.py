@@ -36,6 +36,7 @@ Nothing here describes how any software computes anything.
 from __future__ import annotations
 
 import argparse
+import re
 import sys
 from pathlib import Path
 from typing import Any
@@ -57,9 +58,15 @@ from saakshi.textual import (  # noqa: E402
     AbsenceSearch,
     Alignment,
     Locus,
+    NamedInAnotherCopy,
     PassageAbsence,
+    SelfContradiction,
+    discrimination_of_resolving_once,
+    normalise,
+    scripts_required_by,
     Refusal,
     SecondHand,
+    TextualError,
     collect_occurrences,
     refusal_summary,
     source_oracle,
@@ -114,6 +121,51 @@ SECOND_HAND_ALPHABET: tuple[str, ...] = (
     "I have not meddled",
     "I understand it thus",
     "come to our rescue",
+)
+
+# --------------------------------------------------------------------------------------
+# The two candidate printings acquired for the second-printing TEST
+# --------------------------------------------------------------------------------------
+
+#: ⭐⭐⭐ THE CANDIDATE THE STANDING TEST ASKED FOR — and it fails the test by explaining
+#: itself. A printing of the same translation carrying a title page, an imprint and a SIGNED
+#: foreword. All twelve spellings occur in it, so it cannot witness the unrevised words
+#: either; and it is the copy that turns *this copy does not say whose* into a located name.
+FIFTH_EDITION = "jaimini_sutras_rao_fifth_edition"
+
+#: ⛔⛔⛔ THE SECOND CANDIDATE, AND IT IS THE TRAP THE TEST WAS WARNED ABOUT WEARING A
+#: DIFFERENT FACE. Eleven of the twelve spellings return zero over it. It carries a quarter
+#: of a million searchable characters and not one letter of the alphabet its book is
+#: printed in.
+LIBRARY_SCAN = "jaimini_sutras_rao_library_scan"
+
+#: What the naming copy prints about its own printing. ⛔ Resolves exactly once there, and
+#: nothing corroborates it: it is that copy's claim about itself, recorded as such.
+FIFTH_EDITION_IMPRINT = "Fifth Edition 1955"
+
+#: The signed statement naming the second commenting hand. ⛔ Resolves exactly once.
+FIFTH_EDITION_NAMES_THE_HAND = "Revised and Annotated by BANGALORE VENKATA RAMAN"
+
+#: The name as that copy prints it. ⛔ Measured to occur ZERO times in the unnamed copy —
+#: the earlier finding is re-measured rather than trusted.
+THE_NAME_AS_THAT_COPY_PRINTS_IT = "Bangalore Venkata Raman"
+
+#: ⭐⭐⭐ THE ONE FRAGMENT THAT RESOLVES EXACTLY ONCE IN BOTH COPIES, out of the ten tried.
+#: It is the second hand's own claim of a book — the claim the earlier session refused to
+#: turn into a name, now doing the work honestly because the other copy prints the name.
+THE_TIE_BETWEEN_THE_TWO_COPIES = (
+    "* I have discussed Rasi Dasa at considerable length in my book Studies in Jaimini "
+    "Astrology."
+)
+
+#: ⛔⛔ The two sentences of one signed foreword that cannot both be relied on. Quoted in the
+#: spelling this machine reading produced, defects intact.
+FOREWORD_CLAIMS_NO_ALTERATION = (
+    "I have not meddled with either the translation or the notes as given by Prof. Rao for "
+    "fear of aifecting the sense."
+)
+FOREWORD_CLAIMS_THOROUGH_REVISION = (
+    "The Translation herewith presented has been tho- roughly revised by me"
 )
 
 #: The landmarks bounding the notes to the founding sutra — the passage both recorded
@@ -703,7 +755,108 @@ def refusals_for(edition) -> list[Refusal]:
     ]
 
 
-def build_header(script: Path, edition, second, scanned, resolved: int, refusals, controls) -> Header:
+#: ⛔⛔⛔ TWELVE CHARACTERS OF THE LIBRARY SCAN'S OWN NOISE, READ OFF IT, RESOLVING EXACTLY
+#: ONCE. It is offered as a positive control on purpose, to show what a positive control is
+#: worth in that copy: 300 of 300 candidate fragments of this length resolve exactly once
+#: there, because nothing in a noise rendering repeats. ⭐ The condition this repository
+#: leans on hardest is, in that one copy, the easiest in the file to satisfy.
+LIBRARY_SCAN_CONTROL_FROM_ITS_OWN_NOISE = "\u096a\u096c\u096a\u096c \u096d\u096f \u090f\u0928\u094d\u0935\u091e\u092a\u094d\u0930\u093e"
+
+
+def run_the_test(edition, *, positive_control: str) -> dict[str, Any]:
+    """THE TEST: the twelve second-hand spellings over a whole candidate copy, zero required.
+
+    ⭐ **The counting half is three lines and it is not the test.** What makes it a test is
+    what happens when the count comes back zero, so both absence instruments are actually
+    RUN against the copy and what they did is recorded — accepted, or refused and with which
+    cause named. ⛔ A candidate that passes by being unreadable and a candidate that passes
+    by not carrying the hand print the same row of zeroes, and only the refusal tells them
+    apart.
+    """
+    body = edition.normalised.lower()
+    counts = {
+        spelling: body.count(normalise(spelling).lower())
+        for spelling in SECOND_HAND_ALPHABET
+    }
+    total = sum(counts.values())
+    outcomes = []
+    for name, build in (
+        (
+            "an absence over the whole copy",
+            lambda: AbsenceSearch(
+                claim="that this printing carries none of the second hand's marks",
+                alphabet=SECOND_HAND_ALPHABET,
+                edition=edition,
+                occurrences=[],
+                what_the_hits_do_say=[],
+                positive_control=positive_control,
+            ),
+        ),
+        (
+            "an absence over a bounded passage",
+            lambda: PassageAbsence(
+                claim="that a passage of this printing carries none of the second hand's marks",
+                edition=edition,
+                passage_label="any passage of this copy",
+                after=positive_control,
+                before=positive_control,
+                alphabet=SECOND_HAND_ALPHABET,
+                alphabet_read_from=(
+                    "the twelve spellings read off the OTHER printing of this translation, "
+                    "where each is attested"
+                ),
+            ),
+        ),
+    ):
+        try:
+            build()
+        except TextualError as refusal:
+            outcomes.append(
+                {"instrument": name, "outcome": "refused", "the_cause_it_named": str(refusal)}
+            )
+        else:
+            outcomes.append(
+                {
+                    "instrument": name,
+                    "outcome": "accepted",
+                    "the_cause_it_named": (
+                        "none - the copy was readable in the alphabet searched and the "
+                        "control resolved, so the counts below are the measurement"
+                    ),
+                }
+            )
+    return {
+        "edition": edition.key,
+        "searchable_characters": edition.searchable_characters,
+        "the_renderings_own_character_count": edition.rendering.characters,
+        "scripts_this_rendering_carries": [
+            {"script": name, "letters": n} for name, n in sorted(edition.scripts.items())
+        ],
+        "the_alphabet_is_written_in": sorted(scripts_required_by(SECOND_HAND_ALPHABET)),
+        "hits_by_spelling": [
+            {"spelling": spelling, "hits": counts[spelling]}
+            for spelling in SECOND_HAND_ALPHABET
+        ],
+        "hits_in_total": total,
+        "spellings_with_any_hit": sum(1 for n in counts.values() if n),
+        "spellings_searched": len(SECOND_HAND_ALPHABET),
+        # ⛔ The number the test asks for, and the number that is not the answer.
+        "would_the_count_alone_have_passed_this_copy": total == 0,
+        "what_the_absence_instruments_did": outcomes,
+        "how_the_instruments_were_exercised": (
+            "⚠ both were CONSTRUCTED against this copy, which is where every refusal read "
+            "here lives - a copy is rejected before a single spelling is counted, so a row "
+            "that refuses never reaches the counting at all. ⛔ The bounded-passage "
+            "instrument was given the positive control as both of its landmarks, which is "
+            "not a passage anyone would search: nothing here reads the region, only the "
+            "refusal the construction raises"
+        ),
+    }
+
+
+def build_header(
+    script: Path, edition, second, scanned, fifth, library_scan, resolved: int, refusals, controls
+) -> Header:
     return Header(
         fixture_kind="textual_rule",
         reference="R6",
@@ -713,12 +866,14 @@ def build_header(script: Path, edition, second, scanned, resolved: int, refusals
             "The significator series as two located copies state it, a fork this file "
             "published and has withdrawn, and one widely repeated rule neither states"
         ),
-        # ⚠ THREE copies now, and the third resolves nothing. It is listed because a reader
+        # ⚠ FIVE copies now, and three of them resolve nothing. It is listed because a reader
         #   checking this file must be able to see the copy that was acquired and refused —
         #   a candidate rejected in prose is a claim, and a candidate carrying a witness, a
         #   rendering and a measured extent of nothing is a measurement.
         oracle=source_oracle(
-            [edition, second, scanned], resolved=resolved, refused=len(refusals)
+            [edition, second, scanned, fifth, library_scan],
+            resolved=resolved,
+            refused=len(refusals),
         ),
         # ⚠ The containing locus. Each rule row carries its own, more precise one; this is
         #   the sutra at which the series is founded and from which every later place hangs.
@@ -767,6 +922,37 @@ def build_header(script: Path, edition, second, scanned, resolved: int, refusals
                 "from the recorder's memory. ⚠ *There is a second hand here and this copy does "
                 "not say whose* is the finding, not a shortfall"
             ),
+            "the_second_printing_test_was_run_and_no_candidate_passed": (
+                "⭐⭐⭐ THE TEST WAS RUN OVER THREE COPIES AND ALL THREE FAILED IT FOR "
+                "DIFFERENT REASONS, ONLY ONE OF WHICH IS ABOUT A BOOK. A printing that "
+                "declares itself the FIFTH carries all twelve second-hand spellings 215 "
+                "times and says on its own title page that it was revised and annotated. A "
+                "library scan returns eleven zeroes out of twelve, and returns them because "
+                "its machine reading carries a quarter of a million characters and NO LATIN "
+                "LETTERS - an English book read in the wrong script. A 219-page printing "
+                "returns twelve zeroes because it contains nothing at all. ⛔ Scored on the "
+                "count alone the second copy misses a clean pass by ONE PUNCTUATION MARK"
+            ),
+            "the_second_hand_is_named_and_the_name_came_from_a_copy": (
+                "⭐⭐⭐ *THERE IS A SECOND HAND HERE AND THIS COPY DOES NOT SAY WHOSE* IS "
+                "ANSWERED, BY ANOTHER COPY'S PAGE. The naming printing carries a title page "
+                "reading *Revised and Annotated by* a named hand and a SIGNED foreword by the "
+                "same. ⛔ The tie between the two copies is ONE fragment resolving exactly "
+                "once in both - the second hand's own claim of a book - out of ten tried; the "
+                "other nine are present in both printings and spelled differently by the two "
+                "machine readings. ⚠ The naming does not establish which printing the copy in "
+                "hand is, and that refusal stands"
+            ),
+            "what_a_revisers_own_account_of_his_revision_is_worth": (
+                "⛔⛔⛔ NOTHING, AND IT IS MEASURED RATHER THAN ARGUED. The signed foreword "
+                "states *I have not meddled with either the translation or the notes as given "
+                "by Prof. Rao* and, a paragraph later, *The translation herewith presented "
+                "has been thoroughly revised by me*. ⭐ Neither is doubted; the PAIR is "
+                "published. ⚠ It also retires an inference this file made from the other "
+                "copy - that a disclaimer scoped to ONE sutra is worth making only by a hand "
+                "that alters others - because the copy that kept its front matter makes the "
+                "same disclaimer generally"
+            ),
             "the_second_printing_question_was_re_put_and_did_not_close": (
                 "⭐ the candidate that would close it had been rejected against a question "
                 "since replaced, so the question was put again - and the obstacle MOVED "
@@ -791,6 +977,15 @@ def build_header(script: Path, edition, second, scanned, resolved: int, refusals
                 "its own words, with a verdict of corroborated or forked"
             ),
             "absence": "a rule searched for and not found, with its alphabet and its extent",
+            "hand_named_in_another_copy": (
+                "a commenting hand one copy carries and cannot name, named on the page of a "
+                "different copy of the same translation, with the located fragment tying the "
+                "two and an explicit statement of what the naming does NOT establish"
+            ),
+            "the_copy_disagrees_with_itself": (
+                "two statements by one hand in one copy that cannot both be relied on, each "
+                "resolving exactly once; the pair is the finding and neither is adopted"
+            ),
             "correction": (
                 "a reading this file PUBLISHED and has withdrawn, with what refutes it, how "
                 "the error was made and what is armed against its recurrence"
@@ -887,7 +1082,7 @@ def main() -> int:
     print(describe_reserved_names())
 
     if args.acquire:
-        for key in (EDITION, SECOND_EDITION, SCANNED_PRINTING):
+        for key in (EDITION, SECOND_EDITION, SCANNED_PRINTING, FIFTH_EDITION, LIBRARY_SCAN):
             record = acquire(key, cache=args.cache, today=today())
             print(f"acquired {key}: {record['copy_bytes']} bytes, status {record['http_status']}")
 
@@ -897,6 +1092,16 @@ def main() -> int:
     #   is MEASURED rather than described: 219 pages, a rendering reporting 218 characters,
     #   and not one character a locus could resolve against.
     scanned = load(SCANNED_PRINTING, cache=args.cache)
+    # ⭐⭐⭐ The two candidates the second-printing TEST was run against. One states its own
+    #   printing and names the second hand; the other returns eleven zeroes out of twelve and
+    #   returns them because its machine reading contains no English.
+    fifth = load(FIFTH_EDITION, cache=args.cache)
+    library_scan = load(LIBRARY_SCAN, cache=args.cache)
+    for candidate in (fifth, library_scan):
+        print(
+            f"candidate {candidate.key}: searchable {candidate.searchable_characters}, "
+            f"scripts {candidate.scripts}"
+        )
     print(
         f"edition {SCANNED_PRINTING}: {scanned.rendering.kind}, rendering reports "
         f"{scanned.rendering.characters} characters; searchable "
@@ -1196,10 +1401,371 @@ def main() -> int:
         },
     ]
 
+    # ======================================================================================
+    # THE SECOND-PRINTING TEST, third time of asking — run, and read
+    # ======================================================================================
+
+    test_results = [
+        run_the_test(fifth, positive_control=FOREWORD_CLAIMS_NO_ALTERATION),
+        run_the_test(
+            library_scan, positive_control=LIBRARY_SCAN_CONTROL_FROM_ITS_OWN_NOISE
+        ),
+        # ⚠ The copy the previous session acquired, re-run so the three sit in one row and a
+        #   reader can see that two different causes produce the same reassuring zeroes.
+        run_the_test(scanned, positive_control=FOREWORD_CLAIMS_NO_ALTERATION),
+    ]
+    for result in test_results:
+        print(
+            f"test {result['edition']}: {result['hits_in_total']} hit(s) across "
+            f"{result['spellings_with_any_hit']}/{result['spellings_searched']} spelling(s); "
+            f"count alone would pass: {result['would_the_count_alone_have_passed_this_copy']}"
+        )
+
+    # ⭐⭐⭐ The finding the test did not ask for: the hand this repository could not name is
+    #    named, on another copy's own page, and the two copies are tied by one located
+    #    fragment out of the ten tried.
+    naming = NamedInAnotherCopy(
+        the_hand=(
+            "the second commenting hand in the printing every rule in this file resolves "
+            "into - the one that names the translator in the third person, says his notes "
+            "are not clear, and claims books of its own"
+        ),
+        unnamed_in=edition,
+        named_in=fifth,
+        the_name_as_that_copy_prints_it=THE_NAME_AS_THAT_COPY_PRINTS_IT,
+        the_passage_that_names_it=FIFTH_EDITION_NAMES_THE_HAND,
+        the_printing_that_copy_declares=FIFTH_EDITION_IMPRINT,
+        tied_to_the_unnamed_hand_by=(THE_TIE_BETWEEN_THE_TWO_COPIES,),
+        what_this_does_not_establish=(
+            "⛔ WHICH PRINTING THE UNNAMED COPY IS. It carries no title page, no imprint and "
+            "no foreword, and the naming copy's imprint speaks for the naming copy. ⚠ Nor "
+            "does it establish that every asterisked note in the unnamed copy is this hand's: "
+            "what is located is one claim of a book, printed in both copies, beside a signed "
+            "statement in one of them that the annotations are the signer's. ⛔ And the "
+            "attribution runs no further than the copies - nothing here corroborates the "
+            "naming copy's title page from outside it"
+        ),
+    )
+
+    # ⛔⛔ The foreword that names the hand also states two things that cannot both be acted
+    #    on, and the first of them is exactly the sentence that would retire this file's
+    #    standing refusal.
+    foreword = SelfContradiction(
+        edition=fifth,
+        the_hand="the hand the naming copy's title page calls its reviser and annotator",
+        statements=(
+            ("that nothing of the translation or the notes was altered", FOREWORD_CLAIMS_NO_ALTERATION),
+            ("that the translation was thoroughly revised by the same hand", FOREWORD_CLAIMS_THOROUGH_REVISION),
+        ),
+        why_they_cannot_both_be_relied_on=(
+            "⛔ they are two sentences of ONE signed foreword, and a reader deciding whether "
+            "this printing carries the translator's own words needs exactly the question they "
+            "disagree about. ⭐ Taking the first alone would have retired this file's standing "
+            "refusal on the strength of a claim the same hand contradicts a paragraph later; "
+            "taking the second alone would assert an alteration the copy does not itemise"
+        ),
+        what_it_settles=(
+            "⭐⭐⭐ that a REVISER'S OWN ACCOUNT OF WHAT HE CHANGED IS NOT EVIDENCE OF WHAT HE "
+            "CHANGED - measured here rather than argued, because this one disagrees with "
+            "itself in a single paragraph. ⛔ It also settles that the earlier reading of the "
+            "unnamed copy's scoped disclaimer was an inference and not a measurement: *a "
+            "disclaimer scoped to one sutra is worth making only by a hand that alters "
+            "others* looked compelling because the copy in hand had lost its front matter, "
+            "and the copy that kept its front matter makes the same disclaimer generally"
+        ),
+    )
+
+    # ⭐⭐ How much a positive control is worth in each of the two copies, at the same
+    #    fragment length. ⛔ A cap is applied and it is stated: the number is a share over the
+    #    first 300 distinct runs of that length in document order, not over every run.
+    def _runs(source, pattern: str, length: int, cap: int = 300) -> list[str]:
+        seen: set[str] = set()
+        out: list[str] = []
+        for run in re.findall(pattern % (length - 1), source.normalised):
+            run = run.strip()
+            if len(run) == length and run not in seen:
+                seen.add(run)
+                out.append(run)
+                if len(out) >= cap:
+                    break
+        return out
+
+    noise_discrimination = discrimination_of_resolving_once(
+        library_scan, _runs(library_scan, r"[\u0900-\u097F][\u0900-\u097F\s]{%d}", 8)
+    )
+    book_discrimination = discrimination_of_resolving_once(
+        edition, _runs(edition, r"[A-Za-z][A-Za-z\s]{%d}", 8)
+    )
+
+    # ⭐⭐⭐ The measurement that says the script bucket had to be defined over LETTERS. Read
+    #    as a bare code-point range it reports six thousand Latin characters in the copy that
+    #    contains no Latin letter, and the guard built on it would have passed that copy.
+    punctuation_in_the_latin_block = sum(
+        1
+        for character in library_scan.normalised
+        if 0x0041 <= ord(character) <= 0x024F and not character.isalpha()
+    )
+
+    ten_candidate_ties = [
+        *(rule["fragment"] for rule in RULES),
+        *THIRD_PERSON_OF_THE_TRANSLATOR,
+        *SECOND_HAND_CLAIMS,
+    ]
+    ties_resolving_in_both = [
+        fragment
+        for fragment in ten_candidate_ties
+        if edition.normalised.count(normalise(fragment)) == 1
+        and fifth.normalised.count(normalise(fragment)) == 1
+    ]
+
+    refusals += [
+        Refusal(
+            subject=(
+                "the printing that declares itself the fifth as a witness to the "
+                "translator's own unrevised words"
+            ),
+            reason="revised_printing_cannot_witness_the_unrevised_words",
+            detail=(
+                "⭐⭐⭐ THE TEST WAS RUN AND THIS CANDIDATE FAILED IT, WHICH IS THE MOST "
+                "USEFUL THING IT COULD HAVE DONE. All twelve spellings marking the second "
+                "hand occur in it - 215 hits, twelve of twelve spellings - so it carries that "
+                "hand throughout. ⛔ And it says why in its own words: its title page reads "
+                "*Revised and Annotated by* a named hand, its imprint reads *Fifth Edition "
+                "1955*, and its signed foreword presents the fifth and revised edition. ⚠ Two "
+                "printings a reviser worked over agree about the revision, so a second such "
+                "printing can never be the witness this refusal asks for"
+            ),
+            what_would_close_it=(
+                "⛔ a printing carrying NONE of the twelve spellings, over a copy shown to be "
+                "readable IN THE SCRIPT THOSE SPELLINGS ARE WRITTEN IN. ⚠ Two candidates have "
+                "now failed in two different ways and neither failure was the absence of the "
+                "hand: one carries it and says so, the other returns eleven zeroes because "
+                "its machine reading contains no English at all"
+            ),
+        ),
+        Refusal(
+            subject=(
+                "any absence whatever measured over the library scan acquired this session"
+            ),
+            reason="rendering_carries_none_of_the_searched_script",
+            detail=(
+                "⛔⛔⛔ IT IS THE RIGHT WORK, IT WAS READ, AND IT WAS READ IN THE WRONG "
+                "ALPHABET. The archive's own machine reading of this scan carries 246 777 "
+                "searchable characters and NOT ONE LETTER OF THE LATIN ALPHABET, for a book "
+                "printed in English: the reader was set to an Indic script and returned a "
+                "quarter of a million characters of noise. ⭐ Eleven of the twelve spellings "
+                "return zero over it and the twelfth - the printed asterisk, which is not a "
+                "word - returns 128, so a test scored on the count alone comes within one "
+                "punctuation mark of declaring this copy free of the second hand. ⚠ Every "
+                "guard this repository owned before this session passes it: it is not "
+                "missing, not out of extent, and emphatically not mute"
+            ),
+            what_would_close_it=(
+                "a machine reading of this same scan produced in the script the book is "
+                "printed in, by its distributor. ⛔ Not by this repository: an absence over "
+                "our own machine reading is an absence over our own mistakes"
+            ),
+        ),
+        Refusal(
+            subject="which printing the copy every rule here resolves into actually is",
+            reason="place_in_the_work_not_established_across_copies",
+            detail=(
+                "⚠ THE PREREQUISITE NOBODY HAD STATED, AND IT IS STILL UNMET. The copy in "
+                "hand carries no title page, no imprint and no foreword; measured, the words "
+                "*edition*, *Preface*, *Copyright*, *Publisher*, *Published* and *Printed* "
+                "occur zero times in it. ⛔ A printing that names itself has now been "
+                "acquired, and matching the two by their words does not settle it either: of "
+                f"ten fragments resolving exactly once in the copy in hand, {len(ties_resolving_in_both)} "
+                "resolves exactly once in the naming copy too - the other nine occur ZERO "
+                "times there, and every one of the nine is present on the page in a slightly "
+                "different machine reading. ⭐⭐⭐ *A fragment that resolves in one machine "
+                "reading and not in a second machine reading of the same words measures the "
+                "two readings, not the two printings* - and a recorder scoring that as "
+                "agreement or as absence would publish either conclusion with equal "
+                "confidence"
+            ),
+            what_would_close_it=(
+                "an imprint, a title page or a copyright statement inside the copy in hand, "
+                "resolving there. ⛔ Not a filename, not a catalogue entry and not a "
+                "resemblance to another copy"
+            ),
+        ),
+    ]
+
+    controls += [
+        {
+            "finding": "control",
+            "control": "the_second_printing_test_was_run_and_no_candidate_passed_it",
+            "measured": {
+                "candidates": test_results,
+                "the_test": (
+                    "the twelve spellings by which the copy in hand marks its second "
+                    "commenting hand, searched over the WHOLE of each candidate, with zero "
+                    "required"
+                ),
+            },
+            # ⭐ Holds while no candidate passes. ⛔ It is written to FAIL the day one does,
+            #   because that is the day this file's standing refusal could be retired - and
+            #   the failure should be loud rather than a quiet change in a count.
+            "held": not any(
+                r["would_the_count_alone_have_passed_this_copy"] and r["edition"] != scanned.key
+                for r in test_results
+            ),
+            "meaning": (
+                "⭐⭐⭐ THREE COPIES, THREE ZEROES, THREE DIFFERENT REASONS, AND ONLY ONE OF "
+                "THEM IS ABOUT THE BOOK. The printing that declares itself the fifth carries "
+                "all twelve spellings 215 times and fails outright. The library scan returns "
+                "eleven zeroes out of twelve because its machine reading contains no English. "
+                "The 219-page printing returns twelve zeroes because it contains nothing at "
+                "all. ⛔ Scored on the count alone the second copy misses a clean pass by one "
+                "punctuation mark - and the printed asterisk is the only one of the twelve "
+                "spellings that is not a word"
+            ),
+        },
+        {
+            "finding": "control",
+            "control": "a_rendering_can_be_read_in_the_wrong_alphabet_and_pass_every_older_guard",
+            "measured": {
+                "edition": library_scan.key,
+                "searchable_characters": library_scan.searchable_characters,
+                "the_renderings_own_character_count": library_scan.rendering.characters,
+                "letters_of_the_alphabet_the_book_is_printed_in": library_scan.scripts.get(
+                    "latin", 0
+                ),
+                "letters_this_rendering_does_carry": [
+                    {"script": name, "letters": n}
+                    for name, n in sorted(library_scan.scripts.items())
+                ],
+                "characters_in_the_latin_block_that_are_not_letters": (
+                    punctuation_in_the_latin_block
+                ),
+                "would_the_mute_copy_guard_fire": not library_scan.carries_searchable_text,
+                "would_a_guard_written_characters_equals_zero_fire": (
+                    library_scan.rendering.characters == 0
+                ),
+                "what_the_latin_block_count_would_have_said": (
+                    "⛔⛔ 6 077, AND THIS REPOSITORY WROTE THAT NUMBER BEFORE IT CHECKED IT. "
+                    "Defined as a bare code-point range the Latin bucket counts every brace, "
+                    "bracket and sign that happens to live inside the block, so the guard "
+                    "built to catch a copy with no Latin letters reported six thousand Latin "
+                    "characters IN EXACTLY THAT COPY and passed it. ⭐ The bucket is defined "
+                    "over LETTERS now, and this row carries both numbers because the pair is "
+                    "the finding"
+                ),
+            },
+            "held": bool(
+                library_scan.carries_searchable_text
+                and library_scan.scripts.get("latin", 0) == 0
+                and punctuation_in_the_latin_block > 0
+            ),
+            "meaning": (
+                "⭐⭐⭐ A COPY THAT WAS READ, IN THE WRONG ALPHABET, IS STRICTLY MORE "
+                "DANGEROUS THAN A COPY THAT WAS NEVER READ. The mute printing fails every "
+                "check that asks whether anything was read; this one passes all of them - a "
+                "quarter of a million searchable characters - and still returns zero for "
+                "every English word in an English book. ⛔ This control holds only while all "
+                "three remain true: the copy is readable, it carries no letter of the searched "
+                "script, and its Latin block is nonetheless full of marks. Any one of them "
+                "changing means the guard has stopped describing the copy it was built for"
+            ),
+        },
+        {
+            "finding": "control",
+            "control": "resolving_exactly_once_filters_nothing_in_a_rendering_of_noise",
+            "measured": {
+                "in_the_copy_of_noise": noise_discrimination,
+                "in_a_copy_that_is_a_book": book_discrimination,
+                "fragment_length_compared": 8,
+                "the_cap_applied": (
+                    "the first 300 distinct runs of that length in document order, per copy. "
+                    "⛔ Stated because a cap nobody states reads as complete coverage"
+                ),
+                "the_control_this_copy_will_happily_provide": {
+                    "quoted": LIBRARY_SCAN_CONTROL_FROM_ITS_OWN_NOISE,
+                    "occurrences": library_scan.normalised.count(
+                        normalise(LIBRARY_SCAN_CONTROL_FROM_ITS_OWN_NOISE)
+                    ),
+                },
+            },
+            "held": bool(
+                noise_discrimination["share_resolving_exactly_once"]
+                > book_discrimination["share_resolving_exactly_once"]
+            ),
+            "meaning": (
+                "⭐⭐⭐ THE CONDITION THIS REPOSITORY LEANS ON HARDEST IS, IN ONE COPY, THE "
+                "EASIEST IN THE FILE TO SATISFY. A previous session armed every absence to "
+                "require a positive control resolving EXACTLY ONCE. Over the library scan 300 "
+                "of 300 eight-character fragments resolve exactly once, because nothing in a "
+                "noise rendering repeats; over a real book at the same length 129 of 300 do. "
+                "⛔ So a control quoted out of that copy's own noise is free to obtain, "
+                "resolves perfectly, and licenses a twelve-spelling absence in an alphabet "
+                "the rendering contains none of. ⇒ A control is now required to be written in "
+                "the SCRIPT THE ALPHABET IS WRITTEN IN, and that refusal is exercised against "
+                "a real copy carrying both scripts"
+            ),
+        },
+        {
+            "finding": "control",
+            "control": "the_hand_this_file_could_not_name_is_named_on_another_copys_page",
+            "measured": {
+                # ⚠ The naming itself is a ROW of its own in this file, not repeated here.
+                "the_row_that_carries_it": "hand_named_in_another_copy",
+                "the_name_as_the_other_copy_prints_it": THE_NAME_AS_THAT_COPY_PRINTS_IT,
+                "candidate_ties_tried": len(ten_candidate_ties),
+                "ties_resolving_exactly_once_in_both_copies": len(ties_resolving_in_both),
+                "why_nine_failed": (
+                    "⛔ NOT ABSENCE. Every one of the nine is on the page in both printings "
+                    "and the two machine readings spell it differently - a letter read as a "
+                    "digit, a word hyphenated across a line break, a quotation mark invented. "
+                    "⭐ A recorder scoring these as *the naming copy does not contain the "
+                    "rules* would publish nine absences that are facts about two OCR passes"
+                ),
+            },
+            "held": bool(len(ties_resolving_in_both) >= 1),
+            "meaning": (
+                "⭐⭐⭐ *THERE IS A SECOND HAND HERE AND THIS COPY DOES NOT SAY WHOSE* IS "
+                "ANSWERED, AND ONLY A COPY COULD ANSWER IT. The earlier refusal was never "
+                "that the hand was unguessable - it was that turning the books it claims into "
+                "a name would supply an authorship from the recorder's memory. A printing of "
+                "the same translation names it on its title page and again in a signed "
+                "foreword. ⛔ The tie between the two copies is ONE located fragment out of "
+                "ten tried, and that is why the tie is required: nine of ten candidates fail "
+                "on OCR difference alone"
+            ),
+        },
+        {
+            "finding": "control",
+            "control": "the_naming_copys_foreword_disagrees_with_itself_about_the_revision",
+            "measured": {
+                # ⚠ The two statements are a ROW of their own; the control asserts the shape.
+                "the_row_that_carries_it": "the_copy_disagrees_with_itself",
+                "edition": fifth.key,
+                "statements_located": len(foreword.statements),
+            },
+            "held": len(foreword.statements) == 2,
+            "meaning": (
+                "⛔⛔⛔ THE SENTENCE THAT WOULD HAVE RETIRED THIS FILE'S STANDING REFUSAL IS "
+                "CONTRADICTED BY ITS OWN AUTHOR A PARAGRAPH LATER. *I have not meddled with "
+                "either the translation or the notes as given by Prof. Rao* and *The "
+                "translation herewith presented has been thoroughly revised by me* are two "
+                "sentences of one signed foreword. ⭐ Neither is doubted and neither is "
+                "adopted: the pair is the finding, and what it settles is that a reviser's "
+                "own account of what he changed is not evidence of what he changed. ⚠ It also "
+                "retires an INFERENCE this file published - that a disclaimer scoped to one "
+                "sutra is worth making only by a hand that alters others - because the copy "
+                "that still has its front matter makes the same disclaimer generally, and the "
+                "scoped one is a repetition rather than a contrast"
+            ),
+        },
+    ]
+
     rows = rule_rows(edition, refusals)
     rows += corroboration_rows(second)
     rows.append(dict(WITHDRAWN))
     rows.append(hands.as_row())
+    # ⭐⭐⭐ The finding the test was not asking for, beside the finding that it produced.
+    rows.append(naming.as_row())
+    rows.append(foreword.as_row())
     rows.append({"finding": "alignment", **alignment.as_json()})
 
     absence = AbsenceSearch(
@@ -1238,7 +1804,9 @@ def main() -> int:
             "check out is evidence of nothing and reads as evidence"
         )
 
-    header = build_header(script, edition, second, scanned, len(RULES), refusals, controls)
+    header = build_header(
+        script, edition, second, scanned, fifth, library_scan, len(RULES), refusals, controls
+    )
     path = args.out / "textual" / "significator-series-rules.jsonl"
     count = write_jsonl(path, header, rows)
     print(f"wrote {count} rows -> {path}")

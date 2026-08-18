@@ -30,10 +30,12 @@ from saakshi.textual import (
     Edition,
     Fork,
     Locus,
+    NamedInAnotherCopy,
     PassageAbsence,
     Refusal,
     Rendering,
     SecondHand,
+    SelfContradiction,
     TableReading,
     TextualError,
     Witness,
@@ -44,8 +46,12 @@ from saakshi.textual import (
     measured_extent,
     normalise,
     read_integer_cells,
+    discrimination_of_resolving_once,
     read_integer_digits,
     reduce_by_trine_minimum,
+    script_of,
+    scripts_in,
+    scripts_required_by,
     refusal_summary,
     region,
     resolve,
@@ -1069,3 +1075,307 @@ def test_the_two_new_refusal_reasons_are_declared():
             detail="a detail",
             what_would_close_it="what would close it",
         )
+
+
+# ==========================================================================================
+# A COPY CAN BE READ IN THE WRONG ALPHABET, AND EVERY OLDER GUARD PASSES IT
+# ==========================================================================================
+
+#: A rendering of noise in an Indic script — a machine reading of an English book by a reader
+#: set to the wrong script. ⛔ Not hypothetical: a library scan in this repository's cache is
+#: 246 777 characters of exactly this, with no Latin letter in it.
+NOISE = "१९०६ छण ९१६११ ७००७९ अए0गा9०5 एणं {91 छऽ 25010 ४६४६ ७९ एन्वञप्रा ११६४ त २४०६२"
+
+#: ⚠ A rendering carrying BOTH scripts. This is the copy the control-script rule is for: it
+#: passes the script-presence check for a Latin alphabet, so only the control catches it.
+BILINGUAL = BODY + " आत्साधिकः कला दिभिनभोग: सप्तानासष्टानां वा"
+
+
+def test_script_of_ignores_marks_that_live_inside_a_script_block():
+    """⛔⛔ THE BUG THIS FIXES WAS WRITTEN IN THIS REPOSITORY AND MEASURED 6 077 TIMES.
+
+    Read as a bare code-point range the Latin bucket counts braces, brackets and signs, so
+    the guard built to catch a copy with no Latin LETTERS reported six thousand Latin
+    characters in exactly that copy — and passed it.
+    """
+    for mark in "{}[]^`|~\\_":
+        assert script_of(mark) is None
+    for digit in "0123456789":
+        assert script_of(digit) is None
+    assert script_of("A") == "latin"
+    assert script_of("आ") == "devanagari"
+    assert scripts_in("{[^`|~}") == {}
+
+
+def test_scripts_in_counts_letters_only():
+    counts = scripts_in("Rao [12] आत्मा")
+    assert counts["latin"] == 3
+    # ⚠ Three, not five: the virama and the vowel sign are combining marks, and a mark is
+    #   not a letter. ⭐ The same rule that keeps a brace out of the Latin count.
+    assert counts["devanagari"] == 3
+
+
+def test_a_term_that_is_only_a_mark_requires_no_script():
+    """⭐ The one spelling that is a printed mark must not stand in for eleven that are words."""
+    assert scripts_required_by(("*",)) == set()
+    assert scripts_required_by(("*", "Prof.")) == {"latin"}
+
+
+def test_absence_refuses_a_rendering_carrying_none_of_the_searched_script():
+    """⛔⛔⛔ THE COPY WAS READ, AND NOT IN THE ALPHABET THE CLAIM IS WRITTEN IN."""
+    copy = edition(NOISE)
+    assert copy.carries_searchable_text  # ⚠ every older guard passes it
+    assert copy.searchable_characters > 0
+    assert copy.scripts.get("latin", 0) == 0
+    with pytest.raises(TextualError) as excinfo:
+        AbsenceSearch(
+            claim="that this copy does not say it",
+            alphabet=("Prof.", "Professor"),
+            edition=copy,
+            occurrences=[],
+            what_the_hits_do_say=[],
+            positive_control="४६४६ ७९ एन्वञप्रा",
+        )
+    message = str(excinfo.value)
+    assert "no ['latin']" in message
+    # ⛔ And it must not blame the recorder for a silence that is the reading's.
+    assert "searchable characters" in message
+
+
+def test_absence_refuses_an_alphabet_written_in_no_script_at_all():
+    with pytest.raises(TextualError, match="written in no script"):
+        AbsenceSearch(
+            claim="that this copy does not print it",
+            alphabet=("*", "12"),
+            edition=edition(),
+            occurrences=[],
+            what_the_hits_do_say=[],
+            positive_control=CONTROL,
+        )
+
+
+def test_absence_refuses_a_positive_control_in_another_script():
+    """⭐⭐⭐ THE GUARD ARMED LAST TIME HAS ITS OWN FAILURE MODE, AND THIS IS IT.
+
+    The copy carries both scripts, so the script-presence check above passes. The control
+    resolves exactly once. ⛔ And it shows only that the copy was read in the script the
+    control is written in — which is not the script the zeroes were counted in.
+    """
+    copy = edition(BILINGUAL)
+    assert copy.scripts["latin"] > 0 and copy.scripts["devanagari"] > 0
+    assert resolve(copy, "आत्साधिकः कला").occurrences == 1
+    with pytest.raises(TextualError, match="control is written in"):
+        AbsenceSearch(
+            claim="that this copy does not say it",
+            alphabet=("Professor", "Prof."),
+            edition=copy,
+            occurrences=[],
+            what_the_hits_do_say=[],
+            positive_control="आत्साधिकः कला",
+        )
+
+
+def test_absence_accepts_a_control_in_the_alphabets_own_script():
+    """⚠ The null control: the same row with a control in the right script is written."""
+    row = AbsenceSearch(
+        claim="that this copy does not say it",
+        alphabet=("Professor", "Prof."),
+        edition=edition(BILINGUAL),
+        occurrences=[],
+        what_the_hits_do_say=[],
+        positive_control=CONTROL,
+    ).as_row()
+    assert row["hits_in_total"] == 0
+
+
+def test_passage_absence_names_the_script_before_it_blames_the_alphabet():
+    """⛔⛔ THE FIX THAT NAMED THE RIGHT CAUSE WAS WRITTEN FOR ONE CAUSE.
+
+    The mute-copy check was moved ahead of attestation because over a blank copy attestation
+    fires and reports that the recorder GUESSED the vocabulary. ⚠ A copy read in the wrong
+    script does it again, and the previous fix does not cover it: the spellings are genuinely
+    unattested there, and the cause is the machine reading.
+    """
+    with pytest.raises(TextualError) as excinfo:
+        PassageAbsence(
+            claim="that the passage does not say it",
+            edition=edition(NOISE),
+            passage_label="a passage",
+            after="४६४६",
+            before="२४०६२",
+            alphabet=("Prof.", "Professor"),
+            alphabet_read_from="the other printing, where each is attested",
+        )
+    message = str(excinfo.value)
+    assert "wrong script" in message
+    # ⛔ And it must DENY the wrong cause rather than report it: the attestation rule below
+    #   would have said these spellings were guessed, which is a vocabulary nobody got wrong.
+    assert "NOT a guessed alphabet" in message
+    assert "so they were guessed rather than read off it" not in message
+
+
+def test_discrimination_of_resolving_once_is_total_in_a_rendering_of_noise():
+    """⭐⭐⭐ THE CONDITION THIS REPOSITORY LEANS ON HARDEST FILTERS NOTHING THERE."""
+    noise = edition(NOISE)
+    fragments = [NOISE[i : i + 8] for i in range(0, len(NOISE) - 8, 8)]
+    measured = discrimination_of_resolving_once(noise, fragments)
+    assert measured["share_resolving_exactly_once"] == 1.0
+    book = discrimination_of_resolving_once(
+        edition(), ["a phrase repeated twice", "Chapter one."]
+    )
+    assert book["resolving_more_than_once"] == 1
+    assert book["share_resolving_exactly_once"] == 0.5
+
+
+# ==========================================================================================
+# A HAND ONE COPY CANNOT NAME, NAMED BY ANOTHER COPY
+# ==========================================================================================
+
+UNNAMED = (
+    "Though the translator has elucidated the abbreviations I propose to observe further.\n"
+    "* I have discussed this at length in my book Studies in the Subject.\n"
+    "The rest is clear from the translator's notes.\n"
+)
+NAMING = (
+    "Revised and Annotated by A NAMED HAND. Fifth Edition 1955.\n"
+    "* I have discussed this at length in my book Studies in the Subject.\n"
+    "FOREWORD. I have not meddled with the notes. The translation has been revised by me.\n"
+)
+
+
+def _named_in_another_copy(**overrides):
+    kwargs = dict(
+        the_hand="the hand the first copy cannot name",
+        unnamed_in=edition(UNNAMED),
+        named_in=Edition(
+            key="naming_copy",
+            identity="a second copy built for this test",
+            language="en",
+            witness=Witness(
+                address="https://example.invalid/second.txt",
+                retrieved="2026-08-18",
+                http_status=200,
+                copy_sha256="1" * 64,
+                copy_bytes=len(NAMING),
+            ),
+            rendering=Rendering(
+                kind="transcription",
+                produced_by="this test",
+                sha256=digest(NAMING),
+                characters=len(NAMING),
+            ),
+            extent={"describes": "the whole of it", "complete": True},
+            text=NAMING,
+        ),
+        the_name_as_that_copy_prints_it="A NAMED HAND",
+        the_passage_that_names_it="Revised and Annotated by A NAMED HAND.",
+        the_printing_that_copy_declares="Fifth Edition 1955.",
+        tied_to_the_unnamed_hand_by=(
+            "* I have discussed this at length in my book Studies in the Subject.",
+        ),
+        what_this_does_not_establish="which printing the unnamed copy is",
+    )
+    kwargs.update(overrides)
+    return NamedInAnotherCopy(**kwargs)
+
+
+def test_a_hand_is_named_by_the_other_copys_page():
+    row = _named_in_another_copy().as_row()
+    assert row["finding"] == "hand_named_in_another_copy"
+    assert row["the_name_occurs_in_the_unnamed_copy"] == 0
+    assert row["tied_to_the_unnamed_hand_by"][0]["occurrences_in_the_unnamed_copy"] == 1
+    assert row["tied_to_the_unnamed_hand_by"][0]["occurrences_in_the_naming_copy"] == 1
+
+
+def test_naming_refuses_when_one_copy_is_asked_to_do_both_jobs():
+    with pytest.raises(TextualError, match="it is a re-reading"):
+        _named_in_another_copy(unnamed_in=_named_in_another_copy().named_in)
+
+
+def test_naming_refuses_an_unresolved_naming_passage():
+    with pytest.raises(TextualError, match="locates nothing"):
+        _named_in_another_copy(the_passage_that_names_it="Revised by somebody else.")
+
+
+def test_naming_refuses_when_the_name_is_in_the_copy_said_not_to_name_it():
+    """⛔ Then the earlier *cannot be named from this copy* was wrong, and THAT is the finding."""
+    with pytest.raises(TextualError, match="said not to name the hand"):
+        _named_in_another_copy(
+            unnamed_in=edition(UNNAMED + "Annotated by A NAMED HAND.\n"),
+        )
+
+
+def test_naming_refuses_without_a_tie():
+    with pytest.raises(TextualError, match="until something located ties them"):
+        _named_in_another_copy(tied_to_the_unnamed_hand_by=())
+
+
+def test_naming_refuses_a_tie_that_resolves_on_only_one_side():
+    """⭐⭐⭐ NINE OF TEN REAL CANDIDATES FAIL HERE, AND NONE OF THE NINE IS AN ABSENCE.
+
+    Two machine readings of the same sentence spell it differently, so a fragment resolving
+    in one and not the other measures the readings and not the printings.
+    """
+    with pytest.raises(TextualError, match="ties nothing"):
+        _named_in_another_copy(
+            tied_to_the_unnamed_hand_by=("The rest is clear from the translator's notes.",)
+        )
+
+
+# ==========================================================================================
+# A COPY THAT DISAGREES WITH ITSELF
+# ==========================================================================================
+
+
+def test_a_copy_can_disagree_with_itself_and_the_pair_is_the_finding():
+    row = SelfContradiction(
+        edition=edition(NAMING),
+        the_hand="the reviser",
+        statements=(
+            ("that nothing was altered", "I have not meddled with the notes."),
+            ("that it was revised", "The translation has been revised by me."),
+        ),
+        why_they_cannot_both_be_relied_on="a reader needs the question they disagree about",
+        what_it_settles="that this copy is not the authority for what was altered",
+    ).as_row()
+    assert row["finding"] == "the_copy_disagrees_with_itself"
+    assert [s["occurrences"] for s in row["statements"]] == [1, 1]
+
+
+def test_one_statement_is_not_a_contradiction():
+    with pytest.raises(TextualError, match="one statement is not a contradiction"):
+        SelfContradiction(
+            edition=edition(NAMING),
+            the_hand="the reviser",
+            statements=(("that nothing was altered", "I have not meddled with the notes."),),
+            why_they_cannot_both_be_relied_on="x",
+            what_it_settles="y",
+        )
+
+
+def test_a_contradiction_is_between_two_located_statements():
+    with pytest.raises(TextualError, match="locates nothing"):
+        SelfContradiction(
+            edition=edition(NAMING),
+            the_hand="the reviser",
+            statements=(
+                ("that nothing was altered", "I have not meddled with the notes."),
+                ("that it was revised", "A sentence this copy does not contain."),
+            ),
+            why_they_cannot_both_be_relied_on="x",
+            what_it_settles="y",
+        )
+
+
+def test_the_edition_publishes_its_scripts_beside_its_searchable_count():
+    """⭐ The pair is the finding one level down: readable, and not in the book's alphabet."""
+    published = edition(NOISE).as_json()["searchable"]
+    assert published["characters_a_locus_can_resolve_against"] > 0
+    scripts = {row["script"]: row["code_points"] for row in published["scripts_this_rendering_carries"]}
+    assert "latin" not in scripts
+    assert scripts["devanagari"] > 0
+
+
+def test_the_two_new_refusal_reasons_are_declared():
+    assert "rendering_carries_none_of_the_searched_script" in REFUSAL_REASONS
+    assert "positive_control_is_not_in_the_searched_script" in REFUSAL_REASONS

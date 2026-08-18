@@ -239,6 +239,66 @@ def _scanned_printing_extent(text: str) -> dict[str, Any]:
     )
 
 
+def _fifth_edition_extent(text: str) -> dict[str, Any]:
+    """What the printing that declares itself the fifth contains, from its own markers.
+
+    ⚠ The closing formula is looked for in the two forms this translation prints it in, and
+    five of eight resolve in this machine reading against the spellings that were read off
+    the OTHER printing of the same translation. ⛔ The three that do not are not missing from
+    the book: this is a second machine reading of a second scan, and two readings of one
+    sentence differ. ⇒ Reported as found and not-found rather than repaired, and the extent
+    this copy DECLARES - the first two adhyayas, stated in its own signed foreword - is
+    recorded beside the markers rather than substituted for them.
+    """
+    return measured_extent(
+        text,
+        markers=_JAIMINI_PADAS,
+        describes=(
+            "the padas whose closing marker resolves in this machine reading, looked for in "
+            "the spellings read off the other printing of this same translation. ⚠ This copy "
+            "also STATES its own extent, in a signed foreword: the first two adhyayas. A "
+            "stated extent and a measured one are two different things and both are here"
+        ),
+        beyond=(
+            "nothing. ⛔ A marker not found here is not a division missing from the book - it "
+            "is a division whose closing sentence this second machine reading spelled "
+            "differently from the first, and repairing it against the other copy's spelling "
+            "would make an extent resolve against a document that exists only here"
+        ),
+    )
+
+
+def _library_scan_extent(text: str) -> dict[str, Any]:
+    """What a machine reading in the wrong script establishes about an English book. ⛔ Nothing.
+
+    ⭐⭐⭐ **THIS EXTENT IS ZERO OVER A QUARTER OF A MILLION CHARACTERS, AND THAT IS A MORE
+    DANGEROUS STATE THAN A COPY THAT RENDERS TO NOTHING.** The copy is a real scan of the
+    right work, retrieved from a public archive and digested. Its machine reading carries
+    **246 777 searchable characters and not one letter of the Latin alphabet**: the reader was
+    set to an Indic script and returned a quarter of a million characters of noise for a book
+    printed in English. ⛔ So every guard this repository owns that asks whether a copy was
+    read at all answers YES for it, and every English spelling searched in it returns zero.
+    """
+    return measured_extent(
+        text,
+        markers=_JAIMINI_PADAS,
+        describes=(
+            "the padas whose closing marker is printed in this copy - of which NONE resolves, "
+            "though the rendering is a quarter of a million characters long. ⛔ The markers "
+            "are printed in English and this machine reading contains no English"
+        ),
+        beyond=(
+            "⛔⛔⛔ NOTHING WHATEVER, AND UNLIKE A BLANK COPY IT DOES NOT LOOK LIKE NOTHING. "
+            "The rendering carries 246 777 characters a locus could in principle resolve "
+            "against and zero characters of the alphabet the book is printed in, so a check "
+            "asking whether this copy was READ answers yes and a search for any English word "
+            "in it answers zero. ⚠ An absence measured over it would be an absence over a "
+            "machine reading that cannot express the thing being searched for, and it would "
+            "print exactly the same reassuring zeroes as a copy that genuinely omits the rule"
+        ),
+    )
+
+
 def _bphs_extent(text: str) -> dict[str, Any]:
     return measured_extent(
         text,
@@ -295,6 +355,59 @@ SOURCES: dict[str, Source] = {
         rendering_kind="embedded_text_layer",
         render=_pdf_text_layer,
         extent=_scanned_printing_extent,
+    ),
+    #: ⭐⭐⭐ THE CANDIDATE THE STANDING TEST ASKED FOR, AND IT FAILS THE TEST BY SAYING WHY.
+    #: A printing of the same translation that carries its own title page, its own imprint and
+    #: a SIGNED foreword. ⛔ All twelve spellings marking the second commenting hand occur in
+    #: it, so it cannot witness the unrevised words either - and it is the copy that turns
+    #: *there is a second hand here and this copy does not say whose* into a located name.
+    "jaimini_sutras_rao_fifth_edition": Source(
+        key="jaimini_sutras_rao_fifth_edition",
+        identity=(
+            "Jaiminisutras, English translation with full notes and original texts in "
+            "Devanagari and transliteration by Bangalore Suryanarain Rao, revised and "
+            "annotated by Bangalore Venkata Raman; a machine reading of a scan as "
+            "distributed by a public archive. ⭐ UNLIKE EVERY OTHER COPY HERE THIS ONE STATES "
+            "ITS OWN PRINTING: its imprint reads *Fifth Edition 1955* and its foreword "
+            "presents *the fifth and revised edition of the English translation of the first "
+            "two adhyayas*, signed. ⛔ Both statements are the copy's, located and resolving "
+            "exactly once; neither is corroborated from anywhere else"
+        ),
+        language="en",
+        address=(
+            "https://archive.org/download/Jaiminisutras1955EditionByBSRao/"
+            "Jaiminisutras%201955%20Edition%20by%20B%20S%20Rao_djvu.txt"
+        ),
+        filename="jaimini-sutras-rao-fifth-edition.txt",
+        rendering_kind="optical_character_recognition",
+        render=_plain_text,
+        extent=_fifth_edition_extent,
+    ),
+    #: ⛔⛔⛔ THE SECOND CANDIDATE, AND IT IS THE TRAP. A library scan of a printing of the
+    #: same translation, dated 1949 by its catalogue. Eleven of the twelve second-hand
+    #: spellings return ZERO over it - a textbook absence - and they return zero because the
+    #: machine reading contains no English at all. ⚠ Kept in this table for exactly that
+    #: reason: it is the copy against which *the copy was shown to have been read* has to be
+    #: a real check rather than a character count.
+    "jaimini_sutras_rao_library_scan": Source(
+        key="jaimini_sutras_rao_library_scan",
+        identity=(
+            "a scan catalogued as the Jaimini Sutras of B. Suryanarain Rao, dated 1949, as "
+            "distributed by a public archive; the archive's own machine reading of it. ⛔ THE "
+            "RENDERING ATTESTS NONE OF THAT AND CANNOT. It carries a quarter of a million "
+            "characters and not one letter of the Latin alphabet, for a book printed in "
+            "English - the reader was set to an Indic script and returned noise. ⚠ Work, "
+            "translator and date are known here only from the archive's catalogue"
+        ),
+        language="en",
+        address=(
+            "https://archive.org/download/in.ernet.dli.2015.486584/"
+            "2015.486584.Jaimini-Sutras_djvu.txt"
+        ),
+        filename="jaimini-sutras-rao-library-scan.txt",
+        rendering_kind="optical_character_recognition",
+        render=_plain_text,
+        extent=_library_scan_extent,
     ),
     "jaimini_sutram_mishra": Source(
         key="jaimini_sutram_mishra",
