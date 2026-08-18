@@ -723,6 +723,250 @@ class AbsenceSearch:
         }
 
 
+# --------------------------------------------------------------------------------------
+# Whether an alphabet marks the hand it claims to mark, and whether a zero survives a
+# second reader
+# --------------------------------------------------------------------------------------
+
+
+def alphabet_contamination(
+    alphabet: Sequence[str],
+    edition: "Edition",
+    must_not_mark: Sequence[tuple[str, str]],
+) -> list[dict[str, Any]]:
+    """Which spellings of a marker alphabet fire on material the marker does not mark.
+
+    ⛔ **A SPELLING THAT OCCURS IN THE OTHER HAND'S WORDS MARKS NEITHER HAND.** `must_not_mark`
+    is a sequence of `(what it is, the passage)`; each passage must resolve exactly once, and
+    any spelling occurring inside one is reported here with the passage that refutes it.
+
+    ⚠ Returned rather than raised, because the contamination is the measurement. The refusal
+    is `MarkerAlphabet`, which will not construct while this is non-empty.
+    """
+    found: list[dict[str, Any]] = []
+    for spelling in alphabet:
+        needle = normalise(spelling).lower()
+        if not needle:
+            continue
+        for what, passage in must_not_mark:
+            body = normalise(passage).lower()
+            if needle in body:
+                found.append(
+                    {
+                        "spelling": spelling,
+                        "also_marks": what,
+                        "the_passage_that_refutes_it": normalise(passage),
+                        "that_passage_occurs_in_the_copy": resolve(edition, passage).occurrences,
+                    }
+                )
+    return found
+
+
+@dataclass(frozen=True)
+class MarkerAlphabet:
+    """The spellings by which a copy marks ONE hand's material, checked for discrimination.
+
+    ⭐⭐⭐ **AN ALPHABET READ OFF A COPY THAT CARRIES TWO HANDS INHERITS BOTH OF THEM.** The
+    twelve spellings this repository marks a second commenting hand by were read off a copy in
+    which that hand and the translator are printed on the same pages, and three of the twelve
+    turn out to fire on things every printing of the work necessarily has:
+
+    * the honorific by which the **translator himself** is named on his own title page, so a
+      zero could only be reached by a printing that does not name its translator;
+    * the footnote mark, which is typography and not a word at all;
+    * and a phrase in the translation of **the first sutra** - *I shall now explain my work* -
+      which is the primary text speaking, located and resolving exactly once in every copy
+      held here.
+
+    ⛔⛔⛔ *THE TEST WOULD HAVE REJECTED THE PRINTING IT WAS BUILT TO FIND.* A search for a
+    printing free of the second hand, scored on this alphabet, must fail over an unrevised
+    printing too - because an unrevised printing still contains sutra 1 and still names its
+    translator. ⇒ Three candidate printings failed this test in three different ways, and
+    none of the three failures was the presence of the hand.
+
+    ⚠ This class refuses to construct while any spelling is contaminated, so a contaminated
+    alphabet cannot license an absence. The measurement itself is
+    `alphabet_contamination`, which is always computable and is what gets published.
+    """
+
+    #: What the alphabet claims to mark. ⚠ A description of a hand, never a name.
+    marks: str
+    alphabet: Sequence[str]
+    edition: Edition
+    #: `(what it is, the passage)` for material this alphabet must NOT mark. ⛔ Each passage
+    #: must resolve exactly once in the copy, or it locates nothing and refutes nothing.
+    must_not_mark: Sequence[tuple[str, str]]
+
+    def __post_init__(self) -> None:
+        if not self.edition.carries_searchable_text:
+            raise TextualError(
+                f"{self.edition.key}: an alphabet cannot be checked for discrimination "
+                "against a copy that renders to no searchable text. ⛔ Every passage would "
+                "resolve zero times and every spelling would look clean"
+            )
+        if not self.must_not_mark:
+            raise TextualError(
+                f"{self.edition.key}: an alphabet that marks {self.marks!r} is discriminating "
+                "only against something. ⛔ No passage of the material it must NOT mark was "
+                "given, so nothing was checked and the check would report success"
+            )
+        for what, passage in self.must_not_mark:
+            found = resolve(self.edition, passage)
+            if not found.resolved:
+                raise TextualError(
+                    f"{self.edition.key}: the passage given for {what!r} occurs "
+                    f"{found.occurrences} time(s), so it locates nothing. ⛔ A spelling can "
+                    "only be refuted by words shown to be in the copy"
+                )
+        contamination = alphabet_contamination(self.alphabet, self.edition, self.must_not_mark)
+        if contamination:
+            named = ", ".join(sorted({str(c["spelling"]) for c in contamination}))
+            raise TextualError(
+                f"{self.edition.key}: the alphabet claims to mark {self.marks}, and "
+                f"{len(contamination)} of its spelling(s) occur in material it must not mark "
+                f"- {named}. ⛔⛔⛔ AN ABSENCE SCORED ON THIS ALPHABET IS UNREACHABLE BY ANY "
+                "COPY OF THIS WORK, INCLUDING THE ONE IT WAS BUILT TO FIND: the contaminated "
+                "spellings are the translator's own honorific, the printer's footnote mark "
+                "and a phrase of the first sutra, and a printing free of the second hand "
+                "carries all three"
+            )
+
+    def as_row(self) -> dict[str, Any]:
+        return {
+            "finding": "alphabet_discriminates",
+            "marks": self.marks,
+            "edition": self.edition.key,
+            "spellings": list(self.alphabet),
+            "checked_against": [
+                {
+                    "what_it_is": what,
+                    "quoted": normalise(passage),
+                    "occurrences": resolve(self.edition, passage).occurrences,
+                }
+                for what, passage in self.must_not_mark
+            ],
+            "contaminated_spellings": [],
+            "limit": (
+                "⛔ discriminating against the passages listed, and against nothing else. A "
+                "spelling that fires on material nobody thought to check here is a spelling "
+                "this row does not catch, which is why the passages are quoted rather than "
+                "summarised"
+            ),
+        }
+
+
+def reading_disagreement(
+    alphabet: Sequence[str], readings: Sequence["Edition"]
+) -> list[dict[str, Any]]:
+    """The spellings whose zero / not-zero verdict differs between readings of one edition.
+
+    ⛔ **A ZERO IS A PROPERTY OF A READING UNTIL A SECOND READER AGREES WITH IT.** Returned
+    rather than raised: the disagreement is the measurement, and `AbsenceAcrossReadings` is
+    the refusal built on it.
+    """
+    out: list[dict[str, Any]] = []
+    for spelling in alphabet:
+        needle = normalise(spelling).lower()
+        counts = [reading.normalised.lower().count(needle) for reading in readings]
+        if (min(counts) == 0) != (max(counts) == 0):
+            out.append(
+                {
+                    "spelling": spelling,
+                    "hits_by_reading": [
+                        {"reading": reading.key, "hits": count}
+                        for reading, count in zip(readings, counts)
+                    ],
+                    "verdict": (
+                        "⛔ present on the page and lost by at least one reader. A zero here "
+                        "is a fact about that reader"
+                    ),
+                }
+            )
+    return out
+
+
+@dataclass(frozen=True)
+class AbsenceAcrossReadings:
+    """An absence claimed of a PRINTING, checked against every held reading of that printing.
+
+    ⭐⭐⭐ **THE SAME EDITION, READ THREE TIMES, GIVES THREE DIFFERENT ANSWERS.** Four of the
+    twelve spellings marking the second commenting hand flip between zero and not-zero across
+    three machine readings of one edition - among them the hand's own claim of a book, which
+    is printed on the page and which two of the three readers lose. ⛔ So a *clean pass* on
+    the standing second-printing test, had one ever been obtained, would have measured the
+    reader and not the printing; and this is measured on copies held, not argued.
+
+    ⚠ **The readings must be shown to be of one edition**, by a fragment resolving exactly
+    once in every one of them. Without that tie this class would be comparing two books and
+    calling their difference an OCR error - which is the mirror image of the mistake it
+    exists to catch.
+    """
+
+    claim: str
+    alphabet: Sequence[str]
+    #: ⛔ Every held rendering of the one printing. At least two, or nothing is checked.
+    readings: Sequence[Edition]
+    #: ⛔ A fragment resolving EXACTLY ONCE in every reading. It is what makes them one
+    #: edition rather than two books.
+    the_readings_are_of_one_edition_because: str
+
+    def __post_init__(self) -> None:
+        if len(self.readings) < 2:
+            raise TextualError(
+                "an absence over a printing is checked by disagreement between readings of "
+                f"it, and {len(self.readings)} reading(s) were given. ⛔ One reading agrees "
+                "with itself perfectly, and that is the state this guard exists to refuse"
+            )
+        for reading in self.readings:
+            if not reading.carries_searchable_text:
+                raise TextualError(
+                    f"{reading.key}: a reading that carries no searchable text agrees with "
+                    "every absence. ⛔ It cannot stand as a check on one"
+                )
+            found = resolve(reading, self.the_readings_are_of_one_edition_because)
+            if not found.resolved:
+                raise TextualError(
+                    f"{reading.key}: the fragment tying these readings to one edition occurs "
+                    f"{found.occurrences} time(s) here. ⛔ Without it these are two books, and "
+                    "their disagreement would be a difference between printings misread as a "
+                    "difference between readers"
+                )
+        disagreement = reading_disagreement(self.alphabet, self.readings)
+        if disagreement:
+            named = ", ".join(str(d["spelling"]) for d in disagreement)
+            raise TextualError(
+                f"{len(disagreement)} spelling(s) of this alphabet are found by one reading "
+                f"of this edition and lost by another - {named}. ⛔⛔ AN ABSENCE OVER ANY ONE "
+                "OF THESE READINGS WOULD BE A PROPERTY OF THAT READING. The marks are on the "
+                "page; which of them a search returns depends on which machine read the scan"
+            )
+
+    def as_row(self) -> dict[str, Any]:
+        return {
+            "finding": "absence_survives_a_second_reader",
+            "claim": self.claim,
+            "readings": [reading.key for reading in self.readings],
+            "the_readings_are_of_one_edition_because": {
+                "quoted": normalise(self.the_readings_are_of_one_edition_because),
+                "occurrences_by_reading": [
+                    {
+                        "reading": reading.key,
+                        "occurrences": resolve(
+                            reading, self.the_readings_are_of_one_edition_because
+                        ).occurrences,
+                    }
+                    for reading in self.readings
+                ],
+            },
+            "spellings_whose_verdict_differs_between_readings": [],
+            "limit": (
+                "⛔ agreement between the readings held, and nothing more. A fourth reader "
+                "may lose a word all three of these found, so this row bounds a zero rather "
+                "than establishing one"
+            ),
+        }
+
+
 @dataclass(frozen=True)
 class PassageAbsence:
     """That a **located passage** does not state something — bounded by the passage.

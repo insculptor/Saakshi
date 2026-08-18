@@ -299,6 +299,72 @@ def _library_scan_extent(text: str) -> dict[str, Any]:
     )
 
 
+def _third_edition_extent(text: str) -> dict[str, Any]:
+    """What the printing that declares itself the THIRD contains, from its own markers.
+
+    ⭐⭐⭐ **THIS IS THE COPY THIS REPOSITORY HELD AS MUTE.** A previous session acquired a
+    printing of this work as 219 pages of scanned page images whose rendering carried no text
+    at all, and recorded of it that it attested *nothing whatever, and that includes its own
+    identity*. The PDF a public archive distributes under this edition is **byte-identical to
+    that copy** - the same 13 905 548 bytes, the same SHA-1, checked against the archive's own
+    manifest - and the archive publishes a machine reading of it carrying 205 055 Latin
+    letters. ⛔ The muteness was a property of the rendering this repository made, never of
+    the copy: *a copy that renders to nothing in one reader is not a copy that says nothing.*
+
+    ⚠ And what the copy says first is its own printing: a signed foreword presenting *the
+    third and revised edition*, a title page naming the translator, and a line naming the
+    reviser as his grandson. ⇒ The identity the earlier extent said this copy could never
+    attest is on its first page, and was never unavailable - it was unread.
+    """
+    return measured_extent(
+        text,
+        markers=_JAIMINI_PADAS,
+        describes=(
+            "the padas whose closing marker resolves in this machine reading, looked for in "
+            "the spellings read off the other printings of this same translation. ⚠ This "
+            "copy also STATES its own printing, in a signed and dated foreword - the third "
+            "and revised edition - and a stated printing and a measured extent are two "
+            "different things, so both are here"
+        ),
+        beyond=(
+            "nothing. ⛔ A marker not found here is a division whose closing sentence this "
+            "machine reading spelled differently from the others, not a division missing "
+            "from the book. ⚠⚠ AND NOTHING ABOUT THE UNREVISED WORDS: this printing names "
+            "itself the THIRD revised edition and names the hand that revised it, so it "
+            "stands on the same side of the standing refusal as the fifth does. An earlier "
+            "printing is a thing this copy establishes EXISTED - a third edition presupposes "
+            "a first - and it is not what this copy is"
+        ),
+    )
+
+
+def _third_edition_reading_extent(text: str) -> dict[str, Any]:
+    """What a FURTHER machine reading of one edition establishes about the printed book.
+
+    ⭐⭐⭐ **THREE MACHINE READINGS OF ONE EDITION DISAGREE ABOUT WHETHER FOUR OF TWELVE
+    SPELLINGS ARE ON THE PAGE AT ALL.** These copies are in this table so that an absence
+    claimed of a *printing* can be checked against every reading of it that is held, instead
+    of against whichever reading happened to be loaded. ⚠ A mark that is printed and that one
+    reader loses returns a zero indistinguishable from a mark that was never printed.
+    """
+    return measured_extent(
+        text,
+        markers=_JAIMINI_PADAS,
+        describes=(
+            "the padas whose closing marker resolves in THIS machine reading. ⛔ A count here "
+            "is a property of this reading and of the search together, and the same count "
+            "taken over the other readings of the same edition does not match it"
+        ),
+        beyond=(
+            "⛔⛔ nothing about the printed book that the other held readings of this edition "
+            "do not also have to agree to. This copy is kept in order to BE DISAGREED WITH: "
+            "it is one of three renderings of one edition, and the spellings whose "
+            "zero/non-zero verdict differs between them are the measurement it exists to "
+            "supply"
+        ),
+    )
+
+
 def _bphs_extent(text: str) -> dict[str, Any]:
     return measured_extent(
         text,
@@ -408,6 +474,78 @@ SOURCES: dict[str, Source] = {
         rendering_kind="optical_character_recognition",
         render=_plain_text,
         extent=_library_scan_extent,
+    ),
+    #: ⭐⭐⭐ THE COPY THIS FILE HELD AS MUTE, READ. Byte-identical to the 219-page printing
+    #: whose rendering carries no text - same bytes, same SHA-1 - and a public archive
+    #: publishes a machine reading of it carrying 205 055 Latin letters. ⛔ The muteness was a
+    #: property of the rendering, never of the copy, and this copy's first page states the
+    #: printing the earlier extent said it could never attest.
+    "jaimini_sutras_rao_third_edition": Source(
+        key="jaimini_sutras_rao_third_edition",
+        identity=(
+            "Jaiminisutras, English translation with full notes and original texts in "
+            "Sanscrit and transliteration by Professor B. Suryanarain Rao, revised and "
+            "edited by his grandson B. V. Raman; a public archive's machine reading of a "
+            "scan. ⭐⭐⭐ THE SCANNED PDF THIS READING WAS MADE FROM IS BYTE-IDENTICAL TO THE "
+            "COPY THIS REPOSITORY HOLDS AS *RENDERS TO NOTHING* - 13 905 548 bytes, SHA-1 "
+            "cdf112dfa3d061658daf5e55a4c2e35337db5f5a, checked against the archive's own "
+            "manifest. ⭐ IT STATES ITS OWN PRINTING: a signed foreword dated Bangalore, "
+            "16-11-1949, presents *the third and revised edition*. ⛔ That statement is this "
+            "copy's own, and nothing corroborates it"
+        ),
+        language="en",
+        address=(
+            "https://archive.org/download/Astrology_Books_by_B_Suryanarayana_Row/"
+            "Jaimini%20Sutras%20-%20B%20Suryanarain%20Rao%201949_djvu.txt"
+        ),
+        filename="jaimini-sutras-rao-1949-printing.txt",
+        rendering_kind="optical_character_recognition",
+        render=_plain_text,
+        extent=_third_edition_extent,
+    ),
+    #: ⛔ A SECOND MACHINE READING OF THE SAME EDITION, held in order to be disagreed with. It
+    #: carries the same signed foreword presenting the third and revised edition, and it loses
+    #: marks the first reading finds.
+    "jaimini_sutras_rao_third_edition_second_reading": Source(
+        key="jaimini_sutras_rao_third_edition_second_reading",
+        identity=(
+            "a library scan catalogued as Jaiminisutras English Translation, carrying the "
+            "same signed foreword presenting the third and revised edition; a public "
+            "archive's machine reading of it. ⚠ Held as a SECOND READING of that edition and "
+            "not as a further printing: what ties it to the first is a located fragment of "
+            "the foreword resolving exactly once in each"
+        ),
+        language="en",
+        address=(
+            "https://archive.org/download/in.ernet.dli.2015.134405/"
+            "2015.134405.Jaiminisutras-English-Translation_djvu.txt"
+        ),
+        filename="jaimini-sutras-rao-third-edition-second-reading.txt",
+        rendering_kind="optical_character_recognition",
+        render=_plain_text,
+        extent=_third_edition_reading_extent,
+    ),
+    #: ⛔ A THIRD MACHINE READING OF THE SAME EDITION. ⚠ It loses the founding sutra's own
+    #: translated line, which resolves exactly once in the other two - so the passage every
+    #: rule in this file hangs from is simply not in this rendering of the same book.
+    "jaimini_sutras_rao_third_edition_third_reading": Source(
+        key="jaimini_sutras_rao_third_edition_third_reading",
+        identity=(
+            "a second library scan catalogued as Jaiminisutras English Translation, of the "
+            "same edition; a public archive's machine reading of it. ⚠ Held as a THIRD "
+            "READING, and the least legible of the three: the foreword sentence naming the "
+            "edition does not resolve in it at all, though the sentence naming the "
+            "translator as the reviser's grandfather does"
+        ),
+        language="en",
+        address=(
+            "https://archive.org/download/in.ernet.dli.2015.142198/"
+            "2015.142198.Jaiminisutras-English-Translation_djvu.txt"
+        ),
+        filename="jaimini-sutras-rao-third-edition-third-reading.txt",
+        rendering_kind="optical_character_recognition",
+        render=_plain_text,
+        extent=_third_edition_reading_extent,
     ),
     "jaimini_sutram_mishra": Source(
         key="jaimini_sutram_mishra",

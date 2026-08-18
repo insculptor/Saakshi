@@ -25,9 +25,11 @@ from saakshi.texts import DEVANAGARI, passage_fidelity, script_presence
 from saakshi.textual import (
     REFUSAL_REASONS,
     SIGNS,
+    AbsenceAcrossReadings,
     AbsenceSearch,
     Alignment,
     Edition,
+    MarkerAlphabet,
     Fork,
     Locus,
     NamedInAnotherCopy,
@@ -40,12 +42,14 @@ from saakshi.textual import (
     TextualError,
     Witness,
     agreement,
+    alphabet_contamination,
     as_by_sign,
     collect_occurrences,
     digest,
     measured_extent,
     normalise,
     read_integer_cells,
+    reading_disagreement,
     discrimination_of_resolving_once,
     read_integer_digits,
     reduce_by_trine_minimum,
@@ -1379,3 +1383,179 @@ def test_the_edition_publishes_its_scripts_beside_its_searchable_count():
 def test_the_two_new_refusal_reasons_are_declared():
     assert "rendering_carries_none_of_the_searched_script" in REFUSAL_REASONS
     assert "positive_control_is_not_in_the_searched_script" in REFUSAL_REASONS
+
+
+# ==========================================================================================
+# ⭐⭐⭐ AN ALPHABET THAT MARKS ONE HAND, CHECKED AGAINST THE OTHER HAND'S WORDS
+#
+# The alphabet by which this repository marks a second commenting hand was read off a copy
+# in which both hands are printed on the same pages, and it inherited both. Four of its
+# twelve spellings fire on the translator's own honorific, on a phrase of the first sutra,
+# and on the machine reading's own damage — none of which a second hand puts there.
+# ==========================================================================================
+
+#: A copy carrying the translator's byline, the first sutra, and a commentator's own voice.
+TWO_HANDS = (
+    "ENGLISH TRANSLATION BY Professor B. SURYANARAIN RAO. "
+    "SU. 1. I shall now explain my work for the benefit of the readers. "
+    "NOTES. * I have discussed this at length in my book On The Series. "
+    "The rest is clear from Prof. Rao's own notes."
+)
+
+#: The same edition read a second time, losing one mark the first reader found.
+TWO_HANDS_SECOND_READING = (
+    "ENGLISH TRANSLATION BY Professor B. SURYANARAIN RAO. "
+    "SU. 1. I shall now explain rny work for the benefit of the readers. "
+    "NOTES. I have discussed this at length in rny b00k On The Series. "
+    "The rest is clear from Prof. Rao's own notes."
+)
+
+
+def test_a_spelling_that_fires_on_the_other_hands_words_is_reported():
+    """⛔ *my work* is a phrase of the FIRST SUTRA, and it is in the second hand's alphabet."""
+    found = alphabet_contamination(
+        ("my work", "my book"),
+        edition(TWO_HANDS),
+        (("the first sutra", "I shall now explain my work for the benefit of the readers"),),
+    )
+    assert [c["spelling"] for c in found] == ["my work"]
+    assert found[0]["that_passage_occurs_in_the_copy"] == 1
+
+
+def test_a_contaminated_alphabet_cannot_licence_an_absence():
+    """⭐⭐⭐ The test would have rejected the printing it was built to find."""
+    with pytest.raises(TextualError, match="occur in material it must not mark"):
+        MarkerAlphabet(
+            marks="the second commenting hand",
+            alphabet=("my work", "my book"),
+            edition=edition(TWO_HANDS),
+            must_not_mark=(
+                ("the first sutra", "I shall now explain my work for the benefit of the readers"),
+            ),
+        )
+
+
+def test_an_alphabet_that_marks_only_the_second_hand_is_accepted():
+    row = MarkerAlphabet(
+        marks="the second commenting hand",
+        alphabet=("my book", "Prof. Rao's own notes"),
+        edition=edition(TWO_HANDS),
+        must_not_mark=(
+            ("the first sutra", "I shall now explain my work for the benefit of the readers"),
+        ),
+    ).as_row()
+    assert row["contaminated_spellings"] == []
+    assert row["checked_against"][0]["occurrences"] == 1
+
+
+def test_an_alphabet_checked_against_nothing_is_refused():
+    """⛔ A discrimination check with no material to discriminate against reports success."""
+    with pytest.raises(TextualError, match="No passage of the material it must NOT mark"):
+        MarkerAlphabet(
+            marks="the second commenting hand",
+            alphabet=("my book",),
+            edition=edition(TWO_HANDS),
+            must_not_mark=(),
+        )
+
+
+def test_a_spelling_can_only_be_refuted_by_words_shown_to_be_in_the_copy():
+    with pytest.raises(TextualError, match="locates nothing"):
+        MarkerAlphabet(
+            marks="the second commenting hand",
+            alphabet=("my book",),
+            edition=edition(TWO_HANDS),
+            must_not_mark=(("a sutra", "a sentence this copy does not contain"),),
+        )
+
+
+def test_an_alphabet_cannot_be_checked_against_a_copy_that_renders_to_nothing():
+    """⛔ Every passage resolves zero times, so every spelling would look clean."""
+    with pytest.raises(TextualError, match="renders to no searchable text"):
+        MarkerAlphabet(
+            marks="the second commenting hand",
+            alphabet=("my book",),
+            edition=edition(""),
+            must_not_mark=(("the first sutra", "I shall now explain my work"),),
+        )
+
+
+# ==========================================================================================
+# ⭐⭐⭐ A ZERO IS A PROPERTY OF THE READING THAT PRODUCED IT
+#
+# Three machine readings of one edition disagree about whether four of twelve spellings are
+# on the page at all. A clean pass, had one been obtained, would have measured the reader.
+# ==========================================================================================
+
+
+def test_a_mark_lost_by_one_reader_is_reported_as_disagreement():
+    found = reading_disagreement(
+        ("my book", "Professor"),
+        (edition(TWO_HANDS), edition(TWO_HANDS_SECOND_READING)),
+    )
+    assert [d["spelling"] for d in found] == ["my book"]
+    assert [h["hits"] for h in found[0]["hits_by_reading"]] == [1, 0]
+
+
+def test_an_absence_is_refused_when_the_readings_disagree():
+    with pytest.raises(TextualError, match="found by one reading"):
+        AbsenceAcrossReadings(
+            claim="that this printing carries none of the second hand's marks",
+            alphabet=("my book",),
+            readings=(edition(TWO_HANDS), edition(TWO_HANDS_SECOND_READING)),
+            the_readings_are_of_one_edition_because="ENGLISH TRANSLATION BY Professor",
+        )
+
+
+def test_readings_that_agree_are_accepted_and_the_tie_is_published():
+    row = AbsenceAcrossReadings(
+        claim="that this printing carries none of the second hand's marks",
+        alphabet=("a phrase neither reading contains",),
+        readings=(edition(TWO_HANDS), edition(TWO_HANDS_SECOND_READING)),
+        the_readings_are_of_one_edition_because="ENGLISH TRANSLATION BY Professor",
+    ).as_row()
+    assert row["spellings_whose_verdict_differs_between_readings"] == []
+    assert [
+        r["occurrences"] for r in row["the_readings_are_of_one_edition_because"]["occurrences_by_reading"]
+    ] == [1, 1]
+
+
+def test_one_reading_cannot_check_itself():
+    """⛔ One reading agrees with itself perfectly, which is the state this guard refuses."""
+    with pytest.raises(TextualError, match="1 reading"):
+        AbsenceAcrossReadings(
+            claim="x",
+            alphabet=("my book",),
+            readings=(edition(TWO_HANDS),),
+            the_readings_are_of_one_edition_because="ENGLISH TRANSLATION BY Professor",
+        )
+
+
+def test_readings_must_be_tied_to_one_edition_by_a_located_fragment():
+    """⛔ Without the tie, two books' difference reads as one reader's error."""
+    with pytest.raises(TextualError, match="tying these readings to one edition"):
+        AbsenceAcrossReadings(
+            claim="x",
+            alphabet=("my book",),
+            readings=(edition(TWO_HANDS), edition("An unrelated book about something else.")),
+            the_readings_are_of_one_edition_because="ENGLISH TRANSLATION BY Professor",
+        )
+
+
+def test_a_reading_that_carries_no_text_cannot_stand_as_a_check():
+    """⛔ A mute reading agrees with every absence ever claimed."""
+    with pytest.raises(TextualError, match="agrees with every absence"):
+        AbsenceAcrossReadings(
+            claim="x",
+            alphabet=("my book",),
+            readings=(edition(TWO_HANDS), edition("")),
+            the_readings_are_of_one_edition_because="ENGLISH TRANSLATION BY Professor",
+        )
+
+
+def test_the_footnote_mark_carries_no_script_and_so_marks_no_hand():
+    """⭐⭐⭐ The one spelling that is not a word was all that denied a copy of pure noise a
+    clean pass — and it denied it by accident."""
+    assert scripts_in("*") == {}
+    assert scripts_required_by(("*",)) == set()
+    assert scripts_required_by(("*", "my book")) == {"latin"}

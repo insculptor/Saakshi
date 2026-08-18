@@ -55,20 +55,26 @@ from saakshi.texts import (  # noqa: E402
 )
 from saakshi.textual import (  # noqa: E402
     NO_LICENCE_DETERMINATION,
+    AbsenceAcrossReadings,
     AbsenceSearch,
     Alignment,
     Locus,
+    MarkerAlphabet,
     NamedInAnotherCopy,
     PassageAbsence,
-    SelfContradiction,
-    discrimination_of_resolving_once,
-    normalise,
-    scripts_required_by,
     Refusal,
     SecondHand,
+    SelfContradiction,
     TextualError,
+    alphabet_contamination,
     collect_occurrences,
+    discrimination_of_resolving_once,
+    normalise,
+    reading_disagreement,
     refusal_summary,
+    resolve,
+    scripts_in,
+    scripts_required_by,
     source_oracle,
 )
 
@@ -126,6 +132,66 @@ SECOND_HAND_ALPHABET: tuple[str, ...] = (
 # --------------------------------------------------------------------------------------
 # The two candidate printings acquired for the second-printing TEST
 # --------------------------------------------------------------------------------------
+
+#: ⭐⭐⭐ THE COPY THIS FILE HELD AS MUTE, READ BY SOMEONE ELSE. The 219-page printing whose
+#: rendering carries no text is byte-identical to a copy a public archive distributes with a
+#: machine reading of 205 055 Latin letters - same 13 905 548 bytes, same SHA-1. ⛔ The
+#: muteness was a property of the rendering, never of the copy.
+THIRD_EDITION = "jaimini_sutras_rao_third_edition"
+
+#: ⛔ Two further machine readings of that same edition, held in order to be DISAGREED WITH.
+THIRD_EDITION_READINGS: tuple[str, ...] = (
+    THIRD_EDITION,
+    "jaimini_sutras_rao_third_edition_second_reading",
+    "jaimini_sutras_rao_third_edition_third_reading",
+)
+
+#: What the copy held as mute prints about its own printing. ⛔ Resolves exactly once, and
+#: nothing outside this copy corroborates it.
+THIRD_EDITION_FOREWORD = "the third and revised edition of the English Translation"
+
+#: ⭐ The same claim on a different page of the same copy - the title page's own imprint, as
+#: this machine reading damaged it. ⚠ Corroborates the foreword WITHIN one copy, which is a
+#: weaker thing than corroboration across copies and is recorded as such.
+THIRD_EDITION_IMPRINT = "THIRD E DITTO"
+
+#: ⛔ The fragment that makes three renderings three readings of ONE edition rather than
+#: three books. It is the only one of the four tried that resolves exactly once in all three.
+THE_READINGS_ARE_OF_ONE_EDITION_BECAUSE = "my revered grandfather late Professor"
+
+#: ⭐⭐⭐ THE MATERIAL THE SECOND-HAND ALPHABET MUST NOT MARK, and does. Each passage resolves
+#: exactly once in the third edition. ⛔ Four of the twelve spellings occur inside one of
+#: them, and every one of the four is something a printing FREE of the second hand would
+#: still carry: its translator's name, its first sutra, and its reader's own damage.
+THE_ALPHABET_MUST_NOT_MARK: tuple[tuple[str, str], ...] = (
+    (
+        "the translator named on his own title page",
+        "By Prof. B SURYANARAIN RAO",
+    ),
+    (
+        "the translator named on the half-title of the translation itself",
+        "ENGLISH TRANSLATION BY Professor B. SURYANARAIN RAO",
+    ),
+    (
+        "the translation of the FIRST SUTRA of the work - the primary text speaking",
+        "I shall now explain my work for the benefit of the readers",
+    ),
+    (
+        "the machine reading's own damage, printed where it could not read a letter",
+        "REVISED AND EDITED BY HIS GRANDSON B* V. RAMAN",
+    ),
+)
+
+#: ⚠ The foreword's disclaimer as the THIRD edition prints it. ⛔ The fifth prints the same
+#: sentence with one verb changed, and the pair is the finding.
+THIRD_EDITION_DISCLAIMER = "I have not interfered with either"
+
+#: The same sentence in the fifth edition, six years later.
+FIFTH_EDITION_DISCLAIMER = "I have not meddled with either"
+
+#: ⭐ The sentence that contradicts it, printed in BOTH editions.
+THE_CONTRADICTING_SENTENCE = "The Translation herewith presented has been"
+
 
 #: ⭐⭐⭐ THE CANDIDATE THE STANDING TEST ASKED FOR — and it fails the test by explaining
 #: itself. A printing of the same translation carrying a title page, an imprint and a SIGNED
@@ -1082,7 +1148,14 @@ def main() -> int:
     print(describe_reserved_names())
 
     if args.acquire:
-        for key in (EDITION, SECOND_EDITION, SCANNED_PRINTING, FIFTH_EDITION, LIBRARY_SCAN):
+        for key in (
+            EDITION,
+            SECOND_EDITION,
+            SCANNED_PRINTING,
+            FIFTH_EDITION,
+            LIBRARY_SCAN,
+            *THIRD_EDITION_READINGS,
+        ):
             record = acquire(key, cache=args.cache, today=today())
             print(f"acquired {key}: {record['copy_bytes']} bytes, status {record['http_status']}")
 
@@ -1097,6 +1170,17 @@ def main() -> int:
     #   returns them because its machine reading contains no English.
     fifth = load(FIFTH_EDITION, cache=args.cache)
     library_scan = load(LIBRARY_SCAN, cache=args.cache)
+    # ⭐⭐⭐ THE THIRD CANDIDATE, AND IT IS THE COPY THIS FILE ALREADY HELD. Byte-identical
+    #   to the printing recorded here as *renders to nothing*, read by its distributor into
+    #   205 055 Latin letters. ⛔ Loaded three times over, because three machine readings of
+    #   one edition are what show a zero to be a property of a reader.
+    third_edition_readings = [load(key, cache=args.cache) for key in THIRD_EDITION_READINGS]
+    third = third_edition_readings[0]
+    for reading in third_edition_readings:
+        print(
+            f"reading {reading.key}: searchable {reading.searchable_characters}, "
+            f"scripts {reading.scripts}"
+        )
     for candidate in (fifth, library_scan):
         print(
             f"candidate {candidate.key}: searchable {candidate.searchable_characters}, "
@@ -1759,9 +1843,440 @@ def main() -> int:
         },
     ]
 
+
+    # ----------------------------------------------------------------------------------
+    # ⭐⭐⭐ THE FOURTH ASKING OF THE SECOND-PRINTING QUESTION, AND THE ANSWER IS ABOUT THE
+    #     TEST. A third candidate was acquired and it is the copy this file already held.
+    # ----------------------------------------------------------------------------------
+    third_test = run_the_test(third, positive_control=THIRD_EDITION_FOREWORD)
+
+    # ⛔ The alphabet checked against material it must not mark. Constructed so the refusal
+    #   is exercised rather than described; the contamination itself is always computable.
+    contamination = alphabet_contamination(
+        SECOND_HAND_ALPHABET, third, THE_ALPHABET_MUST_NOT_MARK
+    )
+    try:
+        MarkerAlphabet(
+            marks="the second commenting hand",
+            alphabet=SECOND_HAND_ALPHABET,
+            edition=third,
+            must_not_mark=THE_ALPHABET_MUST_NOT_MARK,
+        )
+    except TextualError as refused:
+        alphabet_refusal = str(refused)
+    else:
+        alphabet_refusal = ""
+
+    # ⛔ The same alphabet over three machine readings of ONE edition.
+    disagreement = reading_disagreement(SECOND_HAND_ALPHABET, third_edition_readings)
+    try:
+        AbsenceAcrossReadings(
+            claim="that this printing carries none of the second hand's marks",
+            alphabet=SECOND_HAND_ALPHABET,
+            readings=third_edition_readings,
+            the_readings_are_of_one_edition_because=THE_READINGS_ARE_OF_ONE_EDITION_BECAUSE,
+        )
+    except TextualError as refused:
+        readings_refusal = str(refused)
+    else:
+        readings_refusal = ""
+
+    # ⭐ What the library scan would have scored had the one non-word spelling been dropped.
+    #   ⛔ It is not dropped anywhere; the number is measured to show what the alphabet's one
+    #   defective entry was accidentally doing.
+    library_body = library_scan.normalised.lower()
+    library_words_only = sum(
+        1
+        for spelling in SECOND_HAND_ALPHABET
+        if scripts_in(spelling) and library_body.count(normalise(spelling).lower())
+    )
+
+    controls += [
+        {
+            "finding": "control",
+            "control": "the_alphabet_the_test_is_scored_on_does_not_mark_the_hand_it_names",
+            "measured": {
+                "edition": third.key,
+                "spellings_searched": len(SECOND_HAND_ALPHABET),
+                "contaminated": len(contamination),
+                "which": [c["spelling"] for c in contamination],
+                "the_instrument_refused_it": bool(alphabet_refusal),
+            },
+            "held": bool(alphabet_refusal) and len(contamination) == 4,
+            "meaning": (
+                "⭐⭐⭐ THE TEST WOULD HAVE REJECTED THE PRINTING IT WAS BUILT TO FIND. Four of "
+                "twelve spellings fire on the translator's own honorific, on a phrase of the "
+                "first sutra, and on the machine reading's own damage - all of which a "
+                "printing FREE of the second hand still carries. ⛔ An alphabet read off a "
+                "copy carrying two hands inherits both: reading off a copy establishes that a "
+                "spelling is ATTESTED, never that it DISCRIMINATES"
+            ),
+        },
+        {
+            "finding": "control",
+            "control": "one_defective_spelling_was_the_only_thing_preventing_a_false_pass",
+            "measured": {
+                "edition": library_scan.key,
+                "scripts_this_rendering_carries": [
+                    {"script": name, "letters": n}
+                    for name, n in sorted(library_scan.scripts.items())
+                ],
+                "latin_letters": library_scan.scripts.get("latin", 0),
+                "spellings_with_any_hit_over_all_twelve": sum(
+                    1
+                    for spelling in SECOND_HAND_ALPHABET
+                    if library_body.count(normalise(spelling).lower())
+                ),
+                "spellings_with_any_hit_over_the_eleven_that_are_words": library_words_only,
+            },
+            "held": library_words_only == 0,
+            "meaning": (
+                "⭐⭐⭐ THE ONE SPELLING THAT MARKS NOTHING IS THE ONLY THING THAT DENIED A "
+                "COPY OF PURE NOISE A CLEAN PASS, AND IT DENIED IT BY ACCIDENT. A previous "
+                "session recorded that the library scan - a rendering of an English printing "
+                "carrying ZERO Latin letters - *misses a clean pass by one punctuation mark*. "
+                "Scored on the eleven spellings that are words it scores 0 of 11: a PERFECT "
+                "PASS, over a copy that cannot express English. ⛔ A recorder who tidied the "
+                "asterisk out - correctly, since it is not a word and marks nothing - would "
+                "have published a printing free of the second hand on the strength of noise. "
+                "⚠ The repository was not in fact exposed: the script refusal armed the same "
+                "session rejects that copy before a spelling is counted. ⭐ But the SCORE was "
+                "never the protection, and this file said the count came close to working"
+            ),
+        },
+        {
+            "finding": "control",
+            "control": "an_absence_over_one_reading_is_not_an_absence_over_the_printing",
+            "measured": {
+                "readings": [reading.key for reading in third_edition_readings],
+                "spellings_whose_verdict_differs": len(disagreement),
+                "which": [d["spelling"] for d in disagreement],
+                "the_instrument_refused_it": bool(readings_refusal),
+            },
+            "held": bool(readings_refusal) and len(disagreement) == 4,
+            "meaning": (
+                "⭐⭐⭐ THE SAME EDITION READ THREE TIMES GIVES THREE DIFFERENT ANSWERS. Four "
+                "of twelve spellings flip between zero and not-zero - among them the second "
+                "hand's own claim of a book, printed on the page and lost by two of the three "
+                "readers. ⛔ This is the second and independent defect in the test: even a "
+                "clean pass would have measured the reader"
+            ),
+        },
+        {
+            "finding": "control",
+            "control": "the_copy_this_file_held_as_mute_is_readable_and_names_its_own_printing",
+            "measured": {
+                "the_mute_rendering": {
+                    "edition": scanned.key,
+                    "the_renderings_own_character_count": scanned.rendering.characters,
+                    "searchable_characters": scanned.searchable_characters,
+                },
+                "a_byte_identical_copy_read_by_its_distributor": {
+                    "edition": third.key,
+                    "searchable_characters": third.searchable_characters,
+                    "latin_letters": third.scripts.get("latin", 0),
+                },
+                "the_bytes_are_the_same": {
+                    "copy_bytes": 13905548,
+                    "sha1": "cdf112dfa3d061658daf5e55a4c2e35337db5f5a",
+                    "checked_against": (
+                        "the distributing archive's own published file manifest, and the "
+                        "digest of the copy in this repository's cache"
+                    ),
+                },
+                "and_it_states_its_printing": resolve(
+                    third, THIRD_EDITION_FOREWORD
+                ).occurrences,
+            },
+            "held": (
+                scanned.searchable_characters == 0
+                and third.searchable_characters > 0
+                and resolve(third, THIRD_EDITION_FOREWORD).resolved
+            ),
+            "meaning": (
+                "⭐⭐⭐ A COPY THAT RENDERS TO NOTHING IN ONE READER IS NOT A COPY THAT SAYS "
+                "NOTHING. This file recorded of the blank copy that it establishes *nothing "
+                "whatever, and that includes its own identity* - that its work, translator "
+                "and printing were known only from a host's filename. The same bytes, read by "
+                "someone else, carry 205 055 Latin letters and state the printing on the "
+                "first page. ⛔ The identity was never unavailable; it was unread, and the "
+                "row that said otherwise made a property of this repository's renderer into a "
+                "property of a book. See the correction row"
+            ),
+        },
+        {
+            "finding": "control",
+            "control": "no_earlier_printing_than_the_third_edition_was_reachable",
+            "measured": {
+                "printings_of_this_translation_now_held": [
+                    third.key,
+                    fifth.key,
+                    scanned.key,
+                    library_scan.key,
+                    edition.key,
+                ],
+                "printings_that_state_their_own_edition": [third.key, fifth.key],
+                "the_earliest_reachable": third.key,
+                "an_earlier_printing_is_established_to_have_existed_by": (
+                    "this copy naming itself the THIRD revised edition, which presupposes a "
+                    "first"
+                ),
+            },
+            "held": True,
+            "meaning": (
+                "⛔ Every reachable digitised printing of this translation carries the same "
+                "second hand's signed foreword. The earliest is the third edition, already "
+                "revised by that hand. ⚠ A statement about what was found and never about "
+                "what exists - and, given the two rows above, it would not have settled "
+                "anything if an earlier one had been found, because the alphabet it would "
+                "have been scored on does not mark the hand it names"
+            ),
+        },
+    ]
+
     rows = rule_rows(edition, refusals)
     rows += corroboration_rows(second)
     rows.append(dict(WITHDRAWN))
+    rows.append(
+        {
+            "finding": "correction",
+            "rule": "a_copy_that_renders_to_nothing_establishes_nothing_including_its_own_identity",
+            "what_was_published": (
+                "that a printing of this work held here is 219 pages of scanned page images "
+                "whose rendering carries no characters, and that it therefore attests "
+                "NOTHING WHATEVER, AND THAT INCLUDES ITS OWN IDENTITY - that the work, the "
+                "translator and the printing were known here only from the name a host gives "
+                "the file, which is a fact about a host and not about a book"
+            ),
+            "what_refutes_it": (
+                "a public archive distributes a copy whose bytes are IDENTICAL to that one - "
+                "13 905 548 bytes, SHA-1 cdf112dfa3d061658daf5e55a4c2e35337db5f5a, checked "
+                "against the archive's own published manifest - together with a machine "
+                "reading of it carrying 205 055 Latin letters. Its first page names the work, "
+                "names the translator, and states the printing in a signed and dated "
+                "foreword: the third and revised edition"
+            ),
+            "what_now_stands": (
+                "the copy renders to nothing IN THE READER THIS REPOSITORY USED. ⭐⭐⭐ A COPY "
+                "THAT RENDERS TO NOTHING IN ONE READER IS NOT A COPY THAT SAYS NOTHING, and "
+                "the identity the earlier row said this copy could never attest is on its "
+                "first page - never unavailable, only unread. ⚠ The blank rendering is KEPT: "
+                "it remains the only honest place in this repository to hold the "
+                "renders-to-nothing control, and it is now also the place to hold the "
+                "sharper one - that a mute rendering is a fact about a reader"
+            ),
+            "what_this_does_not_change": (
+                "⛔ nothing about the five rules, which resolve into a different copy and "
+                "were not touched. ⛔ And nothing about WHICH PRINTING THE COPY IN HAND IS: "
+                "the copy that names itself is a different copy, and the one every rule here "
+                "resolves into still carries no title page, no imprint and no foreword"
+            ),
+        }
+    )
+    rows.append(
+        {
+            "finding": "alphabet_does_not_discriminate",
+            "the_alphabet_claims_to_mark": "the second commenting hand",
+            "read_off": EDITION,
+            "checked_against": THIRD_EDITION,
+            "spellings_searched": list(SECOND_HAND_ALPHABET),
+            "material_it_must_not_mark": [
+                {
+                    "what_it_is": what,
+                    "quoted": normalise(passage),
+                    "occurrences_in_the_copy": resolve(third, passage).occurrences,
+                }
+                for what, passage in THE_ALPHABET_MUST_NOT_MARK
+            ],
+            "contaminated_spellings": contamination,
+            "how_many_of_twelve": len(contamination),
+            "the_instrument_refused_it": bool(alphabet_refusal),
+            "the_cause_it_named": alphabet_refusal,
+            "what_this_establishes": (
+                "⭐⭐⭐ THE TEST WOULD HAVE REJECTED THE PRINTING IT WAS BUILT TO FIND. Four of "
+                "the twelve spellings fire on material that has nothing to do with the second "
+                "hand: the translator's own honorific on his own title page, the same "
+                "honorific on the half-title of the translation, a phrase of the FIRST SUTRA "
+                "of the work, and the machine reading's own damage. ⛔ A printing free of the "
+                "second hand still contains sutra 1 and still names its translator, so "
+                "*carrying none of the twelve spellings* is a condition no copy of this work "
+                "can satisfy. ⇒ Three candidate printings have now failed this test in three "
+                "different ways and NOT ONE of the three failures was the presence of the "
+                "hand"
+            ),
+            "how_the_defect_got_in": (
+                "⭐⭐ AN ALPHABET READ OFF A COPY THAT CARRIES TWO HANDS INHERITS BOTH OF "
+                "THEM. Every spelling was read off the copy rather than guessed - which is "
+                "the rule this file follows and it is the right rule - and the copy it was "
+                "read off prints both hands on the same pages. ⛔ Reading off a copy "
+                "establishes that a spelling is ATTESTED; it does not establish that it is "
+                "DISCRIMINATING, and only the second is what a marker alphabet needs"
+            ),
+            "limit": (
+                "⛔ discriminating against the four passages listed and against nothing else. "
+                "A spelling that fires on material nobody here thought to check is a spelling "
+                "this row does not catch, which is why the passages are quoted in full"
+            ),
+        }
+    )
+    rows.append(
+        {
+            "finding": "a_zero_is_a_property_of_the_reading_that_produced_it",
+            "readings": [reading.key for reading in third_edition_readings],
+            "they_are_readings_of_one_edition_because": {
+                "quoted": normalise(THE_READINGS_ARE_OF_ONE_EDITION_BECAUSE),
+                "occurrences_by_reading": [
+                    {
+                        "reading": reading.key,
+                        "occurrences": resolve(
+                            reading, THE_READINGS_ARE_OF_ONE_EDITION_BECAUSE
+                        ).occurrences,
+                    }
+                    for reading in third_edition_readings
+                ],
+                "candidates_tried": 4,
+                "why_only_one_qualifies": (
+                    "⛔ the other three - the foreword sentence naming the edition, the "
+                    "sutra-scoped disclaimer, and the founding sutra's own translated line - "
+                    "each resolve in one or two of the three readings and not in all three. "
+                    "⚠ Every one of them is on the page in all three: the readings spell them "
+                    "differently"
+                ),
+            },
+            "hits_by_spelling_by_reading": [
+                {
+                    "spelling": spelling,
+                    "hits": [
+                        {
+                            "reading": reading.key,
+                            "hits": reading.normalised.lower().count(
+                                normalise(spelling).lower()
+                            ),
+                        }
+                        for reading in third_edition_readings
+                    ],
+                }
+                for spelling in SECOND_HAND_ALPHABET
+            ],
+            "spellings_whose_verdict_differs_between_readings": disagreement,
+            "how_many_of_twelve": len(disagreement),
+            "the_instrument_refused_it": bool(readings_refusal),
+            "the_cause_it_named": readings_refusal,
+            "what_this_establishes": (
+                "⭐⭐⭐ THE SAME EDITION, READ THREE TIMES, GIVES THREE DIFFERENT ANSWERS TO "
+                "THE TEST. Four of the twelve spellings flip between zero and not-zero across "
+                "three machine readings of one edition - among them the second hand's own "
+                "claim of a book, which is printed on the page and which two of the three "
+                "readers lose. ⛔ So a CLEAN PASS on this test, had one ever been obtained, "
+                "would have measured the reader and not the printing. ⚠ This is the second "
+                "and independent defect: the test is unreachable by construction, and were it "
+                "reachable it would not be sound"
+            ),
+            "limit": (
+                "⛔ agreement between the three readings held, and nothing more. A fourth "
+                "reader may lose a word all three of these found, so this bounds a zero "
+                "rather than establishing one"
+            ),
+        }
+    )
+    rows.append(
+        {
+            "finding": "the_disclaimer_was_itself_revised_between_printings",
+            "editions": [third.key, fifth.key],
+            "the_disclaimer": [
+                {
+                    "edition": third.key,
+                    "quoted": THIRD_EDITION_DISCLAIMER,
+                    "occurrences": resolve(third, THIRD_EDITION_DISCLAIMER).occurrences,
+                },
+                {
+                    "edition": fifth.key,
+                    "quoted": FIFTH_EDITION_DISCLAIMER,
+                    "occurrences": resolve(fifth, FIFTH_EDITION_DISCLAIMER).occurrences,
+                },
+            ],
+            "the_sentence_that_contradicts_it_in_both": [
+                {
+                    "edition": ed_.key,
+                    "quoted": THE_CONTRADICTING_SENTENCE,
+                    "occurrences": resolve(ed_, THE_CONTRADICTING_SENTENCE).occurrences,
+                }
+                for ed_ in (third, fifth)
+            ],
+            "what_this_establishes": (
+                "⭐⭐⭐ THE SENTENCE CLAIMING THE TRANSLATION WAS NOT ALTERED IS ITSELF ALTERED "
+                "BETWEEN PRINTINGS. The third edition's signed foreword reads *I have not "
+                "INTERFERED with either the translation or the notes as given by Prof. Rao*; "
+                "the fifth reads *I have not MEDDLED with either the translation or the notes "
+                "as given by Prof. Rao*. ⭐ And the contradiction published from the fifth "
+                "edition is in the third too, six years earlier: both printings carry the "
+                "disclaimer AND *The Translation herewith presented has been thoroughly "
+                "revised by me*, a paragraph apart. ⇒ The contradiction is not a slip made "
+                "once - it survived its author re-setting his own foreword for a new edition"
+            ),
+            "why_the_verb_is_probably_not_the_reader": (
+                "⚠ WEIGHED, NOT ASSERTED. *Interfered* and *meddled* are not a confusion any "
+                "optical reader makes. And the third edition's own rendering spells "
+                "*meddled* correctly elsewhere - in the sutra-scoped disclaimer in its body - "
+                "so the reader that produced *interfered* in the foreword was able to read "
+                "*meddled* in the same file. ⛔ That is evidence and not proof: these are two "
+                "scans as well as two readings, and nothing here separates a reviser's second "
+                "thought from a compositor's"
+            ),
+            "what_it_does_not_establish": (
+                "⛔ NOTHING ABOUT WHAT WAS ACTUALLY CHANGED IN THE TRANSLATION. A reviser's "
+                "own account of what he changed is not evidence of what he changed, and that "
+                "holds twice as hard for an account he revised"
+            ),
+        }
+    )
+    rows.append(
+        {
+            "finding": "second_printing_test",
+            "asked_for_the_fourth_time": True,
+            "candidate": third.key,
+            "the_candidate_states_its_own_printing": {
+                "quoted": THIRD_EDITION_FOREWORD,
+                "occurrences": resolve(third, THIRD_EDITION_FOREWORD).occurrences,
+                "corroborated_on_another_page_of_the_same_copy": {
+                    "quoted": THIRD_EDITION_IMPRINT,
+                    "occurrences": resolve(third, THIRD_EDITION_IMPRINT).occurrences,
+                    "limit": (
+                        "⚠ two pages of ONE copy. That is weaker than corroboration across "
+                        "copies and is recorded as the weaker thing"
+                    ),
+                },
+            },
+            "result": third_test,
+            "verdict": (
+                "⛔ FAILS, and it is the third candidate to fail and the first whose failure "
+                "explains the other two. It is READABLE - 205 055 Latin letters, the first "
+                "candidate held here that is demonstrably legible in the script the alphabet "
+                "is written in - and it carries nine of the twelve spellings. ⚠ But it names "
+                "itself the THIRD REVISED EDITION and names the hand that revised it as the "
+                "translator's grandson, so it stands on the same side of the standing refusal "
+                "as the fifth does"
+            ),
+            "what_the_fourth_asking_actually_settled": (
+                "⭐⭐⭐ THAT THE TEST CANNOT BE PASSED AND WOULD NOT MEAN ANYTHING IF IT WERE. "
+                "See the two rows above: four of the twelve spellings mark the first hand, "
+                "the primary text or the reader's own damage, so no printing of this work can "
+                "score zero; and four of the twelve flip between zero and not-zero across "
+                "three readings of one edition, so a zero would be a fact about a reader. "
+                "⇒ The standing question is not open for want of a candidate - the "
+                "instrument it was to be answered with does not measure what it was read off "
+                "the copy to measure"
+            ),
+            "whether_an_earlier_printing_is_reachable": (
+                "⛔ NOT REACHED. This copy establishes that an earlier printing EXISTED - a "
+                "third edition presupposes a first - and no digitised printing earlier than "
+                "this one was found. Every reachable copy of this translation carries the "
+                "same second hand's foreword. ⚠ That is a statement about what was found, "
+                "never about what exists"
+            ),
+        }
+    )
+
     rows.append(hands.as_row())
     # ⭐⭐⭐ The finding the test was not asking for, beside the finding that it produced.
     rows.append(naming.as_row())
