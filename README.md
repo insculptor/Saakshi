@@ -303,6 +303,28 @@ the first detector alone, *"six divisions not found"* would have been published 
 about the book when it was a fact about a regular expression — so no absence is measured over
 that copy at all. See `docs/measurements/2026-08-15-second-witness.md`.
 
+⛔⛔⛔ **AND A COPY THAT WAS READ IN THE WRONG ALPHABET IS MORE DANGEROUS THAN A COPY THAT WAS
+NEVER READ.** A blank copy fails every check that asks whether anything was read. A scan of
+an English printing whose machine reading was set to an Indic script carries **246 777
+searchable characters and not one Latin letter**: it passes all of them, and returns zero for
+every English word in the book. ⚠ Eleven of twelve search terms came back zero over it, and
+the twelfth — a printed asterisk, the only one that is not a word — came back 128, so scored
+on the count alone it missed a clean pass by one punctuation mark.
+
+⭐ **The guard that was supposed to catch this does not.** An absence here requires a
+*positive control* — words the copy is expected to contain, resolving **exactly once**. In a
+rendering of noise nothing repeats, so **300 of 300** eight-character fragments resolve
+exactly once, against 129 of 300 in a real book: the hardest-looking condition in the
+instrument becomes the easiest to satisfy, and a control quoted from the copy's own noise is
+free. ⇒ A rendering must now carry the script the alphabet is written in, and a control must
+be written in that same script.
+
+⚠ **The bucket that measures a script had to be defined over letters, and that is not
+tidiness**: as a bare code-point range it reported **6 077 Latin characters in the copy that
+contains no Latin letter** — braces, brackets and signs that live inside the block — so the
+guard built to catch that copy passed it. See
+`docs/measurements/2026-08-18-the-candidate-that-named-the-hand.md`.
+
 ### Acquired data
 
 Data files are **never committed here** and are never fetched from an unpinned location.
