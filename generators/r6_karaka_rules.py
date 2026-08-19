@@ -995,7 +995,7 @@ def build_header(
                 "from the recorder's memory. ⚠ *There is a second hand here and this copy does "
                 "not say whose* is the finding, not a shortfall"
             ),
-            "the_second_printing_test_is_WITHDRAWN_and_what_replaces_it": (
+            "the_second_printing_test_is_withdrawn_and_what_replaces_it": (
                 "⛔⛔⛔ THE TEST WAS RUN OVER THREE COPIES, ALL THREE FAILED, AND THE "
                 "REASON NO CANDIDATE EVER PASSED IS THAT NO COPY OF THIS WORK CAN. Four of "
                 "the twelve spellings it scored on mark the translator on his own title "
@@ -2474,7 +2474,7 @@ def main() -> int:
                 "a_second_printing_of_the_same_translation_was_refused_because": (
                     refused_a_second_printing
                 ),
-                "a_rule_filed_as_the_TEXT_was_refused_because": refused_a_sutra,
+                "a_rule_filed_as_the_text_was_refused_because": refused_a_sutra,
             },
             # ⭐ Holds only while all four are true: every hand-attributed rule is attested,
             #   and each of the three copies that must be refused actually was. ⛔ Deleting any
