@@ -968,12 +968,27 @@ class AbsenceAcrossReadings:
 
 
 #: ⛔ The shortest passage that may stand as an attestation, in letters of its own script.
-#: ⚠ **A bound read off a measurement, and not itself a measurement.** This file measured
-#: that in a rendering of pure noise **300 of 300** eight-character fragments resolve exactly
-#: once — because nothing in noise repeats — while in a real book at the same length only 129
-#: of 300 do. ⇒ Resolution is free at eight characters and says nothing; this is three times
-#: that, and it is stated here rather than left implicit so a reader can disagree with it.
-SHORTEST_ATTESTING_PASSAGE = 24
+#:
+#: ⭐⭐⭐ **AND IT IS NOT A DEFENCE AGAINST CHANCE RESOLUTION, BECAUSE NO LENGTH BOUND CAN
+#: BE.** The first version of this constant was justified as *three times the length at which
+#: resolution is free* — and that reasoning is **backwards**. Measured over the copies held,
+#: the share of fragments resolving **exactly once** RISES with length, in a real book and in
+#: a rendering of noise alike:
+#:
+#: | letters | a real book | a rendering of noise |
+#: |---|---|---|
+#: | 8 | 0.460 | 0.993 |
+#: | 12 | 0.707 | 1.000 |
+#: | 16 | 0.943 | 0.993 |
+#: | 24 | 0.993 | 1.000 |
+#:
+#: ⇒ A **longer** passage resolves exactly once MORE often, not less. Lengthening the bound
+#: makes a resolution *cheaper* to obtain, and at 24 letters a real book and pure noise are
+#: indistinguishable. ⛔ So this constant does exactly one thing: it refuses a fragment too
+#: short to **state a rule at all** — a word or two offered as an attestation. ⭐ What actually
+#: makes a resolution mean something is that the passage STATES THE RULE and is quoted in
+#: full, so a reader can check it; that is a reader's job and no threshold can do it.
+SHORTEST_ATTESTING_PASSAGE = 12
 
 
 @dataclass(frozen=True)
@@ -1085,10 +1100,9 @@ class IndependentHandAttestation:
                 "somewhere else"
             )
         for passage in self.the_attesting_passages:
-            # ⛔⛔ P4 BEFORE P3, BECAUSE P3 CANNOT REPAIR THIS. Over a rendering of noise 300
-            #    of 300 eight-character fragments resolve exactly once, so a short passage
-            #    resolving is not evidence of anything - and it is the copy most likely to be
-            #    offered as an attestation that would satisfy it.
+            # ⛔ A floor on what may be offered as an attestation at all. ⚠ It refuses a
+            #   fragment too short to state a rule; it does NOT make a longer one safer, and
+            #   the constant's own note carries the measurement that says so.
             letters = sum(
                 1 for c in normalise(passage) if script_of(c) == self.the_original_is_written_in
             )
@@ -1096,11 +1110,14 @@ class IndependentHandAttestation:
                 raise TextualError(
                     f"{self.attested_in.key}: the attesting passage carries {letters} letter(s) "
                     f"of {self.the_original_is_written_in} and at least "
-                    f"{SHORTEST_ATTESTING_PASSAGE} are required. ⛔ This file measured that in "
-                    "a rendering of pure noise 300 of 300 eight-character fragments resolve "
-                    "EXACTLY ONCE, because nothing in noise repeats - so a short passage "
-                    "resolving once is free, and a row built on one would carry the strongest "
-                    "condition this module has while establishing nothing"
+                    f"{SHORTEST_ATTESTING_PASSAGE} are required. ⛔ A fragment this short "
+                    "cannot STATE a rule, so its resolving establishes nothing about one. "
+                    "⚠ And this bound is not a defence against chance resolution: measured "
+                    "over the copies held, the share of fragments resolving exactly once RISES "
+                    "with length - 0.460 at eight letters in a real book against 0.993 at "
+                    "twenty-four, where a book and pure noise become indistinguishable. ⭐ What "
+                    "makes a resolution mean anything is that the passage states the rule and "
+                    "is quoted in full for a reader to check"
                 )
             # ⛔ P3 - the presence itself, and it is the whole verdict. A copy that was never
             #   read resolves nothing and FAILS here, which is the difference from the test

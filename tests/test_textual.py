@@ -1706,10 +1706,30 @@ def test_a_copy_cannot_be_both_the_revised_one_and_the_independent_one():
         _attestation(attested_in=REVISED_TRANSLATION)
 
 
-def test_a_short_passage_resolving_once_is_free_and_is_refused():
-    """⛔ In a rendering of noise 300 of 300 eight-character fragments resolve exactly once."""
-    with pytest.raises(TextualError, match="at least 24 are required"):
+def test_a_fragment_too_short_to_state_a_rule_is_refused():
+    """⛔ A word or two cannot state a rule, so its resolving establishes nothing about one."""
+    with pytest.raises(TextualError, match="at least 12 are required"):
         _attestation(the_attesting_passages=("राहु",))
+
+
+def test_the_length_bound_is_not_a_defence_against_chance_resolution():
+    """⭐⭐⭐ THE JUSTIFICATION THIS BOUND WAS FIRST GIVEN WAS BACKWARDS, AND THE MEASUREMENT
+    IS PINNED HERE SO IT CANNOT BE WRITTEN AGAIN. Resolving exactly once gets MORE common as a
+    fragment lengthens, not less - so no length bound makes a resolution more meaningful, and
+    raising this constant would make attestation cheaper rather than safer."""
+    # ⚠ A corpus shaped like prose: one phrase recurring in many DISTINCT surroundings, so
+    #   a short window lands inside the recurring phrase and a long one spans out of it.
+    letters = "कखगघचछजझटठडढतथदधनपफबभम"
+    recurring = "राहु के अंश "
+    body = " ".join(
+        recurring + "".join(letters[(i * 7 + j * 3) % len(letters)] for j in range(14))
+        for i in range(30)
+    )
+    copy = _copy(body, key="a_length_curve_copy")
+    windows = lambda n: sorted({body[i:i + n] for i in range(len(body) - n)} - {""})
+    at8 = discrimination_of_resolving_once(copy, windows(8))
+    at24 = discrimination_of_resolving_once(copy, windows(24))
+    assert at24["share_resolving_exactly_once"] > at8["share_resolving_exactly_once"]
 
 
 def test_an_attestation_needs_a_located_passage():
