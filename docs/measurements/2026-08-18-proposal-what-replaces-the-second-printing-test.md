@@ -1,9 +1,12 @@
 # PROPOSAL — what replaces the second-printing test · 2026-08-18
 
-> ⬜⬜⬜ **THIS IS A PROPOSAL AND NOTHING IN IT IS ARMED.** No absence is re-scored, the
-> twelve spellings are not narrowed, and `MarkerAlphabet` and `AbsenceAcrossReadings` stand
-> exactly as the previous session armed them. ⛔ The taking of this is **the open question at the end**, and it is
-> the owner's.
+> ✅✅✅ **TAKEN, AND ARMED — the owner answered both questions on 2026-08-18.** This file
+> is kept as written, as the record of what was proposed and on what evidence. What changed
+> when it was taken is recorded at the end, under *What was done when this was taken*.
+>
+> ⭐ The retired control was **withdrawn as a `correction` row**, carrying the three
+> candidates' measurements into it. `MarkerAlphabet` and `AbsenceAcrossReadings` stand
+> unmodified, no absence was re-scored, and the twelve spellings were not narrowed.
 
 The second-printing test was retired as written for two independent defects, both published
 in `2026-08-18-the-alphabet-that-marked-the-wrong-hand.md`:
@@ -368,3 +371,80 @@ Taking it would mean, and only means:
 * ⛔ **The five rules, the five corroborations and the conventions time-offset artifact were
   not touched.**
 * ⛔ **No hand-over into the consuming tree.** Nothing read from or written to it.
+
+---
+
+## ✅ What was done when this was taken
+
+Both open questions were answered by the owner: **take the test**, and **withdraw the retired
+control as a `correction` row**.
+
+### Armed
+
+* **`IndependentHandAttestation`** in the textual module, with P1–P4 refusing. ⛔ It refuses a
+  row filed as the **text** outright — a sutra is attributed to no hand, so no hand's reach
+  bears on it and a passing row there would read as evidence about the primary text.
+* **The two rules filed as the translator's notes** — the only two the question is live at —
+  now carry an attestation row each, resolving on **both** of their fragments in the second
+  translation.
+* **A control driven off its own value**: the noise copy, a second printing of the same
+  translation, and a rule filed as the text are each **offered** to the instrument and the
+  cause of each refusal is recorded on the row. ⛔ Deleting any refusal makes the control fail
+  rather than quietly widening what the file may publish.
+
+### Withdrawn
+
+The control `the_second_printing_test_was_run_and_no_candidate_passed_it` is a `correction`
+row. Its `held` condition was *no candidate passed*, which every copy of this work satisfies,
+so it could not change state and was not a control. ⭐ The three candidates' measurements are
+carried **into** the correction row, so nothing measured was lost by withdrawing the verdict
+built on top of them.
+
+### ⛔⛔⛔ And one thing in this proposal was WRONG, found by arming it
+
+Precondition **P4** was armed at 24 letters and justified here as *three times the length at
+which resolution is free*, citing this repository's measurement that in a rendering of noise
+300 of 300 eight-character fragments resolve exactly once. **That reasoning is backwards**, and
+the generator refused a real attesting passage before anyone noticed. Measured over the copies
+held:
+
+| letters | share resolving exactly once, a real book | … a rendering of noise |
+|---|---|---|
+| 8 | 0.460 | 0.993 |
+| 12 | 0.707 | 1.000 |
+| 16 | 0.943 | 0.993 |
+| 24 | 0.993 | 1.000 |
+
+⇒ **A longer passage resolves exactly once MORE often, not less.** By 24 letters a real book
+and pure noise are indistinguishable. So raising the bound makes an attestation **cheaper** to
+obtain, not safer, and **no length bound can defend against chance resolution.**
+
+⭐ The constant now does the one thing it can — refuse a fragment too short to *state a rule* —
+and says so. It is set at **12**, below every real attesting passage held (the shortest is 18)
+so it is not fitted to the sample. The measured direction is pinned by a test.
+
+> ⭐⭐⭐ *A precondition can be sound in its refusal and wrong in its reason, and the reason is
+> what the next reader inherits.* P4 refused the right things for an argument that does not
+> hold — and an argument nobody re-derives is the part that survives into the next design.
+
+### The re-emission and its controls
+
+Held file copied aside and digest-verified **first**. Compared **by row identity, never by
+position**. **49 byte-identical · 0 changed · 4 added · 1 removed** — every rule, every
+corroboration, the earlier corrections, the alignment, the hands row, the naming row, the
+foreword row, the absence and all standing refusals untouched. Byte-identical on re-run.
+
+⭐ Comparator driven off its own value, **5/5**: held vs itself 0 changed · new vs itself 0
+changed · an untouched **rule** row perturbed → changed 0→**1** · a **carried control** row
+perturbed → byte-identical 49→**48** · a row dropped → removed 1→**2**. ⚠ The revert control
+was unavailable again because `changed` is 0; the perturbation controls stand in for it.
+
+⚠ **`out/` is git-ignored** — artifacts are local build products stamped with the generator's
+commit, and only the generator travels in the repository. Re-measured after the re-emission:
+**22/22 resolve**, 7 stamps — `9cdb8e6` ×12, `6fc673e` ×3, `238ddcd` ×2, `3041f4c` ×2,
+`eea3150`, `7fc7ba9`, `a1b371b`; the list sums to 22, *checked*. ⛔ Do not carry it — re-measure.
+
+⛔⛔ **21 of those 22 stamps are reachable by a reader; one is not.** The re-emitted artifact
+names `a1b371b`, which is local-only and unpushed — *an artifact that names an unpushed commit
+is stamped with an address nobody can reach*. It is present, digest-pinned, self-consistent and
+unciteable until a push.
