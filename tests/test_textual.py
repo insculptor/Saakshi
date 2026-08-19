@@ -29,6 +29,7 @@ from saakshi.textual import (
     AbsenceSearch,
     Alignment,
     Edition,
+    IndependentHandAttestation,
     MarkerAlphabet,
     Fork,
     Locus,
@@ -1559,3 +1560,189 @@ def test_the_footnote_mark_carries_no_script_and_so_marks_no_hand():
     assert scripts_in("*") == {}
     assert scripts_required_by(("*",)) == set()
     assert scripts_required_by(("*", "my book")) == {"latin"}
+
+
+# ==========================================================================================
+# ⭐⭐⭐ THE VERDICT IS A PRESENCE, BECAUSE A ZERO IS WHAT A BROKEN READER PRODUCES FOR FREE
+#
+# The retired second-printing test required a candidate copy to carry NONE of twelve
+# spellings. A library scan of the work whose machine reading carries no Latin letters at all
+# scores a PERFECT pass on the eleven of them that are words. ⛔ Under an absence every way a
+# reader can fail turns a hit into a zero, and a zero is a pass — so the instrument's errors
+# all point at success. These tests exercise the replacement, whose errors are refusals.
+# ==========================================================================================
+
+
+def _copy(text: str, *, key: str) -> Edition:
+    """An edition with its own key. ⛔ Built from a literal, like every copy in this file."""
+    return Edition(
+        key=key,
+        identity=f"a copy built for this test, {key}",
+        language="en",
+        witness=Witness(
+            address=f"https://example.invalid/{key}.txt",
+            retrieved="2026-08-18",
+            http_status=200,
+            copy_sha256="0" * 64,
+            copy_bytes=len(text),
+        ),
+        rendering=Rendering(
+            kind="transcription",
+            produced_by="this test",
+            sha256=digest(text),
+            characters=len(text),
+        ),
+        extent={"describes": "the whole of it", "complete": True},
+        text=text,
+    )
+
+
+#: The copy the rule is filed in — an English translation a second hand revised.
+REVISED_TRANSLATION = _copy(
+    "ENGLISH TRANSLATION BY Professor B. SURYANARAIN RAO. "
+    "SU. 11. Of the bodies, whichever gets the highest degrees heads the series. "
+    "NOTES. If two bodies obtain the same degrees they are merged into one lordship. "
+    "* I have discussed this at length in my book On The Series.",
+    key="the_revised_translation",
+)
+
+#: A copy outside that hand's reach — a different translator, working from the original.
+#: ⭐ It carries the ORIGINAL's script, which is what puts it outside; the English printings
+#: carry none of it.
+SECOND_TRANSLATION = _copy(
+    "जैमिनिसूत्रम् — हिन्दी अनुवाद सहित। "
+    "यदि दो या अधिक ग्रहों के अंश समान हों तो वे दोनों ही आत्मकारक माने जाएँगे। "
+    "उस स्थिति में राहु उस रिक्तता को पूरा करेगा।",
+    key="the_second_translation",
+)
+
+#: ⛔ A SECOND PRINTING OF THE SAME TRANSLATION. It is inside the reach, and two printings one
+#: hand revised agree about the revision — the standing refusal, as an entry condition.
+ANOTHER_PRINTING = _copy(
+    "Jaiminisutras, fifth edition, revised and annotated. "
+    "If two bodies obtain the same degrees they are merged into one lordship.",
+    key="another_printing_of_the_same_translation",
+)
+
+#: ⛔⛔⛔ THE COPY THAT PASSED THE RETIRED TEST PERFECTLY. A machine reading in which nothing
+#: of the work survives — offered here as an attestation, in the right script.
+A_RENDERING_OF_NOISE = _copy("क ख ग घ ङ च छ ज झ ञ ट ठ ड ढ ण त थ द ध न", key="a_rendering_of_noise")
+
+#: The rule as the second translation states it — long enough that resolving is not free.
+ATTESTING_PASSAGE = "यदि दो या अधिक ग्रहों के अंश समान हों तो वे दोनों ही आत्मकारक माने जाएँगे"
+
+
+#: ⚠ A copy carrying BOTH the translation and the original. Over it the reach condition
+#: separates nothing, because the script no longer tells the two copies apart.
+A_BILINGUAL_PRINTING = _copy(
+    "SU. 11. If two bodies obtain the same degrees they are merged into one lordship. "
+    "यदि दो या अधिक ग्रहों के अंश समान हों।",
+    key="a_bilingual_printing",
+)
+
+
+def _attestation(**overrides):
+    fields = {
+        "rule": "a_tie_merges_two_places_and_the_node_fills_the_vacancy",
+        "the_rule_as_published": "bodies holding equal degrees merge into one lordship",
+        "filed_as": "commentary",
+        "filed_in": REVISED_TRANSLATION,
+        "the_hand_whose_reach_is_at_issue": "the hand that revised this English translation",
+        "the_reach_is_bounded_by": (
+            "the naming copy's own title page, which reads revised and annotated by that hand"
+        ),
+        "attested_in": SECOND_TRANSLATION,
+        "the_attesting_passages": (ATTESTING_PASSAGE,),
+        "the_locus_there": "adhyaya 1, pada 1, the commentary to sutra 11",
+        "the_original_is_written_in": "devanagari",
+        "what_this_does_not_establish": (
+            "⛔ not that the English words are the translator's, and not that the rule is in "
+            "the sutras — the second translator is himself a modern commentator"
+        ),
+    }
+    fields.update(overrides)
+    return IndependentHandAttestation(**fields)
+
+
+def test_a_rule_filed_as_a_hands_words_is_attested_outside_that_hands_reach():
+    """⭐ The verdict is a resolution. The rule had to be FOUND."""
+    row = _attestation().as_row()
+    assert row["finding"] == "rule_attested_outside_one_hands_reach"
+    assert [p["occurrences"] for p in row["the_attesting_passages"]] == [1]
+    assert row["the_attesting_copy_is_outside_the_reach_because"][
+        "letters_of_it_in_the_copy_the_rule_is_filed_in"
+    ] == 0
+
+
+def test_the_copy_that_passed_the_retired_test_perfectly_fails_this_one():
+    """⭐⭐⭐ THE WHOLE POINT, ON ONE COPY. A rendering in which nothing of the work survives
+    scores a perfect pass on an absence and cannot attest anything here."""
+    with pytest.raises(TextualError, match="locates nothing"):
+        _attestation(attested_in=A_RENDERING_OF_NOISE)
+
+
+def test_a_second_printing_of_the_same_translation_is_refused_at_the_door():
+    """⛔⛔ `revised_printing_cannot_witness_the_unrevised_words`, as an entry condition. Two
+    printings one hand revised agree about the revision."""
+    with pytest.raises(TextualError, match="carries no devanagari"):
+        _attestation(attested_in=ANOTHER_PRINTING)
+
+
+def test_the_reach_condition_must_actually_separate_the_two_copies():
+    """⛔ If the copy the rule is filed in also carries the original, the script separates
+    nothing and a second printing of one translation could satisfy it."""
+    with pytest.raises(TextualError, match="does not separate the two copies"):
+        _attestation(filed_in=A_BILINGUAL_PRINTING)
+
+
+def test_the_test_means_nothing_over_a_row_filed_as_the_text():
+    """⛔ A sutra is not attributed to a hand, so no hand's reach is at issue."""
+    with pytest.raises(TextualError, match="attributed to the TEXT"):
+        _attestation(filed_as="translation")
+
+
+def test_a_copy_cannot_be_both_the_revised_one_and_the_independent_one():
+    with pytest.raises(TextualError, match="not an independent attestation"):
+        _attestation(attested_in=REVISED_TRANSLATION)
+
+
+def test_a_short_passage_resolving_once_is_free_and_is_refused():
+    """⛔ In a rendering of noise 300 of 300 eight-character fragments resolve exactly once."""
+    with pytest.raises(TextualError, match="at least 24 are required"):
+        _attestation(the_attesting_passages=("राहु",))
+
+
+def test_an_attestation_needs_a_located_passage():
+    with pytest.raises(TextualError, match="no attesting passage"):
+        _attestation(the_attesting_passages=())
+
+
+def test_an_unresolved_passage_attests_nothing():
+    with pytest.raises(TextualError, match="locates nothing"):
+        _attestation(the_attesting_passages=(
+            "यह लम्बा वाक्य इस प्रति में कहीं भी नहीं मिलता और इसीलिए कुछ भी प्रमाणित नहीं करता",))
+
+
+def test_the_reach_must_be_bounded_by_something():
+    """⛔ *Outside its reach* is not a measurement until the reach is stated from a page."""
+    with pytest.raises(TextualError, match="not bounded by anything"):
+        _attestation(the_reach_is_bounded_by="  ")
+
+
+def test_an_attestation_that_does_not_state_its_limit_reads_as_an_attribution():
+    with pytest.raises(TextualError, match="reads as an attribution"):
+        _attestation(what_this_does_not_establish="")
+
+
+def test_a_mute_copy_can_neither_raise_the_question_nor_answer_it():
+    with pytest.raises(TextualError, match="neither raise this question nor answer it"):
+        _attestation(attested_in=_copy("", key="a_mute_copy"))
+
+
+def test_the_row_publishes_that_its_verdict_is_a_presence():
+    """⚠ The contrast is on the row, not left in a document a consumer will not read."""
+    row = _attestation().as_row()
+    assert "PERFECT pass" in row["the_verdict_is_a_presence_not_an_absence"]
+    assert "NOT discharged by this row" in (
+        row["the_attesting_copy_is_outside_the_reach_because"]["why_this_is_the_condition"]
+    )

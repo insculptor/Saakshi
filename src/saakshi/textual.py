@@ -967,6 +967,225 @@ class AbsenceAcrossReadings:
         }
 
 
+#: ⛔ The shortest passage that may stand as an attestation, in letters of its own script.
+#: ⚠ **A bound read off a measurement, and not itself a measurement.** This file measured
+#: that in a rendering of pure noise **300 of 300** eight-character fragments resolve exactly
+#: once — because nothing in noise repeats — while in a real book at the same length only 129
+#: of 300 do. ⇒ Resolution is free at eight characters and says nothing; this is three times
+#: that, and it is stated here rather than left implicit so a reader can disagree with it.
+SHORTEST_ATTESTING_PASSAGE = 24
+
+
+@dataclass(frozen=True)
+class IndependentHandAttestation:
+    """A rule filed as one HAND's words, found again in a copy that hand could not have touched.
+
+    ⭐⭐⭐ **THE TEST THIS REPLACES ASKED FOR A ZERO, AND A ZERO IS THE ONE MEASUREMENT A
+    BROKEN READER PRODUCES FOR FREE.** The retired second-printing test required a candidate
+    printing to carry **none** of twelve spellings marking a second commenting hand. It was
+    retired for two defects — four of the twelve mark the translator, the translated first
+    sutra and the reader's own damage, so no copy of the work can pass; and the same edition
+    read three times gives three answers, so a pass would have measured the reader. ⛔ Both
+    defects are the same defect: **the verdict was an absence**. Under an absence every way a
+    reader can fail turns a hit into a zero, and a zero is a *pass* — so the instrument's
+    errors all point at success. ⇒ This class requires a **presence**, and its errors are
+    refusals.
+
+    ⭐⭐ **Discrimination is structural here, not lexical, so there is no alphabet to
+    contaminate.** The hand at issue is a reviser of **one translation**; a different
+    translator working from the original into another language is outside that reach **by
+    construction**, not by survey. ⛔ The translator's own honorific, the translated first
+    sutra and the reader's stray asterisk — the four spellings that broke the old alphabet —
+    are simply not being scored on, because nothing is being scored on a spelling.
+
+    ⛔⛔ **AND IT DOES NOT DISCHARGE `revised_printing_cannot_witness_the_unrevised_words`.**
+    That refusal stands, and it is *restated here as an entry condition*: an attesting copy
+    must be a different **translation**, not another printing of the same one, because two
+    printings one hand revised agree about the revision. The condition is measured — the
+    attesting copy must carry the **original's** script, which a copy of the English
+    translation does not.
+
+    ⚠ **What a passing row establishes is smaller than it looks, and the row says so.** It
+    establishes that the **rule** was in the work before the hand's reach, not that the
+    English **words** are the translator's; and the second translator is himself a modern
+    commentator, so two copies agreeing establishes that a rule is not *one* hand's invention
+    and nothing more.
+    """
+
+    rule: str
+    #: What this file publishes the rule as stating.
+    the_rule_as_published: str
+    #: ⛔ How the rule is filed. The test means nothing over a row filed as the TEXT: a sutra
+    #: is not attributed to a hand, so no hand's reach is at issue.
+    filed_as: str
+    #: The copy the rule is resolved into — the one carrying the hand whose reach is at issue.
+    filed_in: Edition
+    #: The hand whose reach is at issue. ⚠ A description of a hand, never a name.
+    the_hand_whose_reach_is_at_issue: str
+    #: What bounds that reach, read off a copy's own page rather than supplied by a recorder.
+    the_reach_is_bounded_by: str
+    #: The copy outside the reach.
+    attested_in: Edition
+    #: ⛔ Passages of that copy stating the rule. Each must resolve EXACTLY ONCE there.
+    the_attesting_passages: Sequence[str]
+    #: Where in the attesting copy, in that copy's own divisions.
+    the_locus_there: str
+    #: ⛔ The script the ORIGINAL work is written in. The reach condition is measured on it.
+    the_original_is_written_in: str
+    what_this_does_not_establish: str
+
+    def __post_init__(self) -> None:
+        if self.filed_as != "commentary":
+            raise TextualError(
+                f"{self.rule}: this row is filed as {self.filed_as!r}, so it is attributed to "
+                "the TEXT rather than to a hand. ⛔ No hand's reach is at issue and this test "
+                "measures nothing over it - a passing row here would read as evidence about a "
+                "sutra, which is the confusion the whole file exists to prevent"
+            )
+        if self.attested_in.key == self.filed_in.key:
+            raise TextualError(
+                f"{self.filed_in.key}: a copy cannot be the one a hand revised and the one "
+                "outside its reach. ⛔ That is not an independent attestation, it is a "
+                "re-reading of the copy the question was asked about"
+            )
+        for where in (self.filed_in, self.attested_in):
+            if not where.carries_searchable_text:
+                raise TextualError(
+                    f"{where.key}: a copy whose rendering carries no searchable text can "
+                    "neither raise this question nor answer it. ⛔ Every passage would resolve "
+                    "zero times"
+                )
+        # ⛔⛔⛔ P1 - THE REACH, AND IT IS `revised_printing_cannot_witness_the_unrevised_words`
+        #    AS AN ENTRY CONDITION. A second printing of the SAME translation is inside the
+        #    hand's reach, and two printings it revised agree about the revision. What puts a
+        #    copy outside is that it renders the ORIGINAL rather than the translation - so the
+        #    condition is measured on the original's script, in both directions.
+        if not self.attested_in.carries_script(self.the_original_is_written_in):
+            raise TextualError(
+                f"{self.attested_in.key}: this copy carries no {self.the_original_is_written_in} "
+                f"at all, though it carries {self.attested_in.searchable_characters} searchable "
+                "characters. ⛔ Nothing shows it works from the original rather than from the "
+                "translation the hand revised, and a second printing of that translation is "
+                "INSIDE the reach: two printings one hand revised agree about the revision. "
+                "⚠ This is `revised_printing_cannot_witness_the_unrevised_words` refusing at "
+                "the door, and it is not discharged by anything below"
+            )
+        if self.filed_in.carries_script(self.the_original_is_written_in):
+            raise TextualError(
+                f"{self.filed_in.key}: the copy the rule is filed in carries "
+                f"{self.filed_in.scripts.get(self.the_original_is_written_in, 0)} letters of "
+                f"{self.the_original_is_written_in}, so the original's script does not "
+                "separate the two copies. ⛔ Then the reach condition is measuring nothing, "
+                "and a second printing of one translation could satisfy it"
+            )
+        if not self.the_attesting_passages:
+            raise TextualError(
+                f"{self.rule}: no attesting passage was given. ⛔ An attestation is a located "
+                "presence or it is a recorder's recollection that he has seen the rule "
+                "somewhere else"
+            )
+        for passage in self.the_attesting_passages:
+            # ⛔⛔ P4 BEFORE P3, BECAUSE P3 CANNOT REPAIR THIS. Over a rendering of noise 300
+            #    of 300 eight-character fragments resolve exactly once, so a short passage
+            #    resolving is not evidence of anything - and it is the copy most likely to be
+            #    offered as an attestation that would satisfy it.
+            letters = sum(
+                1 for c in normalise(passage) if script_of(c) == self.the_original_is_written_in
+            )
+            if letters < SHORTEST_ATTESTING_PASSAGE:
+                raise TextualError(
+                    f"{self.attested_in.key}: the attesting passage carries {letters} letter(s) "
+                    f"of {self.the_original_is_written_in} and at least "
+                    f"{SHORTEST_ATTESTING_PASSAGE} are required. ⛔ This file measured that in "
+                    "a rendering of pure noise 300 of 300 eight-character fragments resolve "
+                    "EXACTLY ONCE, because nothing in noise repeats - so a short passage "
+                    "resolving once is free, and a row built on one would carry the strongest "
+                    "condition this module has while establishing nothing"
+                )
+            # ⛔ P3 - the presence itself, and it is the whole verdict. A copy that was never
+            #   read resolves nothing and FAILS here, which is the difference from the test
+            #   this replaces: a noise rendering passed that one perfectly.
+            found = resolve(self.attested_in, passage)
+            if not found.resolved:
+                raise TextualError(
+                    f"{self.attested_in.key}: the attesting passage occurs "
+                    f"{found.occurrences} time(s), so it locates nothing. ⭐ A rule is "
+                    "attested by being FOUND - and a copy that cannot be read fails here "
+                    "rather than passing, which is why the verdict is a presence"
+                )
+        if not self.the_reach_is_bounded_by.strip():
+            raise TextualError(
+                f"{self.rule}: the hand's reach is not bounded by anything. ⛔ *Outside its "
+                "reach* is not a measurement until what the hand is known to have worked over "
+                "is stated, and stated from a copy's own page rather than from what the "
+                "recorder happens to know"
+            )
+        if not self.what_this_does_not_establish.strip():
+            raise TextualError(
+                f"{self.rule}: an attestation that does not say what it fails to establish "
+                "reads as an attribution. ⛔ It shows the RULE predates the hand's reach, "
+                "never that the words in the revised copy are the translator's"
+            )
+
+    def as_row(self) -> dict[str, Any]:
+        return {
+            "finding": "rule_attested_outside_one_hands_reach",
+            "rule": self.rule,
+            "the_rule_as_published": self.the_rule_as_published,
+            "filed_as": self.filed_as,
+            "filed_in": self.filed_in.key,
+            "the_hand_whose_reach_is_at_issue": self.the_hand_whose_reach_is_at_issue,
+            "the_reach_is_bounded_by": self.the_reach_is_bounded_by,
+            "attested_in": self.attested_in.key,
+            "the_locus_there": self.the_locus_there,
+            "the_attesting_passages": [
+                {
+                    "quoted": normalise(passage),
+                    "occurrences": resolve(self.attested_in, passage).occurrences,
+                    "letters_of_the_originals_script": sum(
+                        1
+                        for c in normalise(passage)
+                        if script_of(c) == self.the_original_is_written_in
+                    ),
+                }
+                for passage in self.the_attesting_passages
+            ],
+            "the_attesting_copy_is_outside_the_reach_because": {
+                "the_original_is_written_in": self.the_original_is_written_in,
+                "letters_of_it_in_the_attesting_copy": self.attested_in.scripts.get(
+                    self.the_original_is_written_in, 0
+                ),
+                "letters_of_it_in_the_copy_the_rule_is_filed_in": self.filed_in.scripts.get(
+                    self.the_original_is_written_in, 0
+                ),
+                "why_this_is_the_condition": (
+                    "⛔ a second printing of the SAME translation is INSIDE the reach, and two "
+                    "printings one hand revised agree about the revision. A copy carrying the "
+                    "original's script is working from the original rather than from the "
+                    "translation that hand worked over. ⚠ This is "
+                    "`revised_printing_cannot_witness_the_unrevised_words` as an entry "
+                    "condition; the refusal is NOT discharged by this row"
+                ),
+            },
+            "the_verdict_is_a_presence_not_an_absence": (
+                "⭐⭐⭐ the rule had to be FOUND. The test this replaces required a ZERO over a "
+                "candidate copy, and a zero is the one measurement a broken reader produces "
+                "for free: a library scan of this work whose machine reading carries no Latin "
+                "letters at all scores a PERFECT pass on the eleven spellings that are words. "
+                "⛔ The same copy scores nothing here, because it can state nothing"
+            ),
+            "what_this_does_not_establish": self.what_this_does_not_establish,
+            "limit": (
+                "⛔ one attesting copy, in the passages quoted, in this rendering of it. ⚠ A "
+                "reader can destroy the evidence of a presence but cannot manufacture it, so "
+                "a presence found in ONE reading needs no second reader - which is the "
+                "asymmetry that made the retired test need a guard against every way a reader "
+                "can fail. ⭐ That is a reason this row is weaker than it looks, not stronger: "
+                "it bounds an invention, it does not attribute a sentence"
+            ),
+        }
+
+
 @dataclass(frozen=True)
 class PassageAbsence:
     """That a **located passage** does not state something — bounded by the passage.

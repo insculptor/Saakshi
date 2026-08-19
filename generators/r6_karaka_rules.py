@@ -58,6 +58,7 @@ from saakshi.textual import (  # noqa: E402
     AbsenceAcrossReadings,
     AbsenceSearch,
     Alignment,
+    IndependentHandAttestation,
     Locus,
     MarkerAlphabet,
     NamedInAnotherCopy,
@@ -492,6 +493,12 @@ CORROBORATION: tuple[dict[str, Any], ...] = (
         ),
     },
 )
+
+#: ⭐ The corroboration row for each rule, by rule id. ⚠ It is what lets a rule filed as a
+#: HAND's words be attested in a copy outside that hand's reach - and a rule with no
+#: corroboration simply has no attestation row, which is a visible gap rather than a
+#: silence.
+CORROBORATION_BY_RULE: dict[str, dict[str, Any]] = {c["rule"]: c for c in CORROBORATION}
 
 #: ⭐ The reading that was published and is now withdrawn. ⛔ It is written down rather than
 #: quietly replaced: this file has been handed over, and an artifact that changes a verdict
@@ -988,16 +995,31 @@ def build_header(
                 "from the recorder's memory. ⚠ *There is a second hand here and this copy does "
                 "not say whose* is the finding, not a shortfall"
             ),
-            "the_second_printing_test_was_run_and_no_candidate_passed": (
-                "⭐⭐⭐ THE TEST WAS RUN OVER THREE COPIES AND ALL THREE FAILED IT FOR "
-                "DIFFERENT REASONS, ONLY ONE OF WHICH IS ABOUT A BOOK. A printing that "
-                "declares itself the FIFTH carries all twelve second-hand spellings 215 "
-                "times and says on its own title page that it was revised and annotated. A "
-                "library scan returns eleven zeroes out of twelve, and returns them because "
-                "its machine reading carries a quarter of a million characters and NO LATIN "
-                "LETTERS - an English book read in the wrong script. A 219-page printing "
-                "returns twelve zeroes because it contains nothing at all. ⛔ Scored on the "
-                "count alone the second copy misses a clean pass by ONE PUNCTUATION MARK"
+            "the_second_printing_test_is_WITHDRAWN_and_what_replaces_it": (
+                "⛔⛔⛔ THE TEST WAS RUN OVER THREE COPIES, ALL THREE FAILED, AND THE "
+                "REASON NO CANDIDATE EVER PASSED IS THAT NO COPY OF THIS WORK CAN. Four of "
+                "the twelve spellings it scored on mark the translator on his own title "
+                "page, the TRANSLATED FIRST SUTRA, and the machine reading's own damage - so "
+                "a printing free of the second hand fails it too. ⭐⭐⭐ And the score was "
+                "never the protection: a library scan of this work carrying NO LATIN LETTERS "
+                "scores a PERFECT pass on the eleven spellings that are words. ⇒ The control "
+                "built on the test is WITHDRAWN as a correction row, carrying the three "
+                "candidates' measurements into it so nothing measured is lost. ✅ What "
+                "replaces it requires a PRESENCE: a rule filed as a HAND's words must RESOLVE "
+                "at a located place in a copy outside that hand's reach. ⚠ It answers the "
+                "EXPOSURE - whether a published rule could be a reviser's invention - and NOT "
+                "the attribution: `revised_printing_cannot_witness_the_unrevised_words` "
+                "stands, restated as the new test's entry condition"
+            ),
+            "what_a_rule_filed_as_a_hands_words_is_now_required_to_carry": (
+                "⭐⭐ AN ATTESTATION IN A COPY THAT HAND COULD NOT HAVE TOUCHED. Both rules "
+                "here filed as the translator's NOTES - the only two the question is live at "
+                "- resolve at their own locus in a second translation working from the "
+                "original, on both of their fragments. ⛔ What that establishes is that the "
+                "RULE predates the hand's reach, never that the English words are the "
+                "translator's; and the second translator is himself a modern commentator, so "
+                "two copies agreeing establishes that a rule is not ONE hand's invention and "
+                "nothing further"
             ),
             "the_second_hand_is_named_and_the_name_came_from_a_copy": (
                 "⭐⭐⭐ *THERE IS A SECOND HAND HERE AND THIS COPY DOES NOT SAY WHOSE* IS "
@@ -1679,35 +1701,6 @@ def main() -> int:
     controls += [
         {
             "finding": "control",
-            "control": "the_second_printing_test_was_run_and_no_candidate_passed_it",
-            "measured": {
-                "candidates": test_results,
-                "the_test": (
-                    "the twelve spellings by which the copy in hand marks its second "
-                    "commenting hand, searched over the WHOLE of each candidate, with zero "
-                    "required"
-                ),
-            },
-            # ⭐ Holds while no candidate passes. ⛔ It is written to FAIL the day one does,
-            #   because that is the day this file's standing refusal could be retired - and
-            #   the failure should be loud rather than a quiet change in a count.
-            "held": not any(
-                r["would_the_count_alone_have_passed_this_copy"] and r["edition"] != scanned.key
-                for r in test_results
-            ),
-            "meaning": (
-                "⭐⭐⭐ THREE COPIES, THREE ZEROES, THREE DIFFERENT REASONS, AND ONLY ONE OF "
-                "THEM IS ABOUT THE BOOK. The printing that declares itself the fifth carries "
-                "all twelve spellings 215 times and fails outright. The library scan returns "
-                "eleven zeroes out of twelve because its machine reading contains no English. "
-                "The 219-page printing returns twelve zeroes because it contains nothing at "
-                "all. ⛔ Scored on the count alone the second copy misses a clean pass by one "
-                "punctuation mark - and the printed asterisk is the only one of the twelve "
-                "spellings that is not a word"
-            ),
-        },
-        {
-            "finding": "control",
             "control": "a_rendering_can_be_read_in_the_wrong_alphabet_and_pass_every_older_guard",
             "measured": {
                 "edition": library_scan.key,
@@ -2037,6 +2030,76 @@ def main() -> int:
     rows = rule_rows(edition, refusals)
     rows += corroboration_rows(second)
     rows.append(dict(WITHDRAWN))
+    # ⛔⛔⛔ THE CONTROL THAT WAS WITHDRAWN, AND IT IS WITHDRAWN AS A ROW RATHER THAN DELETED.
+    #    Its held condition was `no candidate passed the test`, and that is now known to be
+    #    satisfied by EVERY copy of this work - so it could not change state and was not a
+    #    control. ⭐ The three candidates' measurements move INTO the correction row, so
+    #    nothing measured is lost by withdrawing the claim built on top of them.
+    rows.append(
+        {
+            "finding": "correction",
+            "rule": "the_second_printing_test_was_run_and_no_candidate_passed_it",
+            "what_was_published": (
+                "a CONTROL asserting that the second-printing test had been run over every "
+                "candidate acquired and that none had passed it - written to FAIL the day a "
+                "candidate passed, on the ground that that would be the day this file's "
+                "standing refusal could be retired"
+            ),
+            "what_refutes_it": (
+                "⛔⛔⛔ ITS HELD CONDITION IS SATISFIED BY EVERY COPY OF THIS WORK, SO IT "
+                "COULD NEVER HAVE FAILED. Four of the twelve spellings the test scores on "
+                "mark material the second hand did not put there - the translator's honorific "
+                "on his own title page, the same on the half-title, a phrase of the TRANSLATED "
+                "FIRST SUTRA (*I shall now explain my work*, resolving exactly once in every "
+                "copy held here), and the machine reading's own damage. ⇒ A printing free of "
+                "the second hand still contains sutra 1 and still names its translator, so no "
+                "copy can carry none of the twelve. ⭐ A control that cannot change state is "
+                "not a control; it is an assertion wearing a control's clothes"
+            ),
+            "and_the_second_reason_it_could_not_have_worked": (
+                "⛔ the same edition read three times gives three answers - four of the twelve "
+                "spellings flip between zero and not-zero across three machine readings of one "
+                "printing. ⇒ A clean pass, had one been reachable, would have measured the "
+                "READER. The two defects are independent and the row was defective under both"
+            ),
+            "what_is_published_now": (
+                "the three candidates' measurements, unchanged and carried into this row, with "
+                "no verdict built on top of them; and a control over the instrument that "
+                "REPLACES the test - `a_rule_filed_as_a_hands_words_is_attested_outside_its_reach`"
+            ),
+            "the_measurements_it_carried": test_results,
+            "how_the_error_was_made": (
+                "⭐⭐⭐ THE ALPHABET WAS READ OFF A COPY THAT CARRIES BOTH HANDS ON THE SAME "
+                "PAGES, AND IT INHERITED BOTH. The rule followed - *read every spelling off "
+                "the copy rather than guessing it* - is the right rule and was obeyed. ⛔ It is "
+                "simply not sufficient: reading a spelling off a copy establishes that it is "
+                "ATTESTED, never that it DISCRIMINATES, and only the second is what a marker "
+                "alphabet needs. ⚠ The alphabet was afterwards checked against four passages a "
+                "recorder thought of, and the eight spellings that survived that check "
+                "survived A SURVEY - which is evidence about the four rows the survey had"
+            ),
+            "what_would_have_caught_it": (
+                "⛔⛔ NOT A BETTER SCORE, AND THIS IS THE PART WORTH KEEPING. The library scan "
+                "- a machine reading of this work carrying NO LATIN LETTERS AT ALL - scores "
+                "ZERO OF ELEVEN on the spellings that are words: a perfect pass over a "
+                "rendering that cannot express English. Only the twelfth spelling, the printed "
+                "asterisk, denied it a clean pass, and the asterisk is not a word and marks "
+                "nothing. ⇒ THE SCORE WAS NEVER THE PROTECTION. ⭐⭐⭐ What catches it is the "
+                "VERDICT SHAPE: a zero is the one measurement a broken reader produces for "
+                "free, so under an absence every way a reader can fail points at a PASS, while "
+                "under a presence claim they all point at REFUSING TO ANSWER"
+            ),
+            "what_is_armed_now": (
+                "`IndependentHandAttestation` - a rule filed as a HAND's words must RESOLVE at "
+                "a located place in a copy outside that hand's reach, the reach being measured "
+                "on the original's script. ⛔ It carries no alphabet, so nothing can "
+                "contaminate it; its errors are refusals rather than passes; and the copy that "
+                "passed the retired test perfectly fails it, because it can state nothing. ⚠ It "
+                "does NOT discharge `revised_printing_cannot_witness_the_unrevised_words`, "
+                "which is restated as its entry condition and stands"
+            ),
+        }
+    )
     rows.append(
         {
             "finding": "correction",
@@ -2282,6 +2345,166 @@ def main() -> int:
     rows.append(naming.as_row())
     rows.append(foreword.as_row())
     rows.append({"finding": "alignment", **alignment.as_json()})
+
+    # ----------------------------------------------------------------------------------
+    # ⭐⭐⭐ THE REPLACEMENT FOR THE SECOND-PRINTING TEST, TAKEN. The retired test required a
+    #     ZERO over a candidate copy and no copy of this work could ever produce one. This
+    #     one requires a PRESENCE, in a copy the revising hand could not have touched.
+    # ----------------------------------------------------------------------------------
+    #: ⛔ Only the rows filed as a HAND's words are at issue. A sutra is not attributed to a
+    #: hand, so no hand's reach bears on it - and the class refuses a `translation` row.
+    attestations = [
+        IndependentHandAttestation(
+            rule=rule["id"],
+            the_rule_as_published=rule["states"],
+            filed_as=rule["source_kind"],
+            filed_in=edition,
+            the_hand_whose_reach_is_at_issue=(
+                "the second commenting hand in the printing every rule in this file resolves "
+                "into - the one that names the translator in the third person, says his notes "
+                "are not clear, and claims books of its own"
+            ),
+            the_reach_is_bounded_by=(
+                "that hand's own title page in the copy that names it, which reads *Revised "
+                "and Annotated by* and declares the printing the fifth. ⛔ What it worked over "
+                "is THIS English translation; that it never touched any other work is not "
+                "established here and is not needed"
+            ),
+            attested_in=second,
+            the_attesting_passages=tuple(
+                CORROBORATION_BY_RULE[rule["id"]][key]
+                for key in ("fragment", "second_fragment")
+                if key in CORROBORATION_BY_RULE[rule["id"]]
+            ),
+            the_locus_there=CORROBORATION_BY_RULE[rule["id"]]["locus"],
+            the_original_is_written_in="devanagari",
+            what_this_does_not_establish=(
+                "⛔ NOT that the English words in the revised copy are the translator's. It "
+                "establishes that the RULE was in the work before this hand's reach, not that "
+                "any sentence is his. ⛔⛔ And not that the rule is in the sutras: the second "
+                "translator is himself a modern commentator, so two copies agreeing "
+                "establishes that a rule is not ONE hand's invention and nothing further. ⚠ "
+                "`revised_printing_cannot_witness_the_unrevised_words` stands, undischarged"
+            ),
+        )
+        for rule in RULES
+        if rule["source_kind"] == "commentary"
+    ]
+    rows += [attestation.as_row() for attestation in attestations]
+
+    # ⭐⭐⭐ THE CONTROL OVER THE INSTRUMENT THAT REPLACES THE TEST. ⛔ It is driven off its own
+    #    value: the two copies that must be refused are actually OFFERED to it, and the cause
+    #    each refusal names is recorded. A control that only asserts the happy path would hold
+    #    just as well if every refusal had been deleted.
+    def _offer(candidate) -> str:
+        """Offer a copy as the attesting one and return the cause it was refused for."""
+        try:
+            IndependentHandAttestation(
+                rule="a_tie_merges_two_places_and_the_node_fills_the_vacancy",
+                the_rule_as_published="offered only to be refused",
+                filed_as="commentary",
+                filed_in=edition,
+                the_hand_whose_reach_is_at_issue="the second commenting hand",
+                the_reach_is_bounded_by="the naming copy's own title page",
+                attested_in=candidate,
+                the_attesting_passages=(
+                    CORROBORATION_BY_RULE[
+                        "a_tie_merges_two_places_and_the_node_fills_the_vacancy"
+                    ]["fragment"],
+                ),
+                the_locus_there="adhyaya 1, pada 1",
+                the_original_is_written_in="devanagari",
+                what_this_does_not_establish="offered only to be refused",
+            )
+        except TextualError as refused:
+            return str(refused)
+        return ""
+
+    refused_the_noise_copy = _offer(library_scan)
+    refused_a_second_printing = _offer(fifth)
+    # ⛔ And the row filed as the TEXT rather than as a hand's words - the test means nothing
+    #   over a sutra, and a passing row there would read as evidence about the primary text.
+    try:
+        IndependentHandAttestation(
+            rule=RULES[0]["id"],
+            the_rule_as_published=RULES[0]["states"],
+            filed_as=RULES[0]["source_kind"],
+            filed_in=edition,
+            the_hand_whose_reach_is_at_issue="the second commenting hand",
+            the_reach_is_bounded_by="the naming copy's own title page",
+            attested_in=second,
+            the_attesting_passages=(CORROBORATION_BY_RULE[RULES[0]["id"]]["fragment"],),
+            the_locus_there="adhyaya 1, pada 1",
+            the_original_is_written_in="devanagari",
+            what_this_does_not_establish="offered only to be refused",
+        )
+    except TextualError as refused:
+        refused_a_sutra = str(refused)
+    else:
+        refused_a_sutra = ""
+
+    controls += [
+        {
+            "finding": "control",
+            "control": "a_rule_filed_as_a_hands_words_is_attested_outside_its_reach",
+            "measured": {
+                "rules_filed_as_a_hands_words": [
+                    rule["id"] for rule in RULES if rule["source_kind"] == "commentary"
+                ],
+                "of_those_attested_outside_the_hands_reach": [
+                    attestation.rule for attestation in attestations
+                ],
+                "the_attesting_copy": second.key,
+                "letters_of_the_originals_script_in_the_attesting_copy": second.scripts.get(
+                    "devanagari", 0
+                ),
+                "letters_of_it_in_the_copy_the_rules_are_filed_in": edition.scripts.get(
+                    "devanagari", 0
+                ),
+                # ⛔⛔⛔ THE SAME COPY, THE OPPOSITE VERDICT, MEASURED RATHER THAN ARGUED.
+                "the_copy_that_passed_the_retired_test": {
+                    "edition": library_scan.key,
+                    "spellings_that_are_words": len(
+                        [s_ for s_ in SECOND_HAND_ALPHABET if scripts_in(s_)]
+                    ),
+                    "of_those_it_carried": library_words_only,
+                    "so_the_retired_test_scored_it": "a perfect pass",
+                    "and_this_instrument_refused_it_because": refused_the_noise_copy,
+                },
+                "a_second_printing_of_the_same_translation_was_refused_because": (
+                    refused_a_second_printing
+                ),
+                "a_rule_filed_as_the_TEXT_was_refused_because": refused_a_sutra,
+            },
+            # ⭐ Holds only while all four are true: every hand-attributed rule is attested,
+            #   and each of the three copies that must be refused actually was. ⛔ Deleting any
+            #   refusal makes this fail rather than quietly widening what the file may publish.
+            "held": bool(
+                len(attestations)
+                == len([r for r in RULES if r["source_kind"] == "commentary"])
+                and len(attestations) > 0
+                and refused_the_noise_copy
+                and refused_a_second_printing
+                and refused_a_sutra
+            ),
+            "meaning": (
+                "⭐⭐⭐ THE TEST THIS REPLACES ASKED FOR A ZERO, AND A ZERO IS THE ONE "
+                "MEASUREMENT A BROKEN READER PRODUCES FOR FREE. The library scan - a machine "
+                "reading of this work carrying no Latin letters at all - scores a PERFECT pass "
+                "on the eleven retired spellings that are words, and is refused here because "
+                "it can state nothing. ⭐⭐ The two defects that retired the old test are one "
+                "defect: under an absence every way a reader can fail turns a hit into a zero "
+                "and a zero is a PASS, so the instrument's errors all point at success; under "
+                "a presence claim they all point at refusing to answer. ⛔ And the reach "
+                "condition is `revised_printing_cannot_witness_the_unrevised_words` at the "
+                "door: the printing that declares itself the fifth is refused as an attesting "
+                "copy, because two printings one hand revised agree about the revision. ⚠ What "
+                "a passing row establishes is that the RULE predates the hand's reach - never "
+                "that the English words are the translator's, and never that the rule is in "
+                "the sutras"
+            ),
+        },
+    ]
 
     absence = AbsenceSearch(
         claim=ABSENT_CLAIM,
