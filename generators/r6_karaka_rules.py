@@ -69,10 +69,12 @@ from saakshi.textual import (  # noqa: E402
     TextualError,
     alphabet_contamination,
     collect_occurrences,
+    LEAST_EXTENT_A_REFUSAL_DISCRIMINATES_AT,
     LEAST_RECURRENCE,
     RECURRENCE_MEASURED_AT,
     discrimination_of_resolving_once,
     normalise,
+    blocks_this_floor_refuses,
     recurrence_of,
     reading_disagreement,
     refusal_summary,
@@ -2523,6 +2525,17 @@ def main() -> int:
     # perfectly) and it defeats a PRESENCE (a passage quoted out of that same noise attests
     # whatever it is said to state).
 
+    # ⛔⛔⛔ AND WHAT THAT FLOOR IS WORTH ON A COPY SMALLER THAN THE ONES IT WAS FITTED TO.
+    #    Each copy is tiled into consecutive disjoint blocks and the floor is asked of every
+    #    block — complete coverage, no sample — because a bound arrived at by eye is a bound
+    #    nobody can re-measure. ⚠ The grid is published with the result: a grid nobody states
+    #    reads as a continuum, and the answer is the smallest point ON it.
+    TILED_AT = (
+        200, 300, 500, 1000, 2000, 3000, 4000, 5000,
+        6000, 7000, 8000, 9000, 10000, 12000, 15000, 20000,
+    )
+    assert LEAST_EXTENT_A_REFUSAL_DISCRIMINATES_AT in TILED_AT
+
     recurrence_by_copy = [
         recurrence_of(copy)
         for copy in (
@@ -2539,6 +2552,15 @@ def main() -> int:
         row for row in recurrence_by_copy if row["edition"] != library_scan.key
     ]
     lowest_real = min(row["share_that_recurs"] for row in real_recurrences)
+
+    _real_copies = (edition, second, fifth, third, *third_edition_readings[1:])
+    tiled = {
+        block: (
+            [blocks_this_floor_refuses(copy, block=block) for copy in _real_copies],
+            blocks_this_floor_refuses(library_scan, block=block),
+        )
+        for block in TILED_AT
+    }
 
     # ⛔ Driven off its own value: the copy that must be refused is OFFERED to every
     #    instrument that reasons from a resolution, and the cause each names is recorded.
@@ -2740,6 +2762,75 @@ def main() -> int:
                 "measuring it, so its guard could have been deleted in silence. ⚠ A fix "
                 "written for one cause is not a fix; this file has now made that mistake "
                 "three times over the same copy"
+            ),
+        },
+        {
+            "finding": "control",
+            "control": "below_a_measured_extent_this_floor_refuses_real_books_too",
+            "measured": {
+                "the_extent_a_refusal_discriminates_at": (
+                    LEAST_EXTENT_A_REFUSAL_DISCRIMINATES_AT
+                ),
+                "by_block": [
+                    {
+                        "block_characters": block,
+                        "real_copies": {
+                            "blocks": sum(row["blocks"] for row in tiled[block][0]),
+                            "blocks_refused": sum(
+                                row["blocks_refused"] for row in tiled[block][0]
+                            ),
+                        },
+                        "the_rendering_of_noise": {
+                            "blocks": tiled[block][1]["blocks"],
+                            "blocks_refused": tiled[block][1]["blocks_refused"],
+                        },
+                        "by_copy": tiled[block][0] + [tiled[block][1]],
+                    }
+                    for block in TILED_AT
+                ],
+                "measured_over": (
+                    "consecutive disjoint blocks of each copy, every character in exactly "
+                    "one block, no sample and no overlap; the remainder shorter than one "
+                    "block is reported on each row rather than dropped in silence"
+                ),
+                "what_is_fitted_here": (
+                    "⚠ the extent, exactly as the floor is: to the seven renderings held, on "
+                    f"the grid {list(TILED_AT)}. Six thousand is the smallest of those at "
+                    "which no block of any real copy is refused; at five thousand two of the "
+                    "least legible readings still are. ⛔ And a block of a book is the best "
+                    "proxy available for a short copy, not the same thing as one"
+                ),
+            },
+            # ⭐ BOTH HALVES, and the first half is the finding: the effect must be SHOWN to
+            #   exist at a small extent, or the bound is a number with nothing under it.
+            "held": bool(
+                sum(row["blocks_refused"] for row in tiled[TILED_AT[0]][0]) > 0
+                and sum(
+                    row["blocks_refused"]
+                    for row in tiled[LEAST_EXTENT_A_REFUSAL_DISCRIMINATES_AT][0]
+                )
+                == 0
+                and all(
+                    tiled[block][1]["blocks_refused"] == tiled[block][1]["blocks"]
+                    for block in TILED_AT
+                )
+                and len(tiled[TILED_AT[0]][0]) >= 6
+            ),
+            "meaning": (
+                "⭐⭐⭐ A FLOOR FITTED ON WHOLE BOOKS WAS APPLIED TO COPIES OF ANY SIZE, AND "
+                "BELOW A MEASURED EXTENT IT IS A TEST OF SIZE RATHER THAN OF LANGUAGE. Read "
+                "two hundred characters at a time, this floor refuses FOUR FIFTHS of every "
+                "real book held here - and it refused them with the cause `it is a machine "
+                "reading that returned noise`, which nothing had measured. ⭐⭐ A PASS is "
+                "sound at any extent and a REFUSAL is not: the rendering of noise is refused "
+                "in every block at every size from two hundred to twenty thousand "
+                "characters, so clearing the floor is not something a small copy buys, while "
+                "failing it is. ⇒ Under the extent the refusal now names the extent, and it "
+                "is still a refusal - a resolution in a copy that small is free for exactly "
+                "the reason it is free in noise. ⛔ The fixture standing in for the rendering "
+                "of noise in the suite was itself 1 799 characters, so every test certifying "
+                "`the instruments refuse the copy of noise` was certifying a refusal its "
+                "SIZE had earned"
             ),
         },
     ]
