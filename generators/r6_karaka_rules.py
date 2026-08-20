@@ -69,8 +69,11 @@ from saakshi.textual import (  # noqa: E402
     TextualError,
     alphabet_contamination,
     collect_occurrences,
+    LEAST_RECURRENCE,
+    RECURRENCE_MEASURED_AT,
     discrimination_of_resolving_once,
     normalise,
+    recurrence_of,
     reading_disagreement,
     refusal_summary,
     resolve,
@@ -2491,8 +2494,11 @@ def main() -> int:
                 "⭐⭐⭐ THE TEST THIS REPLACES ASKED FOR A ZERO, AND A ZERO IS THE ONE "
                 "MEASUREMENT A BROKEN READER PRODUCES FOR FREE. The library scan - a machine "
                 "reading of this work carrying no Latin letters at all - scores a PERFECT pass "
-                "on the eleven retired spellings that are words, and is refused here because "
-                "it can state nothing. ⭐⭐ The two defects that retired the old test are one "
+                "on the eleven retired spellings that are words, and is refused here - ⛔⛔ NOT "
+                "because it can state nothing, which is what this row said before it was "
+                "measured, but because a rendering in which nothing repeats is refused "
+                "outright: quoted against itself that copy states whatever it is asked "
+                "to. ⭐⭐ The two defects that retired the old test are one "
                 "defect: under an absence every way a reader can fail turns a hit into a zero "
                 "and a zero is a PASS, so the instrument's errors all point at success; under "
                 "a presence claim they all point at refusing to answer. ⛔ And the reach "
@@ -2505,6 +2511,272 @@ def main() -> int:
             ),
         },
     ]
+
+    # ======================================================================================
+    # WHAT A RESOLUTION IN EACH COPY IS WORTH — measured over the copies themselves
+    # ======================================================================================
+    #
+    # ⭐⭐⭐ Every guard this file owned before this session asks whether a copy was READ.
+    # None asked what a resolution in it is WORTH, and in the library scan — a machine reading
+    # that returned a quarter of a million characters of noise — resolving exactly once is
+    # free. That defeats an ABSENCE (a control quoted out of the copy's own noise resolves
+    # perfectly) and it defeats a PRESENCE (a passage quoted out of that same noise attests
+    # whatever it is said to state).
+
+    recurrence_by_copy = [
+        recurrence_of(copy)
+        for copy in (
+            edition,
+            second,
+            fifth,
+            third,
+            *third_edition_readings[1:],
+            library_scan,
+        )
+    ]
+    noise_recurrence = recurrence_of(library_scan)
+    real_recurrences = [
+        row for row in recurrence_by_copy if row["edition"] != library_scan.key
+    ]
+    lowest_real = min(row["share_that_recurs"] for row in real_recurrences)
+
+    # ⛔ Driven off its own value: the copy that must be refused is OFFERED to every
+    #    instrument that reasons from a resolution, and the cause each names is recorded.
+    #    ⚠ A control listing only the happy path would hold just as well with every guard
+    #    deleted — and eight of these nine guards did not exist a day ago.
+    noise = library_scan.normalised
+
+    def _cause(build) -> str:
+        try:
+            build()
+        except TextualError as refused:
+            return str(refused)
+        return ""
+
+    offered_the_noise_copy = {
+        "an_absence_over_the_work": _cause(
+            lambda: AbsenceSearch(
+                claim="offered only to be refused",
+                alphabet=("नियम",),
+                edition=library_scan,
+                occurrences=[],
+                what_the_hits_do_say=[],
+                positive_control=noise[300:360],
+            )
+        ),
+        "an_absence_over_a_bounded_passage": _cause(
+            lambda: PassageAbsence(
+                claim="offered only to be refused",
+                edition=library_scan,
+                passage_label="somewhere in the noise",
+                after=noise[100:130],
+                before=noise[400:430],
+                alphabet=(noise[700:712],),
+                alphabet_read_from="read off this copy, which is the whole trouble",
+            )
+        ),
+        "an_attestation_outside_a_hands_reach": refused_the_noise_copy,
+        "an_absence_checked_against_a_second_reader": _cause(
+            lambda: AbsenceAcrossReadings(
+                claim="offered only to be refused",
+                alphabet=("नियम",),
+                readings=(library_scan, third),
+                the_readings_are_of_one_edition_because=noise[500:540],
+            )
+        ),
+        "a_second_hand_established_from_located_passages": _cause(
+            lambda: SecondHand(
+                edition=library_scan,
+                the_notes_are_credited_to="the translator",
+                speaks_of_the_translator_in_the_third_person=(noise[100:140],),
+                claims_work_of_its_own=(),
+                marked_by=("*",),
+                named_within_this_copy=False,
+            )
+        ),
+        "a_hand_named_in_another_copy": _cause(
+            lambda: NamedInAnotherCopy(
+                the_hand="offered only to be refused",
+                unnamed_in=edition,
+                named_in=library_scan,
+                the_name_as_that_copy_prints_it=noise[50:70],
+                the_passage_that_names_it=noise[40:90],
+                the_printing_that_copy_declares=noise[600:640],
+                tied_to_the_unnamed_hand_by=(RULES[0]["fragment"],),
+                what_this_does_not_establish="offered only to be refused",
+            )
+        ),
+        "the_copy_a_hand_is_said_NOT_to_be_named_in": _cause(
+            lambda: NamedInAnotherCopy(
+                the_hand="offered only to be refused",
+                unnamed_in=library_scan,
+                named_in=fifth,
+                the_name_as_that_copy_prints_it=THE_NAME_AS_THAT_COPY_PRINTS_IT,
+                the_passage_that_names_it=FIFTH_EDITION_NAMES_THE_HAND,
+                the_printing_that_copy_declares=FIFTH_EDITION_IMPRINT,
+                tied_to_the_unnamed_hand_by=(THE_TIE_BETWEEN_THE_TWO_COPIES,),
+                what_this_does_not_establish="offered only to be refused",
+            )
+        ),
+        "a_copy_that_disagrees_with_itself": _cause(
+            lambda: SelfContradiction(
+                edition=library_scan,
+                the_hand="offered only to be refused",
+                statements=(("one thing", noise[300:340]), ("another", noise[400:440])),
+                why_they_cannot_both_be_relied_on="offered only to be refused",
+                what_it_settles="offered only to be refused",
+            )
+        ),
+        "an_alphabet_checked_for_discrimination": _cause(
+            lambda: MarkerAlphabet(
+                marks="offered only to be refused",
+                alphabet=("नियम",),
+                edition=library_scan,
+                must_not_mark=(("the text", noise[200:240]),),
+            )
+        ),
+    }
+    refused_for_the_copy = {
+        where: cause
+        for where, cause in offered_the_noise_copy.items()
+        if "NOTHING IN THIS COPY REPEATS" in cause
+    }
+    print(
+        f"offered the rendering of noise to {len(offered_the_noise_copy)} instrument(s); "
+        f"{len(refused_for_the_copy)} refused it for the copy"
+    )
+
+    controls += [
+        {
+            "finding": "control",
+            "control": "resolving_exactly_once_is_free_in_a_rendering_that_repeats_nothing",
+            "measured": {
+                "fragment_length": RECURRENCE_MEASURED_AT,
+                "the_floor_a_copy_must_clear": LEAST_RECURRENCE,
+                "by_copy": recurrence_by_copy,
+                "the_rendering_of_noise": noise_recurrence["share_that_recurs"],
+                "the_lowest_real_copy_held": lowest_real,
+                "the_margins": {
+                    "how_far_the_lowest_real_copy_stands_above_the_floor": round(
+                        lowest_real / LEAST_RECURRENCE, 2
+                    ),
+                    "how_far_the_rendering_of_noise_stands_below_it": round(
+                        LEAST_RECURRENCE / noise_recurrence["share_that_recurs"], 2
+                    ),
+                },
+                "the_length_and_the_floor_are_a_pair": (
+                    "⛔ measured: at SIX characters the rendering of noise recurs at 0.051 and "
+                    "this same floor would pass it. At eight to twenty characters it sits "
+                    "below every real copy held, by 30x at eight and 1 900x at twenty. ⚠ So "
+                    "the floor is fitted to the copies held - seven renderings, one of them "
+                    "noise - and is not a law about renderings"
+                ),
+            },
+            # ⭐ Both halves. A guard that only forbids cannot tell an empty subject from a
+            #   clean one, so the accepting side is asserted too — including the real book
+            #   printed in the very script the rendering of noise is written in.
+            "held": bool(
+                noise_recurrence["share_that_recurs"] < LEAST_RECURRENCE
+                and all(row["share_that_recurs"] > LEAST_RECURRENCE for row in real_recurrences)
+                and len(real_recurrences) >= 6
+                and second.scripts.get("devanagari", 0) > 0
+            ),
+            "meaning": (
+                "⭐⭐⭐ LANGUAGE REPEATS AND A RENDERING OF NOISE DOES NOT. In the library "
+                "scan 44 of 246 689 distinct twelve-character fragments recur, so every "
+                "fragment of it resolves EXACTLY ONCE - the condition this file leans on "
+                "hardest, satisfied by a copy that says nothing at all. ⛔ Every real copy "
+                "held recurs at 0.068 or above, INCLUDING a real book printed in the same "
+                "script as the noise, so what separates them is language rather than script. "
+                "⚠ This control holds only while the rendering of noise stays below the floor "
+                "and every real copy above it; either crossing means the floor has stopped "
+                "describing the copies it was drawn from"
+            ),
+        },
+        {
+            "finding": "control",
+            "control": "every_instrument_that_reasons_from_a_resolution_refuses_the_noise_copy",
+            "measured": {
+                "offered": len(offered_the_noise_copy),
+                "refused_naming_the_copy": len(refused_for_the_copy),
+                "the_cause_each_named": [
+                    {"where_it_was_offered": where, "refused_because": cause}
+                    for where, cause in offered_the_noise_copy.items()
+                ],
+                "and_the_same_instruments_accepted_the_real_copies": {
+                    "rules_attested_outside_a_hands_reach": len(attestations),
+                    "the_attesting_copy": second.key,
+                    "its_recurrence": recurrence_of(second)["share_that_recurs"],
+                    "why_this_half_is_here": (
+                        "⛔ a guard that only FORBIDS cannot tell an empty subject from a "
+                        "clean one. Nine refusals prove nothing without a row this "
+                        "instrument still writes"
+                    ),
+                },
+            },
+            "held": bool(
+                len(refused_for_the_copy) == len(offered_the_noise_copy)
+                and len(offered_the_noise_copy) == 9
+                and len(attestations) > 0
+            ),
+            "meaning": (
+                "⭐⭐⭐ ONE DEFECT, NINE RESOLUTIONS, EIGHT INSTRUMENTS - and the count is the "
+                "control. Each is offered the copy and each must refuse it naming the COPY, "
+                "not the alphabet, the vocabulary or the extent. ⛔ Measured by disarming "
+                "every guard in turn: eight of the nine were caught by the suite and the "
+                "ninth was not - the copy a hand is said NOT to be named in had no case "
+                "measuring it, so its guard could have been deleted in silence. ⚠ A fix "
+                "written for one cause is not a fix; this file has now made that mistake "
+                "three times over the same copy"
+            ),
+        },
+    ]
+
+    rows.append(
+        {
+            "finding": "correction",
+            "rule": "a_reader_cannot_manufacture_the_evidence_of_a_presence",
+            "what_was_published": (
+                "on the row attesting a rule outside one hand's reach, as its stated limit: "
+                "that a reader can destroy the evidence of a presence but cannot manufacture "
+                "it, so a presence found in ONE reading needs no second reader - the "
+                "asymmetry the whole replacement of the second-printing test rests on"
+            ),
+            "what_refutes_it": (
+                "⛔⛔⛔ A READER THAT RETURNS NOISE MANUFACTURES ONE. In the library scan held "
+                "here, 44 of 246 689 distinct twelve-character fragments recur, so a passage "
+                "quoted out of that copy's own noise resolves EXACTLY ONCE, carries fifteen "
+                "letters of the original's script, clears the passage-length floor - and "
+                "attested a rule nobody has ever stated, in a row the instrument constructed "
+                "without complaint. ⭐ Measured by offering it: the row was built, and it is "
+                "the copy the retired test scored a perfect pass"
+            ),
+            "what_is_published_now": (
+                "the same asymmetry, with the condition it was resting on stated: a reader "
+                "that LOSES text cannot manufacture a presence; a reader that returns NOISE "
+                "does. ⇒ What stands in the second reader's place is the attesting copy's own "
+                "recurrence, published on every attestation row, and the instrument refuses a "
+                "copy below the floor rather than reporting one"
+            ),
+            "how_the_error_was_made": (
+                "⭐⭐⭐ THE VERDICT SHAPE WAS TREATED AS THE WHOLE PROTECTION. The previous "
+                "session established that a zero is the one measurement a broken reader "
+                "produces for free, and concluded that a PRESENCE therefore needs no guard "
+                "against a broken reader. ⛔ *Broken* was read as *loses text*, which is one "
+                "of the two ways a machine reading fails and not the one this repository "
+                "already held a copy of. A reader that INVENTS text answers every question "
+                "exactly once, and it answers a presence as readily as an absence"
+            ),
+            "what_would_have_caught_it": (
+                "⛔ nothing in the suite, and that is the finding underneath this one: every "
+                "copy built in the test file repeated nothing, which is the property of the "
+                "rendering of noise itself. ⇒ The fixtures had the defect, so no test written "
+                "against them could refuse it. ⭐ A fixture standing in for a book now repeats "
+                "like one, and the census that offers the noise copy to every instrument is "
+                "tied to the module's own count of guarded resolutions"
+            ),
+        }
+    )
 
     absence = AbsenceSearch(
         claim=ABSENT_CLAIM,
