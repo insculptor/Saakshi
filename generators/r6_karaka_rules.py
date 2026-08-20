@@ -3103,7 +3103,7 @@ def main() -> int:
                         "evidence the bound is not tight and it transfers"
                     ),
                 },
-                "what_this_does_NOT_measure": (
+                "what_this_does_not_measure": (
                     "⛔⛔⛔ THE ACCEPTING SIDE IS STILL FITTED TO ONE COPY AND NOTHING HELD "
                     "OUT TOUCHES IT. Every body here is language, so every one of them speaks "
                     "to the floor and to the refusing extent and NONE of them speaks to 314 - "
