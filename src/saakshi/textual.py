@@ -605,6 +605,14 @@ RECURRENCE_MEASURED_AT = 12
 #: measured copies agree on, and a copy refused by it is being compared to those seven.
 #: ⭐ What it stands on is not fitted: at every length from eight to twenty the noise
 #: rendering sits below every real copy, by 30× at eight characters and 1 900× at twenty.
+#:
+#: ⭐⭐ **AND IT TRANSFERS, BUT THE FITTED SET IS THE FLATTERING ONE.** Measured over four
+#: bodies used to fit nothing — a second real book of this genre, this repository's licence,
+#: its documentation and its own program text — every one of them clears this floor at twelve
+#: characters. ⛔ The closest stands at **4.8×** it, where the lowest of the seven FITTED
+#: copies stands at 6.8×, so a margin read off the seven alone overstates the headroom by a
+#: third. ⚠ Every held-out body is language; none of them is a second rendering of noise, so
+#: none of them measures the other side of this floor.
 LEAST_RECURRENCE = 0.01
 
 #: The least **extent** at which a copy's failure to clear `LEAST_RECURRENCE` says anything

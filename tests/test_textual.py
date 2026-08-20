@@ -2318,6 +2318,11 @@ def test_a_tiling_phase_is_a_sample_of_the_windows_and_that_is_how_the_bound_wen
     assert windows["refused_regions"] == 1  # ⚠ one passage, not a scattering
     # ⛔⛔ And the tiling read this fraction of the specimens — the number that matters.
     assert tiled["blocks"] < windows["windows"] / 100
+    # ⛔⛔⛔ AND THE WINDOW INSTRUMENT MUST BE READING EVERY OFFSET, not every `extent`-th one.
+    #    Pinned by the count itself: one window per offset, and one fewer for each character
+    #    the extent grows by. An instrument that sampled would still report a refused region.
+    assert windows["windows"] == straddles.searchable_characters - boundary + 1
+    assert every_window_of(straddles, extent=boundary + 1)["windows"] == windows["windows"] - 1
 
 
 def test_every_window_of_counts_both_sides_of_the_floor():
@@ -2326,15 +2331,89 @@ def test_every_window_of_counts_both_sides_of_the_floor():
     Which of the two counts is the error depends on what the copy is: for a real book a
     refusal is the error, for a rendering of noise a clearance is. So both are returned, and
     an instrument that reported one of them could not have found either bound.
+
+    ⛔⛔⛔ **THE FIRST VERSION OF THIS TEST COULD NOT FAIL, AND IT WAS WRITTEN THIS SESSION
+    AGAINST EXACTLY THAT.** It asked the identity of the rendering of noise, where every
+    window is refused and `windows_cleared` is zero anyway — so an instrument hard-wired to
+    report zero cleared windows passed it. Found by disarming the field. ⇒ ⭐⭐⭐ *A control
+    must be asked of a subject on which it can come out wrong*, which for a count of the
+    accepting side means a copy some of whose windows are accepted.
     """
+    # ⭐ The subject that can fail: a copy with windows on BOTH sides of the floor.
+    boundary = 600
+    half = boundary // 2
+    repeating = REPEATS_LIKE_A_BOOK_IN_THE_ORIGINALS_SCRIPT * 40
+    mixed = _copy(
+        repeating[:half] + _noise(boundary)[:boundary] + repeating[: boundary + half],
+        key="a_copy_with_windows_on_both_sides",
+    )
+    both = every_window_of(mixed, extent=boundary)
+    assert both["windows_refused"] > 0
+    assert both["windows_cleared"] > 0  # ⛔ THE ASSERTION THE OLD SUBJECT COULD NOT CARRY
+    assert both["windows_refused"] + both["windows_cleared"] == both["windows"]
+    assert both["least_share"] < LEAST_RECURRENCE <= both["greatest_share"]
+
+    # ⚠ And the noise copy, where the count is one-sided and the identity still holds.
     measured = every_window_of(A_RENDERING_OF_NOISE, extent=400)
     assert measured["windows_refused"] + measured["windows_cleared"] == measured["windows"]
     assert measured["windows_cleared"] == 0  # ⭐ noise, above the accepting bound
     assert measured["greatest_share"] < LEAST_RECURRENCE
+
     # ⚠ And a copy too short for one window says so rather than returning a zero.
     empty = every_window_of(SECOND_TRANSLATION, extent=100_000)
     assert empty["windows"] == 0
     assert "fewer than the" in empty["why_there_are_none"]
+
+
+def test_every_window_of_agrees_with_a_naive_reading_of_its_own_definition():
+    """⛔⛔⛔ THE INSTRUMENT THE CORRECTED BOUND RESTS ON HAD NOTHING MEASURING IT.
+
+    `every_window_of` slides an incremental counter — one fragment out, one fragment in — and
+    an incremental counter is exactly the kind of thing that can drift back into reading every
+    `extent`-th window instead of every window, which is the sampling this session was spent
+    undoing. ⚠ Disarming it that way broke nothing: the miniature-defect test still saw a
+    refused region and still passed.
+
+    ⭐ So it is checked against a second, naive implementation of the same definition —
+    recounted from scratch at every offset, no shared state — over a fixture small enough to
+    afford it. ⛔ The naive one is written here rather than imported, because an instrument
+    checked against itself has been checked against nothing.
+    """
+    boundary = 200
+    subject = _copy(
+        (REPEATS_LIKE_A_BOOK_IN_THE_ORIGINALS_SCRIPT * 6)[:300]
+        + _noise(200)[:200]
+        + (REPEATS_LIKE_A_BOOK_IN_THE_ORIGINALS_SCRIPT * 6)[:300],
+        key="checked_against_a_naive_reading",
+    )
+    body = subject.normalised
+    length = RECURRENCE_MEASURED_AT
+
+    naive_refused = 0
+    naive_cleared = 0
+    shares = []
+    for start in range(len(body) - boundary + 1):
+        window = body[start : start + boundary]
+        counts: dict[str, int] = {}
+        for at in range(len(window) - length + 1):
+            fragment = window[at : at + length]
+            counts[fragment] = counts.get(fragment, 0) + 1
+        recurring = sum(1 for seen in counts.values() if seen > 1)
+        share = recurring / len(counts) if counts else 0.0
+        shares.append(share)
+        if share < LEAST_RECURRENCE:
+            naive_refused += 1
+        else:
+            naive_cleared += 1
+
+    measured = every_window_of(subject, extent=boundary)
+    assert measured["windows"] == len(shares)
+    assert measured["windows_refused"] == naive_refused
+    assert measured["windows_cleared"] == naive_cleared
+    assert measured["least_share"] == round(min(shares), 6)
+    assert measured["greatest_share"] == round(max(shares), 6)
+    # ⛔ And the subject must have windows on both sides, or the agreement is trivial.
+    assert naive_refused > 0 and naive_cleared > 0
 
 
 def test_the_accepting_side_is_armed_at_its_own_bound():
@@ -2384,6 +2463,34 @@ def test_the_accepting_side_is_armed_at_its_own_bound():
     # ⚠ And the row says of itself that a LOW share here would NOT have been about the copy.
     assert passed["a_low_share_here_is_about_the_copy"] is False
     assert passed["a_high_share_here_is_about_the_copy"] is True
+
+
+def test_each_constant_publishes_what_it_was_fitted_to_and_what_held_it_out():
+    """⚠ THREE CONSTANTS FITTED TO ONE SET OF COPIES, AND A COPY DISAGREEING WITH ALL THREE
+    WOULD LOOK EXACTLY LIKE ONE DISAGREEING WITH NONE.
+
+    That is an argument, and what answers an argument about a constant is a held-out
+    measurement — which `generators/r6_karaka_rules.py` now takes, over four bodies it has
+    never loaded. ⭐ All three transfer. What this test pins is that the answer is written
+    where the constant is READ, and that it is written with its limits rather than as a
+    clean bill.
+
+    ⛔⛔⛔ Including the limit that matters most: the accepting bound is fitted to ONE copy,
+    every held-out body is language, and so nothing held out speaks to it at all.
+    """
+    published = inspect.getsource(saakshi.textual)
+    # ⭐ Each of the three says out loud that it is fitted, not derived.
+    assert "⚠ Fitted, exactly as `LEAST_RECURRENCE` is" in published
+    assert "**not a law about renderings**" in published
+    assert "⚠ Fitted to **one** copy" in published
+    # ⭐⭐ And the refusing extent carries the held-out result, with the bodies named.
+    assert "four bodies it was **not** fitted to" in published
+    assert "held-out evidence it transfers and is not tight" in published
+    # ⭐⭐ And the floor carries its own held-out result, including the shrunken margin.
+    assert "AND IT TRANSFERS, BUT THE FITTED SET IS THE FLATTERING ONE" in published
+    assert "overstates the headroom by a" in published
+    # ⛔ The weakest number must be labelled the weakest number, at the point of reading.
+    assert "It is the weaker of the two numbers and it says so." in published
 
 
 def test_the_decision_taken_on_the_accepting_side_is_published_and_the_old_one_withdrawn():
