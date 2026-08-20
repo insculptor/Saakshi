@@ -41,8 +41,9 @@ reading that returned noise:
 |---|---|---|
 | 200 | 1 405 161 of 1 710 541 | 109 |
 | 300 | 1 176 768 of 1 709 941 | 207 |
-| **310** | 1 176 300-odd | **217** ← the accepting side's last failure |
-| **315** | — | **0** |
+| **310** | 1 147 583 of 1 709 881 | **217** |
+| **314** | 1 135 910 of 1 709 857 | **221** ← the accepting side’s last failure |
+| **315** | 1 205 215 of 1 709 851 | **0** |
 | 1 000 | 406 896 of 1 705 741 | 0 |
 | 5 000 | 16 021 of 1 681 741 | 0 |
 | **6 000** | ⛔ **5 593** of 1 675 741 | 0 |
@@ -71,8 +72,10 @@ question.
 | 7 686 | **0** |
 
 ⇒ *The smallest extent at which nothing is refused* — the rule 6 000 was picked by — is not a
-bound at all. On this grid that rule would now pick **7 351**, and three separate bands above
-it still refuse. What is published is the **supremum**: 7 685, checked at every extent to
+bound at all. ⭐⭐ **And it gets WORSE as the grid gets finer, which is the opposite of how a
+bound should behave.** On the original sixteen-point grid that rule now picks 8 000, which is
+safe by luck; on a step-of-ten grid it picks **7 360**, and three separate bands above that
+still refuse. What is published is the **supremum**: 7 685, checked at every extent to
 7 780, every ten to 8 800, every fifty to 9 000 and every five hundred to 30 000.
 
 ---
@@ -143,12 +146,17 @@ technical prose and program text:
 | body | characters | share at n=12 | × the floor | largest extent refused |
 |---|---|---|---|---|
 | a second real book, never loaded here | 1 401 753 | 0.13879 | 13.9× | 5 000 |
-| this repository's licence | 33 690 | 0.10867 | 10.9× | none |
-| its documentation | 462 477 | 0.21623 | 21.6× | 7 000 |
-| its own program text | 373 568 | 0.15894 | 15.9× | — |
+| this repository's licence | 33 690 | 0.10867 | 10.9× | 1 000 |
+| its own program text | 380 921 | 0.15930 | 15.9× | 3 000 |
 | **its README** | 22 510 | **0.04832** | **4.8×** | 4 000 |
 | *the lowest **fitted** copy* | 253 529 | *0.06784* | *6.8×* | *7 685* |
 | *the rendering of noise* | 246 777 | *0.00018* | *0.018×* | — |
+
+⚠ The last column is **on the published grid** and the grid travels with it on the row: a
+finer grid moves these numbers, and the first version of this measurement quoted 2 000 for the
+README because its grid jumped 2 000 to 5 000. A bound quoted without its grid reads as exact.
+⚠ And the program text contains the module the three constants live in — held out from their
+*fitting*, which happened before it said anything about them, not from their prose.
 
 **All three transfer.** Every held-out body clears the floor at the fitted fragment length,
 and each is refused only up to a *smaller* extent than the six fitted copies are — so the
