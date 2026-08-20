@@ -2229,12 +2229,16 @@ def test_the_fixture_that_stood_in_for_noise_was_itself_under_the_extent():
 
 
 def test_only_the_refusing_side_is_bounded_by_the_extent():
-    """⭐⭐ A PASS IS SOUND AT ANY EXTENT AND A REFUSAL IS NOT, and that asymmetry is the fix.
+    """⛔⛔⛔ AND THE ACCEPTING SIDE IS UNSOUND DOWN THERE TOO — LEFT UNGUARDED ON PURPOSE.
 
-    ⛔ Measured: the rendering of noise held in this repository's cache is refused in EVERY
-    block at every size from two hundred to twenty thousand characters, so clearing the floor
-    is not something small size buys. ⇒ A copy far under the extent that repeats is passed,
-    unbounded — and the guard says nothing about it either way.
+    ⚠ The first draft of this bound published *a pass is sound at any extent*. The
+    generator's own control refuted it before it was written down: at **three hundred**
+    characters one block of the rendering of noise in **822** clears this floor, three of its
+    286 fragments coming round twice for a share of 0.0105. ⇒ Below the extent the
+    measurement fails in *both* directions and only the refusing one is bounded — because
+    refusing every copy shorter than six thousand characters outright would refuse every
+    fixture this suite is built from. ⭐ A decision, not a measurement, and recorded as a
+    test so that arming it later is something somebody chooses.
     """
     a_short_copy_that_repeats = edition()
     assert a_short_copy_that_repeats.searchable_characters < LEAST_EXTENT_A_REFUSAL_DISCRIMINATES_AT
@@ -2244,3 +2248,16 @@ def test_only_the_refusing_side_is_bounded_by_the_extent():
     assert measured["share_that_recurs"] >= LEAST_RECURRENCE
     # ⚠ And the row says of itself that a LOW share here would not have been about the copy.
     assert measured["a_low_share_here_is_about_the_copy"] is False
+
+
+def test_the_reason_the_accepting_side_is_left_unguarded_is_published():
+    """⛔ A DECISION THAT LIVES ONLY IN A COMMIT MESSAGE IS NOT A DECISION A READER CAN FIND.
+
+    ⚠ Pinned by the measured counter-example rather than by prose: the numbers are what make
+    it a finding, and a sentence that lost them would be an opinion about small copies.
+    """
+    published = inspect.getsource(saakshi.textual)
+    assert "one block of the rendering of noise in 822 CLEARS this floor" in published
+    assert "0.0105 against the 0.01" in published
+    # ⛔ And the decision itself, not only the defect it admits.
+    assert "That is a decision, not a" in published

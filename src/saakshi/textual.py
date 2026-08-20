@@ -617,30 +617,34 @@ LEAST_RECURRENCE = 0.01
 #: ⭐ Every figure below is what `blocks_this_floor_refuses` returns over the copies held;
 #: `generators/r6_karaka_rules.py` re-measures it on every run rather than quoting it:
 #:
-#: ⚠ Nine of the sixteen points measured are shown; the generator publishes every one.
+#: ⚠ Over the same seven renderings `LEAST_RECURRENCE` is fitted to. Nine of the sixteen
+#: points measured are shown; the generator publishes every one.
 #:
-#: | block | real copies refused | the rendering of noise |
+#: | block | the six real copies refused | the rendering of noise |
 #: |---|---|---|
-#: | 200 | **12 338 of 15 563** | 1 233 of 1 233 |
-#: | 500 | 2 669 of 6 224 | 493 of 493 |
-#: | 1 000 | 557 of 3 110 | 246 of 246 |
-#: | 2 000 | 97 of 1 553 | 123 of 123 |
-#: | 3 000 | 25 of 1 035 | 82 of 82 |
-#: | 5 000 | 3 of 619 | 49 of 49 |
-#: | **6 000** | **0 of 516** | 41 of 41 |
-#: | 12 000 | 0 of 257 | 20 of 20 |
-#: | 20 000 | 0 of 153 | 12 of 12 |
+#: | 200 | **7 036 of 8 555** | 1 233 of 1 233 |
+#: | 300 | 3 930 of 5 704 | ⛔ 821 of **822** |
+#: | 500 | 1 651 of 3 421 | 493 of 493 |
+#: | 1 000 | 398 of 1 709 | 246 of 246 |
+#: | 2 000 | 84 of 853 | 123 of 123 |
+#: | 3 000 | 21 of 568 | 82 of 82 |
+#: | 5 000 | 3 of 339 | 49 of 49 |
+#: | **6 000** | **0 of 283** | 41 of 41 |
+#: | 12 000 | 0 of 141 | 20 of 20 |
+#: | 20 000 | 0 of 83 | 12 of 12 |
 #:
 #: ⭐⭐⭐ At two hundred characters this floor refuses **four fifths of every real book held**,
 #: with the cause *it is a machine reading that returned noise* — an unmeasured claim about a
 #: copy that is simply too short for anything in it to have come round twice.
 #:
-#: ⭐⭐ **A PASS IS SOUND AT ANY EXTENT AND A REFUSAL IS NOT**, which is why this bounds only
-#: the refusing side: the rendering of noise held here is refused in **every** block at
-#: **every** size measured, 200 through 20 000, so clearing the floor is not something small
-#: size buys. ⚠ Failing it is: a real copy and a rendering of noise fail identically below
-#: this extent, and an instrument that names noise there has agreed with a claim for reasons
-#: unrelated to it.
+#: ⛔⛔⛔ **AND THE ACCEPTING SIDE FAILS DOWN THERE TOO, WHICH THIS DOES NOT GUARD.** At three
+#: hundred characters **one block of the rendering of noise in 822 CLEARS this floor** — three
+#: of its 286 fragments happen to come round twice, a share of 0.0105 against the 0.01
+#: required. So below this extent the measurement is unsound in *both* directions, and only
+#: the refusing one is bounded here: refusing every copy shorter than six thousand characters
+#: outright would refuse every fixture the suite is built from, and every caller in this
+#: repository passes a copy of a quarter of a million characters. ⚠ That is a decision, not a
+#: measurement, and it is written down as one.
 #:
 #: ⚠ Fitted, exactly as `LEAST_RECURRENCE` is: to seven renderings, one of them noise, on the
 #: grid 200 · 300 · 500 · 1 000 · 2 000 · 3 000 · 4 000 · 5 000 · 6 000 · 7 000 · 8 000 ·
@@ -785,7 +789,7 @@ def refuse_a_rendering_that_does_not_repeat(
             f"RENDERING: this copy carries {edition.searchable_characters} searchable "
             f"characters, under the {LEAST_EXTENT_A_REFUSAL_DISCRIMINATES_AT} this floor was "
             "measured to discriminate at, and at that size REAL BOOKS FAIL IT TOO - tiled "
-            "into blocks of two hundred characters, 12 338 of 15 563 blocks of the copies "
+            "into blocks of two hundred characters, 7 036 of 8 555 blocks of the copies "
             "held here are refused. ⚠ Nothing measured says this is a machine reading that "
             "returned noise, and nothing here says it is not"
         )

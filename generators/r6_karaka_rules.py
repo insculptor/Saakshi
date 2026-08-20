@@ -2793,6 +2793,28 @@ def main() -> int:
                     "one block, no sample and no overlap; the remainder shorter than one "
                     "block is reported on each row rather than dropped in silence"
                 ),
+                # ⛔⛔⛔ AND THE ACCEPTING SIDE, WHICH IS NOT GUARDED AND FAILS DOWN THERE
+                #    TOO. A block of the rendering of noise that CLEARS the floor is a false
+                #    accept, and a control that published only the refusing half would read
+                #    as though the pass were sound at any size.
+                "blocks_of_the_rendering_of_noise_that_cleared_the_floor": [
+                    {
+                        "block_characters": block,
+                        "blocks": tiled[block][1]["blocks"],
+                        "blocks_that_cleared_it": (
+                            tiled[block][1]["blocks"] - tiled[block][1]["blocks_refused"]
+                        ),
+                    }
+                    for block in TILED_AT
+                    if tiled[block][1]["blocks_refused"] < tiled[block][1]["blocks"]
+                ],
+                "why_the_accepting_side_is_left_unguarded": (
+                    "⚠ a DECISION and not a measurement. Refusing every copy shorter than "
+                    "the extent outright would refuse every fixture the suite is built from, "
+                    "and every caller in this repository passes a copy of a quarter of a "
+                    "million characters. ⛔ It is recorded here so that arming it later is "
+                    "something somebody chooses"
+                ),
                 "what_is_fitted_here": (
                     "⚠ the extent, exactly as the floor is: to the seven renderings held, on "
                     f"the grid {list(TILED_AT)}. Six thousand is the smallest of those at "
@@ -2810,9 +2832,13 @@ def main() -> int:
                     for row in tiled[LEAST_EXTENT_A_REFUSAL_DISCRIMINATES_AT][0]
                 )
                 == 0
+                # ⛔ AT OR ABOVE THE EXTENT ONLY. Below it the rendering of noise clears
+                #   this floor in one block of 822, so a condition written over the whole
+                #   grid would be false - and was, on the run that found it.
                 and all(
                     tiled[block][1]["blocks_refused"] == tiled[block][1]["blocks"]
                     for block in TILED_AT
+                    if block >= LEAST_EXTENT_A_REFUSAL_DISCRIMINATES_AT
                 )
                 and len(tiled[TILED_AT[0]][0]) >= 6
             ),
@@ -2821,11 +2847,16 @@ def main() -> int:
                 "BELOW A MEASURED EXTENT IT IS A TEST OF SIZE RATHER THAN OF LANGUAGE. Read "
                 "two hundred characters at a time, this floor refuses FOUR FIFTHS of every "
                 "real book held here - and it refused them with the cause `it is a machine "
-                "reading that returned noise`, which nothing had measured. ⭐⭐ A PASS is "
-                "sound at any extent and a REFUSAL is not: the rendering of noise is refused "
-                "in every block at every size from two hundred to twenty thousand "
-                "characters, so clearing the floor is not something a small copy buys, while "
-                "failing it is. ⇒ Under the extent the refusal now names the extent, and it "
+                "reading that returned noise`, which nothing had measured. ⭐⭐ AND THE FLOOR "
+                "IS UNSOUND IN BOTH DIRECTIONS DOWN THERE, not just the refusing one. The "
+                "rendering of noise is refused in every block at every size from six "
+                "thousand characters to twenty thousand, which is what the extent published "
+                "here is the point of. ⛔⛔ BELOW IT THE ACCEPTING SIDE FAILS TOO: at three "
+                "hundred "
+                "characters one block of the rendering of noise in 822 CLEARS this floor, "
+                "three of its 286 fragments coming round twice for a share of 0.0105. That "
+                "half is deliberately left unguarded and the reason is published beside it. "
+                "⇒ Under the extent the refusal now names the extent, and it "
                 "is still a refusal - a resolution in a copy that small is free for exactly "
                 "the reason it is free in noise. ⛔ The fixture standing in for the rendering "
                 "of noise in the suite was itself 1 799 characters, so every test certifying "
