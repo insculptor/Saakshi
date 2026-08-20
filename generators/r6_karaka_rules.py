@@ -2554,8 +2554,9 @@ def main() -> int:
     #    old table was measured with it and a reader must be able to reproduce that, the
     #    window one because it is the measurement the constant now rests on.
     WINDOWED_AT = (
-        200, 300, 314, LEAST_EXTENT_AN_ACCEPTANCE_DISCRIMINATES_AT, 500, 1000, 2000, 5000,
-        6000, 7000, 7685, LEAST_EXTENT_A_REFUSAL_DISCRIMINATES_AT, 8000, 10000, 20000,
+        200, 300, 310, 314, LEAST_EXTENT_AN_ACCEPTANCE_DISCRIMINATES_AT, 500, 1000, 2000,
+        2500, 3000, 4000, 5000, 6000, 7000, 7500, 7685,
+        LEAST_EXTENT_A_REFUSAL_DISCRIMINATES_AT, 8000, 10000, 20000,
     )
     assert LEAST_EXTENT_A_REFUSAL_DISCRIMINATES_AT in WINDOWED_AT
     assert LEAST_EXTENT_AN_ACCEPTANCE_DISCRIMINATES_AT in WINDOWED_AT
@@ -2684,7 +2685,13 @@ def main() -> int:
                 "clears_the_fitted_floor": (
                     by_length[RECURRENCE_MEASURED_AT] >= LEAST_RECURRENCE
                 ),
-                "largest_extent_at_which_a_window_of_it_is_refused": refused_up_to,
+                # ⚠ ON THE GRID, and the grid travels with the number: a bound quoted
+                #   without the points it was taken at reads as exact. This one is not - a
+                #   finer grid moves it, and only the grid says so.
+                "largest_extent_on_this_grid_at_which_a_window_of_it_is_refused": (
+                    refused_up_to
+                ),
+                "the_grid_it_was_taken_on": list(WINDOWED_AT),
                 "inside_the_fitted_extent": (
                     refused_up_to < LEAST_EXTENT_A_REFUSAL_DISCRIMINATES_AT
                 ),
@@ -3090,8 +3097,8 @@ def main() -> int:
                     "largest_by_body": [
                         {
                             "body": row["body"],
-                            "largest_extent_at_which_a_window_of_it_is_refused": row[
-                                "largest_extent_at_which_a_window_of_it_is_refused"
+                            "largest_extent_on_this_grid": row[
+                                "largest_extent_on_this_grid_at_which_a_window_of_it_is_refused"
                             ],
                         }
                         for row in held_out_rows
