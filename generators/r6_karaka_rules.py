@@ -2618,7 +2618,11 @@ def main() -> int:
         ),
         (
             "this_repositorys_own_program_text",
-            "Python, which is not a natural language at all",
+            (
+                "Python, which is not a natural language at all. ⚠ It contains the module "
+                "the three constants live in, so it is held out from their FITTING and not "
+                "from their prose, and it grows whenever that file does"
+            ),
             normalise(
                 "\n".join(
                     path.read_text(encoding="utf-8")
