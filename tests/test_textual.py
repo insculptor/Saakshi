@@ -27,6 +27,7 @@ from saakshi.fixture import (
 )
 from saakshi.texts import DEVANAGARI, passage_fidelity, script_presence
 from saakshi.textual import (
+    LEAST_EXTENT_A_REFUSAL_DISCRIMINATES_AT,
     LEAST_RECURRENCE,
     RECURRENCE_MEASURED_AT,
     REFUSAL_REASONS,
@@ -1670,14 +1671,22 @@ def _noise(letters: int) -> str:
 #: ⛔⛔⛔ THE COPY THAT PASSED THE RETIRED TEST PERFECTLY, as it really behaves. A machine
 #: reading in which nothing of the work survives — offered here as an attestation, in the
 #: right script, and long enough for its recurrence to be measured.
-A_RENDERING_OF_NOISE = _copy(_noise(1500), key="a_rendering_of_noise")
+#:
+#: ⛔⛔⛔ **IT WAS 1 799 CHARACTERS, AND AT THAT EXTENT A REAL BOOK IS REFUSED TOO.** Every
+#: test in this file that certified *the instruments refuse the rendering of noise* was
+#: certifying a refusal the copy's **size** earned, not its noise: tiled into blocks of two
+#: hundred characters, four fifths of every real copy this repository holds fails the same
+#: floor. ⇒ The fixture now clears `LEAST_EXTENT_A_REFUSAL_DISCRIMINATES_AT`, so what it is
+#: refused for is the rendering. ⭐ The generator is prefix-stable, so every offset quoted
+#: out of this copy below is the same text it was before it grew.
+A_RENDERING_OF_NOISE = _copy(_noise(6000), key="a_rendering_of_noise")
 
 #: ⛔⛔⛔ AND THE COPY THAT MANUFACTURES THE PRESENCE. Its attesting passage is a run of the
 #: copy's OWN NOISE — quoted out of it, so it resolves exactly once, clears the passage-length
 #: floor and carries the original's script. ⚠ Before the recurrence guard this row CONSTRUCTED,
 #: attesting a rule nobody ever stated, and the class's own limit reads *a reader can destroy
 #: the evidence of a presence but cannot manufacture it*.
-NOISE_THE_PASSAGE_IS_QUOTED_OUT_OF = _copy(_noise(1500), key="noise_quoted_against_itself")
+NOISE_THE_PASSAGE_IS_QUOTED_OUT_OF = _copy(_noise(6000), key="noise_quoted_against_itself")
 
 #: The run of that copy's own noise a recorder would offer. ⛔ It resolves EXACTLY ONCE there.
 PASSAGE_QUOTED_OUT_OF_THE_NOISE = NOISE_THE_PASSAGE_IS_QUOTED_OUT_OF.normalised[200:260]
@@ -1914,7 +1923,10 @@ def test_the_floor_stands_between_a_rendering_of_noise_and_a_rendering_of_langua
     #   older guard passes it, which is why this one had to be written.
     assert A_RENDERING_OF_NOISE.carries_searchable_text
     assert A_RENDERING_OF_NOISE.carries_script("devanagari")
-    assert A_RENDERING_OF_NOISE.searchable_characters > 1000
+    # ⛔⛔⛔ AND IT IS LARGE ENOUGH FOR ITS REFUSAL TO BE ABOUT THE RENDERING. At the 1 799
+    #   characters this fixture used to carry, a real book fails this floor too — so the
+    #   bound is the module's number and not a round one written beside it.
+    assert A_RENDERING_OF_NOISE.searchable_characters >= LEAST_EXTENT_A_REFUSAL_DISCRIMINATES_AT
 
 
 def test_an_absence_over_a_copy_that_repeats_nothing_is_refused():
@@ -2132,3 +2144,103 @@ def test_a_locus_is_deliberately_not_guarded_and_the_reason_is_recorded():
     # ⛔ And an Alignment built on two such loci is refused by the copies rather than by this
     #   guard: an anchor must resolve in BOTH copies, and one copy's noise is not another's.
     assert recurrence_of(A_RENDERING_OF_NOISE)["share_that_recurs"] < LEAST_RECURRENCE
+
+
+# ==========================================================================================
+# A FLOOR THAT REFUSES FOUR FIFTHS OF EVERY REAL BOOK IS NOT MEASURING THE RENDERING
+# ==========================================================================================
+#
+# ⛔⛔⛔ The guard above was fitted to seven copies of a quarter of a million characters each
+# and then applied to copies of any size. Tiled into consecutive blocks — complete, disjoint,
+# every character of every copy in exactly one block — the floor refuses **12 338 of 15 563**
+# two-hundred-character blocks of the real books held here, and 1 233 of 1 233 blocks of the
+# rendering of noise. ⇒ Below a measured extent the two are refused ALIKE, and the instrument
+# published *it is a machine reading that returned noise* for both.
+
+
+def test_the_extent_a_refusal_discriminates_at_is_the_measured_one():
+    """⚠ Pinned, because it is fitted: the smallest tiling size at which no block of any real
+    copy held is refused. ⛔ At five thousand two of the least legible readings still are."""
+    assert LEAST_EXTENT_A_REFUSAL_DISCRIMINATES_AT == 6000
+    # ⭐ And it is published on every row a share is, because a share cannot be read alone.
+    row = recurrence_of(A_RENDERING_OF_NOISE)
+    assert row["characters_measured"] == A_RENDERING_OF_NOISE.searchable_characters
+    assert row["the_extent_a_low_share_means_anything_at"] == LEAST_EXTENT_A_REFUSAL_DISCRIMINATES_AT
+    assert row["a_low_share_here_is_about_the_copy"] is True
+    # ⚠ The correction to the published sentence, present: a near-zero share means what it
+    #   says ONLY above the extent. ⛔ Pinned by the qualification rather than by the number,
+    #   which appears in the same sentence for a different reason.
+    assert "ONLY WHERE THE COPY IS LARGE ENOUGH" in row["what_a_share_near_zero_means"]
+
+
+def test_a_copy_under_the_extent_is_refused_for_its_size_and_not_for_being_noise():
+    """⛔⛔⛔ THE DEFECT: A REFUSAL THAT NAMED A CAUSE NOBODY MEASURED.
+
+    A page of a real book, offered on its own, repeats nothing — there has not been enough of
+    it for anything to come round twice. ⭐ It is still refused, and it must be: a resolution
+    in it is free for the same reason it is free in noise. ⚠ What it must NOT be told is that
+    it is a machine reading that returned noise, because nothing here measured that.
+    """
+    a_page = edition(
+        "Chapter twelve. The lord of the ninth from the karaka is examined first, "
+        "and the sign it occupies is noted before any aspect upon it is weighed. "
+        "Where two claims fall together the elder is preferred, unless a benefic "
+        "stands in the eleventh from either, in which case neither is dropped.",
+        kind="translation",
+    )
+    assert a_page.searchable_characters < LEAST_EXTENT_A_REFUSAL_DISCRIMINATES_AT
+    assert recurrence_of(a_page)["share_that_recurs"] < LEAST_RECURRENCE  # ⚠ as a real page does
+    with pytest.raises(TextualError) as excinfo:
+        refuse_a_rendering_that_does_not_repeat(
+            a_page, what_it_would_make_free="a presence quoted out of it"
+        )
+    said = str(excinfo.value)
+    assert "THE CAUSE IS THE EXTENT AND NOT THE RENDERING" in said
+    assert "Nothing measured says this is a machine reading that returned noise" in said
+    # ⛔⛔ BOTH HALVES. A test asserting only the new sentence cannot tell a corrected cause
+    #    from one printed beside the old one, so the old verdict must be gone from this
+    #    refusal — and it is the VERDICT that must be gone, not the words, which the sentence
+    #    above quotes in order to withdraw them.
+    assert "NOTHING IN THIS COPY REPEATS" not in said
+    assert "It is a machine reading that returned noise" not in said
+    assert "not the alphabet that is wrong" not in said
+
+
+def test_the_fixture_that_stood_in_for_noise_was_itself_under_the_extent():
+    """⛔⛔⛔ AND SO NO TEST IN THIS FILE COULD HAVE CAUGHT IT — TWICE OVER NOW.
+
+    The previous session found every copy built here repeated nothing, which is the property
+    of noise itself. This one finds the copy built to BE noise was 1 799 characters — an
+    extent at which four fifths of every real book held is refused by the same floor. ⇒ The
+    roster test certified a refusal the fixture's SIZE earned. ⭐ Driven off its own value:
+    the old fixture is rebuilt here and shown to earn the extent cause, so growing it was a
+    correction rather than a decoration.
+    """
+    as_it_was = _copy(_noise(1500), key="the_fixture_as_it_stood")
+    assert as_it_was.searchable_characters == 1799
+    assert as_it_was.searchable_characters < LEAST_EXTENT_A_REFUSAL_DISCRIMINATES_AT
+    with pytest.raises(TextualError, match="THE CAUSE IS THE EXTENT"):
+        refuse_a_rendering_that_does_not_repeat(
+            as_it_was, what_it_would_make_free="the attestation"
+        )
+    # ⭐ The generator is prefix-stable, so the copy that replaced it is the same text plus
+    #   more of it — every offset quoted out of it elsewhere in this file still resolves.
+    assert A_RENDERING_OF_NOISE.normalised.startswith(as_it_was.normalised)
+
+
+def test_only_the_refusing_side_is_bounded_by_the_extent():
+    """⭐⭐ A PASS IS SOUND AT ANY EXTENT AND A REFUSAL IS NOT, and that asymmetry is the fix.
+
+    ⛔ Measured: the rendering of noise held in this repository's cache is refused in EVERY
+    block at every size from two hundred to twenty thousand characters, so clearing the floor
+    is not something small size buys. ⇒ A copy far under the extent that repeats is passed,
+    unbounded — and the guard says nothing about it either way.
+    """
+    a_short_copy_that_repeats = edition()
+    assert a_short_copy_that_repeats.searchable_characters < LEAST_EXTENT_A_REFUSAL_DISCRIMINATES_AT
+    measured = refuse_a_rendering_that_does_not_repeat(
+        a_short_copy_that_repeats, what_it_would_make_free="nothing, it is passed"
+    )
+    assert measured["share_that_recurs"] >= LEAST_RECURRENCE
+    # ⚠ And the row says of itself that a LOW share here would not have been about the copy.
+    assert measured["a_low_share_here_is_about_the_copy"] is False

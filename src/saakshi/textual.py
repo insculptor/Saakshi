@@ -607,6 +607,49 @@ RECURRENCE_MEASURED_AT = 12
 #: rendering sits below every real copy, by 30× at eight characters and 1 900× at twenty.
 LEAST_RECURRENCE = 0.01
 
+#: The least **extent** at which a copy's failure to clear `LEAST_RECURRENCE` says anything
+#: about *that copy*, in characters of the normalised rendering.
+#:
+#: ⛔⛔⛔ **BELOW THIS THE FLOOR IS A TEST OF SIZE AND NOT OF LANGUAGE, AND IT PUBLISHES THE
+#: LANGUAGE CAUSE.** Measured by tiling every copy this repository holds into consecutive
+#: blocks of one size — complete, disjoint, every character of every copy in exactly one
+#: block, no sample — and asking how many blocks this floor refuses at twelve characters.
+#: ⭐ Every figure below is what `blocks_this_floor_refuses` returns over the copies held;
+#: `generators/r6_karaka_rules.py` re-measures it on every run rather than quoting it:
+#:
+#: ⚠ Nine of the sixteen points measured are shown; the generator publishes every one.
+#:
+#: | block | real copies refused | the rendering of noise |
+#: |---|---|---|
+#: | 200 | **12 338 of 15 563** | 1 233 of 1 233 |
+#: | 500 | 2 669 of 6 224 | 493 of 493 |
+#: | 1 000 | 557 of 3 110 | 246 of 246 |
+#: | 2 000 | 97 of 1 553 | 123 of 123 |
+#: | 3 000 | 25 of 1 035 | 82 of 82 |
+#: | 5 000 | 3 of 619 | 49 of 49 |
+#: | **6 000** | **0 of 516** | 41 of 41 |
+#: | 12 000 | 0 of 257 | 20 of 20 |
+#: | 20 000 | 0 of 153 | 12 of 12 |
+#:
+#: ⭐⭐⭐ At two hundred characters this floor refuses **four fifths of every real book held**,
+#: with the cause *it is a machine reading that returned noise* — an unmeasured claim about a
+#: copy that is simply too short for anything in it to have come round twice.
+#:
+#: ⭐⭐ **A PASS IS SOUND AT ANY EXTENT AND A REFUSAL IS NOT**, which is why this bounds only
+#: the refusing side: the rendering of noise held here is refused in **every** block at
+#: **every** size measured, 200 through 20 000, so clearing the floor is not something small
+#: size buys. ⚠ Failing it is: a real copy and a rendering of noise fail identically below
+#: this extent, and an instrument that names noise there has agreed with a claim for reasons
+#: unrelated to it.
+#:
+#: ⚠ Fitted, exactly as `LEAST_RECURRENCE` is: to seven renderings, one of them noise, on the
+#: grid 200 · 300 · 500 · 1 000 · 2 000 · 3 000 · 4 000 · 5 000 · 6 000 · 7 000 · 8 000 ·
+#: 9 000 · 10 000 · 12 000 · 15 000 · 20 000. Six thousand is the smallest of those at which
+#: no block of any real copy is refused; at five thousand two of the least legible readings
+#: still are. ⛔ And a block of a book is the best proxy available for a short copy, not the
+#: same thing as one.
+LEAST_EXTENT_A_REFUSAL_DISCRIMINATES_AT = 6000
+
 
 @lru_cache(maxsize=16)
 def _recurrence(body: str, length: int) -> tuple[int, int, int]:
@@ -630,7 +673,8 @@ def recurrence_of(edition: Edition, *, length: int = RECURRENCE_MEASURED_AT) -> 
     ⚠ A cap nobody states reads as complete coverage, so this one takes no cap: the count is
     over every fragment of `length` characters in the copy.
     """
-    distinct, recurring, most = _recurrence(edition.normalised, length)
+    body = edition.normalised
+    distinct, recurring, most = _recurrence(body, length)
     return {
         "edition": edition.key,
         "fragment_length": length,
@@ -639,13 +683,58 @@ def recurrence_of(edition: Edition, *, length: int = RECURRENCE_MEASURED_AT) -> 
         "share_that_recurs": (round(recurring / distinct, 6) if distinct else None),
         "the_most_frequent_fragment_occurs": most,
         "measured_over": "every position of the rendering, not a sample",
+        # ⭐⭐ Published on every row beside the share, because the share alone cannot be read:
+        #   below this extent a real book fails this measurement as surely as a rendering of
+        #   noise does, and only this number on the row would say so.
+        "characters_measured": len(body),
+        "the_extent_a_low_share_means_anything_at": LEAST_EXTENT_A_REFUSAL_DISCRIMINATES_AT,
+        "a_low_share_here_is_about_the_copy": len(body) >= LEAST_EXTENT_A_REFUSAL_DISCRIMINATES_AT,
         "what_a_share_near_zero_means": (
             "⛔ that NOTHING IN THIS COPY REPEATS, so every fragment of it resolves exactly "
             "once and resolving exactly once establishes nothing here. ⚠ Both a zero and a "
             "presence are then free to obtain: a spelling searched returns zero because the "
             "rendering cannot express it, and a passage quoted out of the copy's own noise "
-            "resolves once and attests whatever it is said to state"
+            "resolves once and attests whatever it is said to state. ⛔⛔ AND ONLY WHERE THE "
+            "COPY IS LARGE ENOUGH FOR IT TO MEAN THAT: tiled into blocks of two hundred "
+            "characters, four fifths of every real book held here scores below the floor "
+            "too, so under "
+            f"{LEAST_EXTENT_A_REFUSAL_DISCRIMINATES_AT} characters a near-zero share is a "
+            "fact about the extent and not about the rendering"
         ),
+    }
+
+
+def blocks_this_floor_refuses(
+    edition: Edition, *, block: int, length: int = RECURRENCE_MEASURED_AT
+) -> dict[str, Any]:
+    """How much of one copy `LEAST_RECURRENCE` refuses, when the copy is read `block` at a time.
+
+    ⭐ **Complete and disjoint** — consecutive blocks, every character of the copy in exactly
+    one of them, no sample and no overlap. ⚠ The remainder shorter than one block is dropped
+    and *reported*: measuring it would answer at an extent other than the one being asked
+    about, and dropping it in silence would read as complete coverage.
+
+    ⛔ This is how `LEAST_EXTENT_A_REFUSAL_DISCRIMINATES_AT` was arrived at. A floor fitted on
+    whole books of a quarter of a million characters refuses **four fifths** of the same books
+    read two hundred characters at a time — so below a measured extent, failing it is a fact
+    about how much text was offered and not about what the text is.
+    """
+    body = edition.normalised
+    blocks = len(body) // block
+    refused = 0
+    for at in range(blocks):
+        distinct, recurring, _ = _recurrence(body[at * block : (at + 1) * block], length)
+        if distinct == 0 or recurring / distinct < LEAST_RECURRENCE:
+            refused += 1
+    return {
+        "edition": edition.key,
+        "block_characters": block,
+        "fragment_length": length,
+        "blocks": blocks,
+        "blocks_refused": refused,
+        "share_of_blocks_refused": (round(refused / blocks, 4) if blocks else None),
+        "characters_in_no_block": len(body) - blocks * block,
+        "measured_over": "consecutive disjoint blocks, every character in exactly one",
     }
 
 
@@ -680,6 +769,26 @@ def refuse_a_rendering_that_does_not_repeat(
             "recurrence is measured at, so nothing can be established about what a "
             "resolution in it is worth. ⛔ A copy too small to repeat cannot witness"
         )
+    if share < LEAST_RECURRENCE and (
+        edition.searchable_characters < LEAST_EXTENT_A_REFUSAL_DISCRIMINATES_AT
+    ):
+        # ⛔⛔⛔ STILL A REFUSAL — a resolution in a copy this small is free for exactly the
+        #    reason it is free in noise — but NOT the refusal below, which names a cause this
+        #    measurement did not take. ⭐ *A refusal that states an unmeasured cause has
+        #    agreed with a claim for reasons unrelated to it.*
+        raise TextualError(
+            f"{edition.key}: {measured['fragments_that_recur']} of "
+            f"{measured['distinct_fragments']} distinct {length}-character fragments of this "
+            f"rendering occur more than once - a share of {share}, under the "
+            f"{LEAST_RECURRENCE} required, so {what_it_would_make_free} is free to obtain "
+            "here and this is a refusal. ⛔⛔⛔ BUT THE CAUSE IS THE EXTENT AND NOT THE "
+            f"RENDERING: this copy carries {edition.searchable_characters} searchable "
+            f"characters, under the {LEAST_EXTENT_A_REFUSAL_DISCRIMINATES_AT} this floor was "
+            "measured to discriminate at, and at that size REAL BOOKS FAIL IT TOO - tiled "
+            "into blocks of two hundred characters, 12 338 of 15 563 blocks of the copies "
+            "held here are refused. ⚠ Nothing measured says this is a machine reading that "
+            "returned noise, and nothing here says it is not"
+        )
     if share < LEAST_RECURRENCE:
         raise TextualError(
             f"{edition.key}: {measured['fragments_that_recur']} of "
@@ -688,9 +797,11 @@ def refuse_a_rendering_that_does_not_repeat(
             f"required. ⛔⛔⛔ NOTHING IN THIS COPY REPEATS, so {what_it_would_make_free} is "
             "free to obtain: every fragment of it resolves exactly once whether or not the "
             "copy says anything. ⚠ This copy is NOT mute and NOT out of extent - it carries "
-            f"{edition.searchable_characters} searchable characters - and it is not the "
-            "alphabet that is wrong either. It is a machine reading that returned noise, and "
-            "noise answers every question exactly once"
+            f"{edition.searchable_characters} searchable characters, over the "
+            f"{LEAST_EXTENT_A_REFUSAL_DISCRIMINATES_AT} at which every real copy held clears "
+            "this floor in every block - and it is not the alphabet that is wrong either. It "
+            "is a machine reading that returned noise, and noise answers every question "
+            "exactly once"
         )
     return measured
 
