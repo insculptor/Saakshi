@@ -2545,6 +2545,15 @@ def main() -> int:
     #    ⚠ A control listing only the happy path would hold just as well with every guard
     #    deleted — and eight of these nine guards did not exist a day ago.
     noise = library_scan.normalised
+    # ⛔⛔ A SLICE OF THIS COPY IS OFTEN PUNCTUATION AND DIGITS, AND AN ALPHABET OF THOSE IS
+    #    REFUSED FOR BEING WRITTEN IN NO SCRIPT - an earlier cause, which is the right one for
+    #    that alphabet and the WRONG one for this control. ⭐ The offer below must reach the
+    #    guard it is measuring, so the spelling offered carries letters of the copy's script.
+    noise_letters = next(
+        noise[at : at + 12]
+        for at in range(len(noise) - 12)
+        if "devanagari" in scripts_in(noise[at : at + 12])
+    )
 
     def _cause(build) -> str:
         try:
@@ -2571,7 +2580,7 @@ def main() -> int:
                 passage_label="somewhere in the noise",
                 after=noise[100:130],
                 before=noise[400:430],
-                alphabet=(noise[700:712],),
+                alphabet=(noise_letters,),
                 alphabet_read_from="read off this copy, which is the whole trouble",
             )
         ),
@@ -2645,6 +2654,9 @@ def main() -> int:
         f"offered the rendering of noise to {len(offered_the_noise_copy)} instrument(s); "
         f"{len(refused_for_the_copy)} refused it for the copy"
     )
+    # ⛔ A count that does not name what it dropped reads as complete coverage.
+    for where in offered_the_noise_copy.keys() - refused_for_the_copy.keys():
+        print(f"  ⛔ NOT refused for the copy: {where} -> {offered_the_noise_copy[where][:200]!r}")
 
     controls += [
         {
