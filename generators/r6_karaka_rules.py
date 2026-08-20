@@ -58,6 +58,9 @@ from saakshi.textual import (  # noqa: E402
     AbsenceAcrossReadings,
     AbsenceSearch,
     Alignment,
+    Edition,
+    Rendering,
+    Witness,
     IndependentHandAttestation,
     Locus,
     MarkerAlphabet,
@@ -69,12 +72,15 @@ from saakshi.textual import (  # noqa: E402
     TextualError,
     alphabet_contamination,
     collect_occurrences,
+    digest,
+    LEAST_EXTENT_AN_ACCEPTANCE_DISCRIMINATES_AT,
     LEAST_EXTENT_A_REFUSAL_DISCRIMINATES_AT,
     LEAST_RECURRENCE,
     RECURRENCE_MEASURED_AT,
     discrimination_of_resolving_once,
     normalise,
     blocks_this_floor_refuses,
+    every_window_of,
     recurrence_of,
     reading_disagreement,
     refusal_summary,
@@ -90,6 +96,11 @@ EDITION = "jaimini_sutras_rao"
 #: acquired this session and refused for a reason nobody predicted. ⛔ 219 pages of scanned
 #: page images: the right work, retrievable, digested, and carrying no searchable text at all.
 SCANNED_PRINTING = "jaimini_sutras_rao_scanned_printing"
+
+#: A second real book of this genre, held in the same cache. ⛔ This generator loads it ONLY
+#: as held-out evidence about its own constants - no rule, refusal or attestation below reads
+#: it, and that is what makes it held out.
+BPHS_SANTHANAM = "bphs_santhanam"
 
 # --------------------------------------------------------------------------------------
 # The second commenting hand in the first copy
@@ -2534,7 +2545,20 @@ def main() -> int:
         200, 300, 500, 1000, 2000, 3000, 4000, 5000,
         6000, 7000, 8000, 9000, 10000, 12000, 15000, 20000,
     )
-    assert LEAST_EXTENT_A_REFUSAL_DISCRIMINATES_AT in TILED_AT
+
+    # ⛔⛔⛔ AND THE TILING IS A SAMPLE OF THE SPECIMENS, WHICH IS HOW THIS BOUND WAS WRONG BY
+    #    1 686 CHARACTERS FOR A SESSION. `blocks_this_floor_refuses` is complete over a copy's
+    #    CHARACTERS and reads one phase of its WINDOWS — 283 of 1 675 741 at six thousand.
+    #    The extent is an existential question about specimens of real text, so it is asked of
+    #    every window, at every offset. ⭐ Both grids are published: the tiled one because the
+    #    old table was measured with it and a reader must be able to reproduce that, the
+    #    window one because it is the measurement the constant now rests on.
+    WINDOWED_AT = (
+        200, 300, 314, LEAST_EXTENT_AN_ACCEPTANCE_DISCRIMINATES_AT, 500, 1000, 2000, 5000,
+        6000, 7000, 7685, LEAST_EXTENT_A_REFUSAL_DISCRIMINATES_AT, 8000, 10000, 20000,
+    )
+    assert LEAST_EXTENT_A_REFUSAL_DISCRIMINATES_AT in WINDOWED_AT
+    assert LEAST_EXTENT_AN_ACCEPTANCE_DISCRIMINATES_AT in WINDOWED_AT
 
     recurrence_by_copy = [
         recurrence_of(copy)
@@ -2561,6 +2585,126 @@ def main() -> int:
         )
         for block in TILED_AT
     }
+    # ======================================================================================
+    # ⚠ THREE CONSTANTS, ONE SET OF COPIES - MEASURED AGAINST TEXT THEY WERE NOT FITTED TO
+    # ======================================================================================
+    #
+    # ⭐⭐⭐ The fragment length (12), the floor (0.01) and the refusing extent (7 686) were
+    #    every one of them fitted to the same seven renderings, and a copy disagreeing with
+    #    all three would look exactly like a copy disagreeing with none. That is an argument,
+    #    and the answer to an argument about a constant is a HELD-OUT MEASUREMENT.
+    #
+    # ⛔ These four bodies were used to fit nothing. The first is a second real book of this
+    #    genre this repository holds and this generator has never loaded; the rest are this
+    #    repository's own prose and program text - a different language, a different register
+    #    and a different way of being produced. ⚠ Together they are still not a sample of
+    #    renderings in general, and they are what is available.
+    held_out: list[tuple[str, str, str]] = [
+        (
+            "a_second_real_book_never_loaded_by_this_generator",
+            "a machine reading of an English translation of a different work of this genre",
+            load(BPHS_SANTHANAM, cache=args.cache).normalised,
+        ),
+        (
+            "the_licence_this_repository_is_published_under",
+            "English legal prose, produced by neither this repository nor a machine reading",
+            normalise(Path("LICENSE").read_text(encoding="utf-8")),
+        ),
+        (
+            "this_repositorys_own_readme",
+            "English technical prose, the smallest held-out body and the closest to the floor",
+            normalise(Path("README.md").read_text(encoding="utf-8")),
+        ),
+        (
+            "this_repositorys_own_program_text",
+            "Python, which is not a natural language at all",
+            normalise(
+                "\n".join(
+                    path.read_text(encoding="utf-8")
+                    for path in sorted(Path("src/saakshi").glob("*.py"))
+                )
+            ),
+        ),
+    ]
+
+    def _as_edition(key: str, body: str) -> Edition:
+        """⛔ Wrapped so the SAME instruments measure it - not a second implementation."""
+        return Edition(
+            key=key,
+            identity="held out from the fitting of every constant below",
+            language="und",
+            witness=Witness(
+                address="held in this repository",
+                retrieved=today(),
+                http_status=200,
+                copy_sha256=digest(body),
+                copy_bytes=len(body.encode("utf-8")),
+            ),
+            rendering=Rendering(
+                kind="transcription",
+                produced_by="this repository",
+                sha256=digest(body),
+                characters=len(body),
+            ),
+            extent={"describes": "the whole of it", "complete": True},
+            text=body,
+        )
+
+    HELD_OUT_LENGTHS = (6, 8, 10, 12, 16, 20, 24)
+    held_out_rows = []
+    for key, what_it_is, body in held_out:
+        copy = _as_edition(key, body)
+        by_length = {
+            length: recurrence_of(copy, length=length)["share_that_recurs"]
+            for length in HELD_OUT_LENGTHS
+        }
+        # ⛔ The extent this copy would put on the refusing bound, on its own: the largest
+        #    extent on the published grid at which any window of IT is still refused.
+        refused_up_to = 0
+        for extent in WINDOWED_AT:
+            measured = every_window_of(copy, extent=extent)
+            if measured["windows"] and measured["windows_refused"]:
+                refused_up_to = extent
+        held_out_rows.append(
+            {
+                "body": key,
+                "what_it_is": what_it_is,
+                "characters": copy.searchable_characters,
+                "share_that_recurs_by_fragment_length": by_length,
+                "at_the_fitted_length": by_length[RECURRENCE_MEASURED_AT],
+                "how_far_above_the_fitted_floor": round(
+                    by_length[RECURRENCE_MEASURED_AT] / LEAST_RECURRENCE, 2
+                ),
+                "clears_the_fitted_floor": (
+                    by_length[RECURRENCE_MEASURED_AT] >= LEAST_RECURRENCE
+                ),
+                "largest_extent_at_which_a_window_of_it_is_refused": refused_up_to,
+                "inside_the_fitted_extent": (
+                    refused_up_to < LEAST_EXTENT_A_REFUSAL_DISCRIMINATES_AT
+                ),
+            }
+        )
+
+    windowed = {
+        extent: (
+            [every_window_of(copy, extent=extent) for copy in _real_copies],
+            every_window_of(library_scan, extent=extent),
+        )
+        for extent in WINDOWED_AT
+    }
+    # ⛔ The two instruments disagree, and by how much is the finding. Measured, not quoted.
+    phase_vs_window = {
+        "extent": 6000,
+        "blocks_the_tiling_reads": sum(row["blocks"] for row in tiled[6000][0]),
+        "windows_the_copies_contain": sum(row["windows"] for row in windowed[6000][0]),
+        "blocks_the_tiling_refuses": sum(row["blocks_refused"] for row in tiled[6000][0]),
+        "windows_refused": sum(row["windows_refused"] for row in windowed[6000][0]),
+    }
+    phase_vs_window["share_of_the_specimens_the_tiling_read"] = round(
+        phase_vs_window["blocks_the_tiling_reads"]
+        / phase_vs_window["windows_the_copies_contain"],
+        6,
+    )
 
     # ⛔ Driven off its own value: the copy that must be refused is OFFERED to every
     #    instrument that reasons from a resolution, and the cause each names is recorded.
@@ -2771,7 +2915,40 @@ def main() -> int:
                 "the_extent_a_refusal_discriminates_at": (
                     LEAST_EXTENT_A_REFUSAL_DISCRIMINATES_AT
                 ),
-                "by_block": [
+                "the_extent_an_acceptance_discriminates_at": (
+                    LEAST_EXTENT_AN_ACCEPTANCE_DISCRIMINATES_AT
+                ),
+                # ⭐⭐⭐ EVERY WINDOW, AT EVERY OFFSET - the measurement both bounds rest on.
+                "by_extent": [
+                    {
+                        "extent": extent,
+                        "real_copies": {
+                            "windows": sum(row["windows"] for row in windowed[extent][0]),
+                            "windows_refused": sum(
+                                row["windows_refused"] for row in windowed[extent][0]
+                            ),
+                            "refused_regions": sum(
+                                row["refused_regions"] for row in windowed[extent][0]
+                            ),
+                        },
+                        "the_rendering_of_noise": {
+                            "windows": windowed[extent][1]["windows"],
+                            "windows_that_cleared_the_floor": (
+                                windowed[extent][1]["windows_cleared"]
+                            ),
+                        },
+                        "by_copy": windowed[extent][0] + [windowed[extent][1]],
+                    }
+                    for extent in WINDOWED_AT
+                ],
+                "measured_over": (
+                    "every window of each extent in each copy, at every starting offset - "
+                    "not a tiling phase. ⚠ The windows overlap, so a refused count is not a "
+                    "rate; the count of maximal refused REGIONS is published beside it"
+                ),
+                # ⛔⛔⛔ THE DEFECT THAT MOVED THIS CONSTANT, MEASURED RATHER THAN DESCRIBED.
+                "what_the_tiling_this_was_first_read_off_actually_saw": phase_vs_window,
+                "the_tiled_table_as_it_was_published": [
                     {
                         "block_characters": block,
                         "real_copies": {
@@ -2784,84 +2961,169 @@ def main() -> int:
                             "blocks": tiled[block][1]["blocks"],
                             "blocks_refused": tiled[block][1]["blocks_refused"],
                         },
-                        "by_copy": tiled[block][0] + [tiled[block][1]],
                     }
                     for block in TILED_AT
                 ],
-                "measured_over": (
-                    "consecutive disjoint blocks of each copy, every character in exactly "
-                    "one block, no sample and no overlap; the remainder shorter than one "
-                    "block is reported on each row rather than dropped in silence"
+                "why_both_grids_are_here": (
+                    "⛔ the tiled one is what this constant was first read off, and it said "
+                    "6 000. It is complete over each copy's CHARACTERS and reads one phase of "
+                    "its WINDOWS - at six thousand characters, 283 of 1 675 741 of them. ⭐⭐⭐ "
+                    "A MEASUREMENT CAN BE COMPLETE OVER WHAT IT COUNTS AND A SAMPLE OF WHAT IT "
+                    "IS ABOUT. It is kept so a reader can reproduce the published table and "
+                    "see the two disagree"
                 ),
-                # ⛔⛔⛔ AND THE ACCEPTING SIDE, WHICH IS NOT GUARDED AND FAILS DOWN THERE
-                #    TOO. A block of the rendering of noise that CLEARS the floor is a false
-                #    accept, and a control that published only the refusing half would read
-                #    as though the pass were sound at any size.
-                "blocks_of_the_rendering_of_noise_that_cleared_the_floor": [
-                    {
-                        "block_characters": block,
-                        "blocks": tiled[block][1]["blocks"],
-                        "blocks_that_cleared_it": (
-                            tiled[block][1]["blocks"] - tiled[block][1]["blocks_refused"]
-                        ),
-                    }
-                    for block in TILED_AT
-                    if tiled[block][1]["blocks_refused"] < tiled[block][1]["blocks"]
-                ],
-                "why_the_accepting_side_is_left_unguarded": (
-                    "⚠ a DECISION and not a measurement. Refusing every copy shorter than "
-                    "the extent outright would refuse every fixture the suite is built from, "
-                    "and every caller in this repository passes a copy of a quarter of a "
-                    "million characters. ⛔ It is recorded here so that arming it later is "
-                    "something somebody chooses"
+                "and_it_is_not_a_threshold": (
+                    "⛔⛔ the refused count is NOT monotone in the extent: 7 450 refuses "
+                    "nothing, 7 500 refuses 42, 7 550 nothing, 7 650 refuses 36. So *the "
+                    "smallest extent at which nothing is refused* - the rule 6 000 was picked "
+                    "by - is not a bound. What is published is the SUPREMUM, 7 685, checked at "
+                    "every extent to 7 780, every ten to 8 800 and every five hundred to 30 000"
+                ),
+                "the_accepting_side_is_now_armed": (
+                    "✅ and its bound is its own: the largest extent at which any window of "
+                    "the rendering of noise CLEARS this floor is 314, three of 286 fragments "
+                    "coming round twice for a share of 0.01049. ⛔⛔⛔ THIS SIDE WENT A SESSION "
+                    "UNARMED ON THE OTHER SIDE'S NUMBER - the reason published was that "
+                    "refusing every copy under six thousand characters would refuse every "
+                    "fixture the suite is built from, which is true and is about the REFUSING "
+                    "bound. ⭐ Between 315 and 7 686 a pass means something and a failure does "
+                    "not, and neither constant alone describes that band"
                 ),
                 "what_is_fitted_here": (
-                    "⚠ the extent, exactly as the floor is: to the seven renderings held, on "
-                    f"the grid {list(TILED_AT)}. Six thousand is the smallest of those at "
-                    "which no block of any real copy is refused; at five thousand two of the "
-                    "least legible readings still are. ⛔ And a block of a book is the best "
-                    "proxy available for a short copy, not the same thing as one"
+                    "⚠ both extents, exactly as the floor is. The refusing one to the six "
+                    "real renderings held; the accepting one to ONE copy, the single rendering "
+                    "of noise, which makes it the weaker of the two numbers"
                 ),
             },
-            # ⭐ BOTH HALVES, and the first half is the finding: the effect must be SHOWN to
-            #   exist at a small extent, or the bound is a number with nothing under it.
+            # ⭐ BOTH HALVES AND BOTH SIDES. The effect must be SHOWN to exist at a small
+            #   extent, the bound must hold at the bound, and the accepting side must be shown
+            #   to fail below ITS bound - or three constants have nothing under them.
             "held": bool(
-                sum(row["blocks_refused"] for row in tiled[TILED_AT[0]][0]) > 0
+                sum(row["windows_refused"] for row in windowed[200][0]) > 0
+                and sum(row["windows_refused"] for row in windowed[6000][0]) > 0
+                and sum(row["windows_refused"] for row in windowed[7685][0]) == 1
                 and sum(
-                    row["blocks_refused"]
-                    for row in tiled[LEAST_EXTENT_A_REFUSAL_DISCRIMINATES_AT][0]
+                    row["windows_refused"]
+                    for row in windowed[LEAST_EXTENT_A_REFUSAL_DISCRIMINATES_AT][0]
                 )
                 == 0
-                # ⛔ AT OR ABOVE THE EXTENT ONLY. Below it the rendering of noise clears
-                #   this floor in one block of 822, so a condition written over the whole
-                #   grid would be false - and was, on the run that found it.
                 and all(
-                    tiled[block][1]["blocks_refused"] == tiled[block][1]["blocks"]
-                    for block in TILED_AT
-                    if block >= LEAST_EXTENT_A_REFUSAL_DISCRIMINATES_AT
+                    sum(row["windows_refused"] for row in windowed[extent][0]) == 0
+                    for extent in WINDOWED_AT
+                    if extent >= LEAST_EXTENT_A_REFUSAL_DISCRIMINATES_AT
                 )
-                and len(tiled[TILED_AT[0]][0]) >= 6
+                # ⛔ The accepting side: noise clears below its bound and never at or above it.
+                and windowed[300][1]["windows_cleared"] > 0
+                and windowed[314][1]["windows_cleared"] > 0
+                and all(
+                    windowed[extent][1]["windows_cleared"] == 0
+                    for extent in WINDOWED_AT
+                    if extent >= LEAST_EXTENT_AN_ACCEPTANCE_DISCRIMINATES_AT
+                )
+                # ⛔⛔ And the tiling must still disagree, or the finding has evaporated.
+                and phase_vs_window["blocks_the_tiling_refuses"] == 0
+                and phase_vs_window["windows_refused"] > 0
+                and len(windowed[200][0]) >= 6
             ),
             "meaning": (
                 "⭐⭐⭐ A FLOOR FITTED ON WHOLE BOOKS WAS APPLIED TO COPIES OF ANY SIZE, AND "
-                "BELOW A MEASURED EXTENT IT IS A TEST OF SIZE RATHER THAN OF LANGUAGE. Read "
-                "two hundred characters at a time, this floor refuses FOUR FIFTHS of every "
-                "real book held here - and it refused them with the cause `it is a machine "
-                "reading that returned noise`, which nothing had measured. ⭐⭐ AND THE FLOOR "
-                "IS UNSOUND IN BOTH DIRECTIONS DOWN THERE, not just the refusing one. The "
-                "rendering of noise is refused in every block at every size from six "
-                "thousand characters to twenty thousand, which is what the extent published "
-                "here is the point of. ⛔⛔ BELOW IT THE ACCEPTING SIDE FAILS TOO: at three "
-                "hundred "
-                "characters one block of the rendering of noise in 822 CLEARS this floor, "
-                "three of its 286 fragments coming round twice for a share of 0.0105. That "
-                "half is deliberately left unguarded and the reason is published beside it. "
-                "⇒ Under the extent the refusal now names the extent, and it "
-                "is still a refusal - a resolution in a copy that small is free for exactly "
-                "the reason it is free in noise. ⛔ The fixture standing in for the rendering "
-                "of noise in the suite was itself 1 799 characters, so every test certifying "
-                "`the instruments refuse the copy of noise` was certifying a refusal its "
-                "SIZE had earned"
+                "BELOW A MEASURED EXTENT IT IS A TEST OF SIZE RATHER THAN OF LANGUAGE. Asked "
+                "of every window of two hundred characters, this floor refuses 1 405 161 of "
+                "1 710 541 windows of the real books held here - with the cause `it is a "
+                "machine reading that returned noise`, which nothing had measured. ⛔⛔⛔ AND "
+                "THE BOUND PUT ON THAT LAST SESSION WAS ITSELF READ OFF A SAMPLE: 6 000 was "
+                "the smallest TILING at which no block is refused, and the tiling reads one "
+                "phase of the windows - 0.017 % of them at that extent. Asked of every window, "
+                "6 000 refuses 5 593 and the supremum is 7 685. ⭐⭐⭐ THE WORD `COMPLETE` WAS "
+                "TRUE OF THE WRONG NOUN. ⛔⛔ The fixture standing in for the rendering of "
+                "noise had been grown to 7 199 characters to clear the old bound, so the "
+                "moment the bound moved every test certifying `the instruments refuse the "
+                "copy of noise` was AGAIN certifying a refusal its SIZE had earned - the third "
+                "session running that this repository's own test bed was the subject. ✅ And "
+                "the accepting side is now armed at 314, its own measured bound, which is 24x "
+                "smaller than the refusing one and was never the six thousand it was left "
+                "unarmed for"
+            ),
+        },
+    ]
+
+    lowest_fitted = min(row["share_that_recurs"] for row in real_recurrences)
+    lowest_held_out = min(row["at_the_fitted_length"] for row in held_out_rows)
+    controls += [
+        {
+            "finding": "control",
+            "control": "the_three_constants_measured_against_text_they_were_not_fitted_to",
+            "measured": {
+                "the_three": {
+                    "fragment_length": RECURRENCE_MEASURED_AT,
+                    "the_floor": LEAST_RECURRENCE,
+                    "the_extent_a_refusal_discriminates_at": (
+                        LEAST_EXTENT_A_REFUSAL_DISCRIMINATES_AT
+                    ),
+                    "what_they_share": (
+                        "⚠ all three were fitted to the SAME seven renderings, so a copy "
+                        "disagreeing with all three would look exactly like a copy "
+                        "disagreeing with none. ⛔ That is an argument about a constant, and "
+                        "what answers it is a held-out measurement rather than a paragraph"
+                    ),
+                },
+                "held_out_bodies": held_out_rows,
+                "the_margin_on_the_floor": {
+                    "lowest_of_the_fitted_copies": lowest_fitted,
+                    "lowest_of_the_held_out_bodies": lowest_held_out,
+                    "how_far_the_fitted_set_overstates_it": round(
+                        lowest_fitted / lowest_held_out, 2
+                    ),
+                    "what_that_means": (
+                        "⭐ the floor TRANSFERS - every held-out body clears it - and the "
+                        "headroom is smaller off the fitted set than on it. A margin read "
+                        "off the seven alone is the optimistic one"
+                    ),
+                },
+                "the_extent_off_the_fitted_set": {
+                    "largest_by_body": {
+                        row["body"]: row["largest_extent_at_which_a_window_of_it_is_refused"]
+                        for row in held_out_rows
+                    },
+                    "the_fitted_bound": LEAST_EXTENT_A_REFUSAL_DISCRIMINATES_AT,
+                    "what_that_means": (
+                        "⭐ no held-out body pushes the refusing extent up: each is refused "
+                        "up to a smaller extent than the six fitted copies are, so on this "
+                        "evidence the bound is not tight and it transfers"
+                    ),
+                },
+                "what_this_does_NOT_measure": (
+                    "⛔⛔⛔ THE ACCEPTING SIDE IS STILL FITTED TO ONE COPY AND NOTHING HELD "
+                    "OUT TOUCHES IT. Every body here is language, so every one of them speaks "
+                    "to the floor and to the refusing extent and NONE of them speaks to 314 - "
+                    "the bound that says a pass under it is free. ⚠ A second rendering of "
+                    "noise is the measurement that would, and this repository holds one "
+                    "rendering of noise. ⛔ Nor is any of these a copy in a third script, or "
+                    "a machine reading produced by a different reader"
+                ),
+            },
+            # ⭐ BOTH DIRECTIONS. Every held-out body must clear the floor AND the rendering
+            #   of noise must still fail it - a control that only checked the held-out side
+            #   would pass with the floor set to zero.
+            "held": bool(
+                all(row["clears_the_fitted_floor"] for row in held_out_rows)
+                and all(row["inside_the_fitted_extent"] for row in held_out_rows)
+                and len(held_out_rows) >= 4
+                and noise_recurrence["share_that_recurs"] < LEAST_RECURRENCE
+                and lowest_held_out > LEAST_RECURRENCE
+            ),
+            "meaning": (
+                "⭐⭐⭐ ON THE HELD-OUT EVIDENCE ALL THREE CONSTANTS TRANSFER, AND THE FITTED "
+                "SET IS THE FLATTERING ONE. Four bodies used to fit nothing - a second real "
+                "book of this genre, this repository's licence, its documentation and its own "
+                "program text - clear the floor at the fitted fragment length and are refused "
+                "only at extents smaller than the fitted bound. ⛔ But the closest of them "
+                "stands at 4.8x the floor where the lowest FITTED copy stands at 6.8x, so a "
+                "margin read off the seven alone overstates the headroom by a third. ⛔⛔⛔ "
+                "AND THE ACCEPTING BOUND IS UNTOUCHED BY ANY OF THIS: every held-out body is "
+                "language, and the constant that says a pass under 315 characters is free was "
+                "fitted to the ONE rendering of noise this repository holds. That is the "
+                "weakest number in this file and nothing here strengthens it"
             ),
         },
     ]

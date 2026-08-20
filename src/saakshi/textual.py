@@ -611,48 +611,67 @@ LEAST_RECURRENCE = 0.01
 #: about *that copy*, in characters of the normalised rendering.
 #:
 #: ⛔⛔⛔ **BELOW THIS THE FLOOR IS A TEST OF SIZE AND NOT OF LANGUAGE, AND IT PUBLISHES THE
-#: LANGUAGE CAUSE.** Measured by tiling every copy this repository holds into consecutive
-#: blocks of one size — complete, disjoint, every character of every copy in exactly one
-#: block, no sample — and asking how many blocks this floor refuses at twelve characters.
-#: ⭐ Every figure below is what `blocks_this_floor_refuses` returns over the copies held;
-#: `generators/r6_karaka_rules.py` re-measures it on every run rather than quoting it:
+#: LANGUAGE CAUSE.** Measured by asking the floor of **every window** of one extent in every
+#: copy this repository holds — every starting offset, not a sample — and taking the largest
+#: extent at which any window of any real copy is still refused. That supremum is **7 685**,
+#: one window of the least legible reading of the third edition; this constant is one above
+#: it.
 #:
-#: ⚠ Over the same seven renderings `LEAST_RECURRENCE` is fitted to. Nine of the sixteen
-#: points measured are shown; the generator publishes every one.
+#: ⛔⛔⛔ **IT READ 6 000 FOR A SESSION, AND THE ERROR WAS THE TILING PHASE.** The bound was
+#: first taken from `blocks_this_floor_refuses`, which tiles a copy into consecutive disjoint
+#: blocks starting at offset zero. That is complete coverage of the copy's *characters* and
+#: it is **283 of 1 675 741** of the windows of 6 000 characters the copies actually contain
+#: — 0.017 % of them. ⭐⭐⭐ *The word "complete" was true of the wrong noun.* Asked of every
+#: window instead of one phase, 6 000 refuses **5 593** windows of real books, and 7 000
+#: still refuses 309.
 #:
-#: | block | the six real copies refused | the rendering of noise |
+#: | extent | windows of the six real copies refused | windows of the noise that clear |
 #: |---|---|---|
-#: | 200 | **7 036 of 8 555** | 1 233 of 1 233 |
-#: | 300 | 3 930 of 5 704 | ⛔ 821 of **822** |
-#: | 500 | 1 651 of 3 421 | 493 of 493 |
-#: | 1 000 | 398 of 1 709 | 246 of 246 |
-#: | 2 000 | 84 of 853 | 123 of 123 |
-#: | 3 000 | 21 of 568 | 82 of 82 |
-#: | 5 000 | 3 of 339 | 49 of 49 |
-#: | **6 000** | **0 of 283** | 41 of 41 |
-#: | 12 000 | 0 of 141 | 20 of 20 |
-#: | 20 000 | 0 of 83 | 12 of 12 |
+#: | 200 | 1 405 161 of 1 710 541 | 109 |
+#: | 300 | 1 176 768 of 1 709 941 | 207 |
+#: | 315 | — | **0** |
+#: | 1 000 | 406 896 of 1 705 741 | 0 |
+#: | 5 000 | 16 021 of 1 681 741 | 0 |
+#: | 6 000 | ⛔ **5 593** of 1 675 741 | 0 |
+#: | 7 000 | 309 of 1 669 741 | 0 |
+#: | 7 685 | **1** of 1 665 631 | 0 |
+#: | **7 686** | **0** of 1 665 625 | 0 |
 #:
-#: ⭐⭐⭐ At two hundred characters this floor refuses **four fifths of every real book held**,
-#: with the cause *it is a machine reading that returned noise* — an unmeasured claim about a
-#: copy that is simply too short for anything in it to have come round twice.
+#: ⛔⛔ **AND IT IS NOT A THRESHOLD, BECAUSE THE COUNT IS NOT MONOTONE IN THE EXTENT.** 7 450
+#: refuses nothing, 7 500 refuses 42, 7 550 refuses nothing, 7 650 refuses 36. So *the
+#: smallest extent at which nothing is refused* is not a bound at all — it was the rule the
+#: 6 000 was picked by, and on this grid it would pick 7 351. The bound published here is the
+#: **supremum**: above it nothing is refused, checked at every extent to 7 780, every ten to
+#: 8 800, every fifty to 9 000 and every five hundred to 30 000.
 #:
-#: ⛔⛔⛔ **AND THE ACCEPTING SIDE FAILS DOWN THERE TOO, WHICH THIS DOES NOT GUARD.** At three
-#: hundred characters **one block of the rendering of noise in 822 CLEARS this floor** — three
-#: of its 286 fragments happen to come round twice, a share of 0.0105 against the 0.01
-#: required. So below this extent the measurement is unsound in *both* directions, and only
-#: the refusing one is bounded here: refusing every copy shorter than six thousand characters
-#: outright would refuse every fixture the suite is built from, and every caller in this
-#: repository passes a copy of a quarter of a million characters. ⚠ That is a decision, not a
-#: measurement, and it is written down as one.
+#: ⚠ Fitted, exactly as `LEAST_RECURRENCE` is: to the six real renderings held. ⭐ Measured
+#: against four bodies it was **not** fitted to, the largest extent at which any window is
+#: refused is 5 000 (a second real book, 1.4 M characters), 4 000 (this repository's README),
+#: 7 000 (its documentation) and none at all (the licence) — all under this bound, so on the
+#: held-out evidence it transfers and is not tight.
+LEAST_EXTENT_A_REFUSAL_DISCRIMINATES_AT = 7686
+
+#: The least extent at which a copy's **clearing** `LEAST_RECURRENCE` says anything about
+#: that copy, in characters of the normalised rendering.
 #:
-#: ⚠ Fitted, exactly as `LEAST_RECURRENCE` is: to seven renderings, one of them noise, on the
-#: grid 200 · 300 · 500 · 1 000 · 2 000 · 3 000 · 4 000 · 5 000 · 6 000 · 7 000 · 8 000 ·
-#: 9 000 · 10 000 · 12 000 · 15 000 · 20 000. Six thousand is the smallest of those at which
-#: no block of any real copy is refused; at five thousand two of the least legible readings
-#: still are. ⛔ And a block of a book is the best proxy available for a short copy, not the
-#: same thing as one.
-LEAST_EXTENT_A_REFUSAL_DISCRIMINATES_AT = 6000
+#: ⭐⭐⭐ **A PASS AND A FAILURE BECOME TRUSTWORTHY AT DIFFERENT EXTENTS, AND THEY ARE 24×
+#: APART.** The two sides fail for opposite reasons and neither bound is the other's: a short
+#: copy fails the floor because there was not enough of it for anything to come round twice,
+#: and a short copy *passes* it because a handful of accidental collisions is a large share of
+#: a handful of fragments. Asked of every window of the rendering of noise — every offset, not
+#: a sample — the largest extent at which any window of it clears this floor is **314**, three
+#: of 286 fragments coming round twice for a share of 0.01049 at 300 characters. This constant
+#: is one above that.
+#:
+#: ⛔⛔⛔ **THIS SIDE WAS LEFT UNARMED FOR A SESSION ON THE OTHER SIDE'S NUMBER.** The reason
+#: published for leaving it was *refusing every copy shorter than six thousand characters
+#: would refuse every fixture the suite is built from* — true, and about the refusing bound.
+#: The accepting side never needed six thousand. ⭐ Between 315 and 7 686 characters a pass
+#: means something and a failure does not, and that band is most of the interesting range.
+#:
+#: ⚠ Fitted to **one** copy — the single rendering of noise this repository holds — where the
+#: refusing bound has six. It is the weaker of the two numbers and it says so.
+LEAST_EXTENT_AN_ACCEPTANCE_DISCRIMINATES_AT = 315
 
 
 @lru_cache(maxsize=16)
@@ -693,17 +712,28 @@ def recurrence_of(edition: Edition, *, length: int = RECURRENCE_MEASURED_AT) -> 
         "characters_measured": len(body),
         "the_extent_a_low_share_means_anything_at": LEAST_EXTENT_A_REFUSAL_DISCRIMINATES_AT,
         "a_low_share_here_is_about_the_copy": len(body) >= LEAST_EXTENT_A_REFUSAL_DISCRIMINATES_AT,
+        # ⭐⭐⭐ BOTH BOUNDS, because they are 24x apart and a row carrying one of them reads
+        #   as though the other did not exist. Between them a pass means something and a
+        #   failure does not.
+        "the_extent_a_high_share_means_anything_at": (
+            LEAST_EXTENT_AN_ACCEPTANCE_DISCRIMINATES_AT
+        ),
+        "a_high_share_here_is_about_the_copy": (
+            len(body) >= LEAST_EXTENT_AN_ACCEPTANCE_DISCRIMINATES_AT
+        ),
         "what_a_share_near_zero_means": (
             "⛔ that NOTHING IN THIS COPY REPEATS, so every fragment of it resolves exactly "
             "once and resolving exactly once establishes nothing here. ⚠ Both a zero and a "
             "presence are then free to obtain: a spelling searched returns zero because the "
             "rendering cannot express it, and a passage quoted out of the copy's own noise "
             "resolves once and attests whatever it is said to state. ⛔⛔ AND ONLY WHERE THE "
-            "COPY IS LARGE ENOUGH FOR IT TO MEAN THAT: tiled into blocks of two hundred "
-            "characters, four fifths of every real book held here scores below the floor "
-            "too, so under "
+            "COPY IS LARGE ENOUGH FOR IT TO MEAN THAT: asked of every window of two hundred "
+            "characters in the real books held here, this floor refuses 1 405 161 of "
+            "1 710 541 of them, so under "
             f"{LEAST_EXTENT_A_REFUSAL_DISCRIMINATES_AT} characters a near-zero share is a "
-            "fact about the extent and not about the rendering"
+            "fact about the extent and not about the rendering. ⚠ And a share near the floor "
+            "from ABOVE is free under "
+            f"{LEAST_EXTENT_AN_ACCEPTANCE_DISCRIMINATES_AT} characters for the mirror reason"
         ),
     }
 
@@ -713,15 +743,21 @@ def blocks_this_floor_refuses(
 ) -> dict[str, Any]:
     """How much of one copy `LEAST_RECURRENCE` refuses, when the copy is read `block` at a time.
 
-    ⭐ **Complete and disjoint** — consecutive blocks, every character of the copy in exactly
-    one of them, no sample and no overlap. ⚠ The remainder shorter than one block is dropped
-    and *reported*: measuring it would answer at an extent other than the one being asked
-    about, and dropping it in silence would read as complete coverage.
+    ⭐ **Complete and disjoint over the copy's characters** — consecutive blocks from offset
+    zero, every character in exactly one of them, no overlap. ⚠ The remainder shorter than one
+    block is dropped and *reported*.
 
-    ⛔ This is how `LEAST_EXTENT_A_REFUSAL_DISCRIMINATES_AT` was arrived at. A floor fitted on
-    whole books of a quarter of a million characters refuses **four fifths** of the same books
-    read two hundred characters at a time — so below a measured extent, failing it is a fact
-    about how much text was offered and not about what the text is.
+    ⛔⛔⛔ **AND THAT COMPLETENESS IS OVER THE WRONG NOUN, WHICH COST A CONSTANT.** The
+    question a bound on the extent asks is *is there a specimen of real text this long that
+    this floor refuses?* — and the specimens are the copy's **windows**, of which this tiling
+    reads one phase: at six thousand characters, 283 of the 1 675 741 windows the copies
+    actually contain, 0.017 % of them. `LEAST_EXTENT_A_REFUSAL_DISCRIMINATES_AT` was read off
+    this function and came out **6 000**; asked of every window by `every_window_of` the same
+    copies refuse 5 593 windows at 6 000 and the bound is **7 686**. ⇒ Use `every_window_of`
+    to bound an extent. This function is kept because the published table was measured with
+    it and a reader must be able to reproduce that table.
+
+    ⚠ *A measurement can be complete over what it counts and a sample of what it is about.*
     """
     body = edition.normalised
     blocks = len(body) // block
@@ -739,6 +775,109 @@ def blocks_this_floor_refuses(
         "share_of_blocks_refused": (round(refused / blocks, 4) if blocks else None),
         "characters_in_no_block": len(body) - blocks * block,
         "measured_over": "consecutive disjoint blocks, every character in exactly one",
+    }
+
+
+def every_window_of(
+    edition: Edition, *, extent: int, length: int = RECURRENCE_MEASURED_AT
+) -> dict[str, Any]:
+    """Ask `LEAST_RECURRENCE` of **every window** of `extent` characters in one copy.
+
+    ⭐⭐⭐ **EVERY STARTING OFFSET, NOT A TILING PHASE.** A bound on the extent is an
+    existential claim — *no specimen of real text this long is refused* — and every contiguous
+    run of `extent` characters in a real book is such a specimen. `blocks_this_floor_refuses`
+    reads one phase of them, which at six thousand characters is 283 of 1 675 741; this reads
+    all of them, and the two bounds it produces differ by 1 686 characters.
+
+    ⚠ The windows overlap, so `windows_refused` is not a count of independent specimens and
+    must not be read as a rate. `refused_regions` — maximal runs of consecutive refused
+    offsets — is published beside it, because a thousand overlapping windows of one bad
+    passage and a thousand scattered ones are different findings and the count alone cannot
+    tell them apart.
+
+    ⛔ Both sides are counted. A copy is refused below the floor and cleared at or above it,
+    and which of the two is the error depends on what the copy is: for a real book a refusal
+    is the error, for a rendering of noise a clearance is. Publishing only one of them is how
+    the accepting side went a session unmeasured.
+    """
+    body = edition.normalised
+    per = extent - length + 1
+    fragments = [body[at : at + length] for at in range(len(body) - length + 1)]
+    if per <= 0 or len(fragments) < per:
+        return {
+            "edition": edition.key,
+            "extent": extent,
+            "fragment_length": length,
+            "windows": 0,
+            "windows_refused": 0,
+            "windows_cleared": 0,
+            "refused_regions": 0,
+            "least_share": None,
+            "greatest_share": None,
+            "measured_over": "every window of this extent, at every offset",
+            "why_there_are_none": (
+                f"this copy carries {len(body)} normalised characters, fewer than the "
+                f"{extent} one window needs"
+            ),
+        }
+    seen: Counter[str] = Counter()
+    distinct = 0
+    recurring = 0
+    for at in range(per):
+        fragment = fragments[at]
+        count = seen.get(fragment, 0)
+        if count == 0:
+            distinct += 1
+        elif count == 1:
+            recurring += 1
+        seen[fragment] = count + 1
+    windows = len(fragments) - per + 1
+    refused = 0
+    regions = 0
+    previous_was_refused = False
+    least = 2.0
+    greatest = -1.0
+    for at in range(windows):
+        share = recurring / distinct if distinct else 0.0
+        if share < least:
+            least = share
+        if share > greatest:
+            greatest = share
+        if share < LEAST_RECURRENCE:
+            refused += 1
+            if not previous_was_refused:
+                regions += 1
+            previous_was_refused = True
+        else:
+            previous_was_refused = False
+        if at + 1 < windows:
+            leaving = fragments[at]
+            count = seen[leaving]
+            if count == 1:
+                distinct -= 1
+                del seen[leaving]
+            else:
+                if count == 2:
+                    recurring -= 1
+                seen[leaving] = count - 1
+            entering = fragments[at + per]
+            count = seen.get(entering, 0)
+            if count == 0:
+                distinct += 1
+            elif count == 1:
+                recurring += 1
+            seen[entering] = count + 1
+    return {
+        "edition": edition.key,
+        "extent": extent,
+        "fragment_length": length,
+        "windows": windows,
+        "windows_refused": refused,
+        "windows_cleared": windows - refused,
+        "refused_regions": regions,
+        "least_share": round(least, 6),
+        "greatest_share": round(greatest, 6),
+        "measured_over": "every window of this extent, at every offset",
     }
 
 
@@ -788,10 +927,11 @@ def refuse_a_rendering_that_does_not_repeat(
             "here and this is a refusal. ⛔⛔⛔ BUT THE CAUSE IS THE EXTENT AND NOT THE "
             f"RENDERING: this copy carries {edition.searchable_characters} searchable "
             f"characters, under the {LEAST_EXTENT_A_REFUSAL_DISCRIMINATES_AT} this floor was "
-            "measured to discriminate at, and at that size REAL BOOKS FAIL IT TOO - tiled "
-            "into blocks of two hundred characters, 7 036 of 8 555 blocks of the copies "
-            "held here are refused. ⚠ Nothing measured says this is a machine reading that "
-            "returned noise, and nothing here says it is not"
+            "measured to discriminate at, and at that size REAL BOOKS FAIL IT TOO - asked of "
+            "every window of this extent, 5 593 windows of the real copies held here are "
+            "refused at six thousand characters and one is still refused at 7 685. ⚠ Nothing "
+            "measured says this is a machine reading that returned noise, and nothing here "
+            "says it is not"
         )
     if share < LEAST_RECURRENCE:
         raise TextualError(
@@ -802,10 +942,28 @@ def refuse_a_rendering_that_does_not_repeat(
             "free to obtain: every fragment of it resolves exactly once whether or not the "
             "copy says anything. ⚠ This copy is NOT mute and NOT out of extent - it carries "
             f"{edition.searchable_characters} searchable characters, over the "
-            f"{LEAST_EXTENT_A_REFUSAL_DISCRIMINATES_AT} at which every real copy held clears "
-            "this floor in every block - and it is not the alphabet that is wrong either. It "
-            "is a machine reading that returned noise, and noise answers every question "
+            f"{LEAST_EXTENT_A_REFUSAL_DISCRIMINATES_AT} at which every window of every real "
+            "copy held clears this floor - and it is not the alphabet that is wrong either. "
+            "It is a machine reading that returned noise, and noise answers every question "
             "exactly once"
+        )
+    # ⛔⛔⛔ THE ACCEPTING SIDE, ARMED. A copy can clear this floor for the same reason a
+    #    short one fails it - too few fragments for the share to mean anything - and measured
+    #    over every window of the rendering of noise, one of 314 characters DOES clear it.
+    #    ⭐ The bound is the noise copy's own supremum and it is 24x smaller than the refusing
+    #    side's: the reason this side went a session unarmed was the OTHER side's number.
+    if edition.searchable_characters < LEAST_EXTENT_AN_ACCEPTANCE_DISCRIMINATES_AT:
+        raise TextualError(
+            f"{edition.key}: this rendering clears the floor - {measured['fragments_that_recur']} "
+            f"of {measured['distinct_fragments']} distinct {length}-character fragments occur "
+            f"more than once, a share of {share} against the {LEAST_RECURRENCE} required - but "
+            f"it carries only {edition.searchable_characters} searchable characters, under the "
+            f"{LEAST_EXTENT_AN_ACCEPTANCE_DISCRIMINATES_AT} at which CLEARING this floor says "
+            f"anything about a copy. ⛔⛔⛔ A PASS IS FREE DOWN HERE TOO: measured over every "
+            "window of the rendering of noise this repository holds, one of 314 characters "
+            "clears this same floor with three of its 286 fragments coming round twice. ⚠ So "
+            f"{what_it_would_make_free} is not established by this measurement - offer more of "
+            "the copy"
         )
     return measured
 
