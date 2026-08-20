@@ -2658,6 +2658,12 @@ def main() -> int:
             length: recurrence_of(copy, length=length)["share_that_recurs"]
             for length in HELD_OUT_LENGTHS
         }
+        # ⚠ As rows rather than a map keyed by an integer: the fixture contract refuses a
+        #   non-string key, and a key a reader has to parse is not a field either.
+        by_length_rows = [
+            {"fragment_length": length, "share_that_recurs": by_length[length]}
+            for length in HELD_OUT_LENGTHS
+        ]
         # ⛔ The extent this copy would put on the refusing bound, on its own: the largest
         #    extent on the published grid at which any window of IT is still refused.
         refused_up_to = 0
@@ -2670,7 +2676,7 @@ def main() -> int:
                 "body": key,
                 "what_it_is": what_it_is,
                 "characters": copy.searchable_characters,
-                "share_that_recurs_by_fragment_length": by_length,
+                "share_that_recurs_by_fragment_length": by_length_rows,
                 "at_the_fitted_length": by_length[RECURRENCE_MEASURED_AT],
                 "how_far_above_the_fitted_floor": round(
                     by_length[RECURRENCE_MEASURED_AT] / LEAST_RECURRENCE, 2
@@ -3081,10 +3087,15 @@ def main() -> int:
                     ),
                 },
                 "the_extent_off_the_fitted_set": {
-                    "largest_by_body": {
-                        row["body"]: row["largest_extent_at_which_a_window_of_it_is_refused"]
+                    "largest_by_body": [
+                        {
+                            "body": row["body"],
+                            "largest_extent_at_which_a_window_of_it_is_refused": row[
+                                "largest_extent_at_which_a_window_of_it_is_refused"
+                            ],
+                        }
                         for row in held_out_rows
-                    },
+                    ],
                     "the_fitted_bound": LEAST_EXTENT_A_REFUSAL_DISCRIMINATES_AT,
                     "what_that_means": (
                         "⭐ no held-out body pushes the refusing extent up: each is refused "
