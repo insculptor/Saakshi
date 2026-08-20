@@ -319,6 +319,23 @@ instrument becomes the easiest to satisfy, and a control quoted from the copy's 
 free. ⇒ A rendering must now carry the script the alphabet is written in, and a control must
 be written in that same script.
 
+⭐⭐⭐ **What finally separates the two is that language repeats and noise does not** — the
+share of a copy's own distinct twelve-character fragments that occur more than once, over the
+whole rendering. The machine reading that returned noise recurs at **0.00018**; every real
+copy held at **0.068 or above**, including a real book printed in the very script the noise is
+written in. ⇒ A resolution is allowed to stand as evidence only in a copy that repeats.
+
+⛔⛔⛔ **And that floor, fitted on whole books, was being applied to copies of any size.**
+Tiled into consecutive disjoint blocks — every character of every copy in exactly one block —
+it refuses **7 036 of 8 555** two-hundred-character blocks of the same real books, with the
+published cause *it is a machine reading that returned noise*. ⚠ A refusal that states an
+unmeasured cause has agreed with a claim for reasons unrelated to it. Below **6 000**
+characters the refusal now names the extent instead, and it is still a refusal — a resolution
+in a copy that small is free for exactly the reason it is free in noise. ⛔ Down there the
+*accepting* side is unsound too, and deliberately unguarded: at three hundred characters one
+block of the rendering of noise in **822** clears the floor. See
+`docs/measurements/2026-08-20-a-floor-that-refuses-real-books.md`.
+
 ⚠ **The bucket that measures a script had to be defined over letters, and that is not
 tidiness**: as a bare code-point range it reported **6 077 Latin characters in the copy that
 contains no Latin letter** — braces, brackets and signs that live inside the block — so the
