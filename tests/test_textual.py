@@ -11,7 +11,11 @@ what lets continuous integration run them.
 
 from __future__ import annotations
 
+import inspect
+
 import pytest
+
+import saakshi.textual
 
 from saakshi.fixture import (
     INTERPRETATION_STATUS,
@@ -23,6 +27,8 @@ from saakshi.fixture import (
 )
 from saakshi.texts import DEVANAGARI, passage_fidelity, script_presence
 from saakshi.textual import (
+    LEAST_RECURRENCE,
+    RECURRENCE_MEASURED_AT,
     REFUSAL_REASONS,
     SIGNS,
     AbsenceAcrossReadings,
@@ -53,7 +59,9 @@ from saakshi.textual import (
     reading_disagreement,
     discrimination_of_resolving_once,
     read_integer_digits,
+    recurrence_of,
     reduce_by_trine_minimum,
+    refuse_a_rendering_that_does_not_repeat,
     script_of,
     scripts_in,
     scripts_required_by,
@@ -66,13 +74,25 @@ from saakshi.textual import (
 
 GEN = Generator(repo="github.com/insculptor/Saakshi", script="generators/x.py", commit="0" * 40)
 
+#: ⛔⛔⛔ **EVERY COPY BUILT IN THIS FILE REPEATED NOTHING, AND THAT IS THE PROPERTY
+#: OF THE RENDERING OF NOISE ITSELF.** A machine reading that returned noise is dangerous
+#: because nothing in it recurs, so every fragment of it resolves exactly once — and the
+#: fixtures these instruments were tested against had exactly that property. ⇒ No test
+#: written here could have caught the defect, because the test copies WERE the defect.
+#: ⭐ So a fixture standing in for a book now repeats like one. ⚠ The repeated line is NEW
+#: text: repeating a line quoted elsewhere would stop that quotation resolving.
+REPEATS_LIKE_A_BOOK = (
+    "Printed at the foot of every page: this copy repeats itself. "
+    "Printed at the foot of every page: this copy repeats itself."
+)
+
 BODY = (
     "Chapter one. The first rule is stated here, once and only once.\n"
     "A row of figures: alpha 5 3 2 4 3 4 6 5 2 3 6 5 omega\n"
     "A shorter row: beta 1 2 4 4 1 3 1 2 2 2 gamma\n"
     "A run of digits: delta 30 001 1410041 epsilon\n"
     "a phrase repeated twice appears here, and a phrase repeated twice appears again.\n"
-    "End of First Pada. End of Second Pada.\n"
+    "End of First Pada. End of Second Pada.\n" + REPEATS_LIKE_A_BOOK
 )
 
 #: ⛔ Words the test copy is shown to contain, so that a zero measured in it means something.
@@ -668,7 +688,7 @@ TWO_FORM_BODY = (
     "The node must also be considered, taking the remainder after subtracting from thirty.\n"
     "SUTRA TWO MARKER. A different matter altogether, with no bearing on the node.\n"
     "SUTRA THREE MARKER. For the node the reverse is understood.\n"
-    "SUTRA FOUR MARKER. Closing matter.\n"
+    "SUTRA FOUR MARKER. Closing matter.\n" + REPEATS_LIKE_A_BOOK
 )
 
 #: ⭐ Read off the copy, and off BOTH carrying forms of the rule.
@@ -1002,7 +1022,7 @@ HANDED = (
     "NOTES The lord of the sign is meant.\n"
     "* I have not meddled with the rendering of this sutra by Prof. B. Suryanarain Rao.\n"
     "* I have discussed this at length in my book Studies in Something Else.\n"
-    "End of First Pada. End of Second Pada.\n"
+    "End of First Pada. End of Second Pada.\n" + " " + REPEATS_LIKE_A_BOOK
 )
 
 THIRD_PERSON = (
@@ -1239,12 +1259,12 @@ def test_discrimination_of_resolving_once_is_total_in_a_rendering_of_noise():
 UNNAMED = (
     "Though the translator has elucidated the abbreviations I propose to observe further.\n"
     "* I have discussed this at length in my book Studies in the Subject.\n"
-    "The rest is clear from the translator's notes.\n"
+    "The rest is clear from the translator's notes.\n" + " " + REPEATS_LIKE_A_BOOK
 )
 NAMING = (
     "Revised and Annotated by A NAMED HAND. Fifth Edition 1955.\n"
     "* I have discussed this at length in my book Studies in the Subject.\n"
-    "FOREWORD. I have not meddled with the notes. The translation has been revised by me.\n"
+    "FOREWORD. I have not meddled with the notes. The translation has been revised by me.\n" + " " + REPEATS_LIKE_A_BOOK
 )
 
 
@@ -1400,7 +1420,7 @@ TWO_HANDS = (
     "ENGLISH TRANSLATION BY Professor B. SURYANARAIN RAO. "
     "SU. 1. I shall now explain my work for the benefit of the readers. "
     "NOTES. * I have discussed this at length in my book On The Series. "
-    "The rest is clear from Prof. Rao's own notes."
+    "The rest is clear from Prof. Rao's own notes." + " " + REPEATS_LIKE_A_BOOK
 )
 
 #: The same edition read a second time, losing one mark the first reader found.
@@ -1408,7 +1428,7 @@ TWO_HANDS_SECOND_READING = (
     "ENGLISH TRANSLATION BY Professor B. SURYANARAIN RAO. "
     "SU. 1. I shall now explain rny work for the benefit of the readers. "
     "NOTES. I have discussed this at length in rny b00k On The Series. "
-    "The rest is clear from Prof. Rao's own notes."
+    "The rest is clear from Prof. Rao's own notes." + " " + REPEATS_LIKE_A_BOOK
 )
 
 
@@ -1609,10 +1629,17 @@ REVISED_TRANSLATION = _copy(
 #: A copy outside that hand's reach — a different translator, working from the original.
 #: ⭐ It carries the ORIGINAL's script, which is what puts it outside; the English printings
 #: carry none of it.
+#: ⭐ A book repeats itself, in any script. ⚠ The tail below is what makes this fixture a
+#: rendering of language rather than a rendering of noise, and the difference is measured.
+REPEATS_LIKE_A_BOOK_IN_THE_ORIGINALS_SCRIPT = (
+    " यह पंक्ति हर पृष्ठ के नीचे छपी है। यह पंक्ति हर पृष्ठ के नीचे छपी है।"
+)
+
 SECOND_TRANSLATION = _copy(
     "जैमिनिसूत्रम् — हिन्दी अनुवाद सहित। "
     "यदि दो या अधिक ग्रहों के अंश समान हों तो वे दोनों ही आत्मकारक माने जाएँगे। "
-    "उस स्थिति में राहु उस रिक्तता को पूरा करेगा।",
+    "उस स्थिति में राहु उस रिक्तता को पूरा करेगा।"
+    + REPEATS_LIKE_A_BOOK_IN_THE_ORIGINALS_SCRIPT,
     key="the_second_translation",
 )
 
@@ -1624,9 +1651,46 @@ ANOTHER_PRINTING = _copy(
     key="another_printing_of_the_same_translation",
 )
 
-#: ⛔⛔⛔ THE COPY THAT PASSED THE RETIRED TEST PERFECTLY. A machine reading in which nothing
-#: of the work survives — offered here as an attestation, in the right script.
-A_RENDERING_OF_NOISE = _copy("क ख ग घ ङ च छ ज झ ञ ट ठ ड ढ ण त थ द ध न", key="a_rendering_of_noise")
+def _noise(letters: int) -> str:
+    """A rendering in which nothing recurs, long enough to be measured at twelve characters.
+
+    ⚠ Built by a rule rather than quoted: the property under test is *nothing in this copy
+    repeats*, and a quotable fragment of the real thing is too short to measure. ⭐ The real
+    one is in this repository's cache — 246 777 characters, 44 of 246 689 fragments recurring.
+    """
+    aksharas, out, state = "कखगघङचछजझञटठडढणतथदधनपफबभमयरलवशषसह", [], 7
+    for step in range(letters):
+        state = (state * 1103515245 + 12345) % 2147483648
+        out.append(aksharas[state % len(aksharas)])
+        if step % 5 == 4:
+            out.append(" ")
+    return "".join(out)
+
+
+#: ⛔⛔⛔ THE COPY THAT PASSED THE RETIRED TEST PERFECTLY, as it really behaves. A machine
+#: reading in which nothing of the work survives — offered here as an attestation, in the
+#: right script, and long enough for its recurrence to be measured.
+A_RENDERING_OF_NOISE = _copy(_noise(1500), key="a_rendering_of_noise")
+
+#: ⛔⛔⛔ AND THE COPY THAT MANUFACTURES THE PRESENCE. Its attesting passage is a run of the
+#: copy's OWN NOISE — quoted out of it, so it resolves exactly once, clears the passage-length
+#: floor and carries the original's script. ⚠ Before the recurrence guard this row CONSTRUCTED,
+#: attesting a rule nobody ever stated, and the class's own limit reads *a reader can destroy
+#: the evidence of a presence but cannot manufacture it*.
+NOISE_THE_PASSAGE_IS_QUOTED_OUT_OF = _copy(_noise(1500), key="noise_quoted_against_itself")
+
+#: The run of that copy's own noise a recorder would offer. ⛔ It resolves EXACTLY ONCE there.
+PASSAGE_QUOTED_OUT_OF_THE_NOISE = NOISE_THE_PASSAGE_IS_QUOTED_OUT_OF.normalised[200:260]
+
+#: ⚠ A copy that repeats like a book and simply does not contain the passage. ⭐ It is here
+#: because the refusal it earns — *locates nothing* — is the one the noise copy used to earn
+#: for the wrong reason: the old fixture could not supply the passage, and a real rendering
+#: of noise supplies whatever it is asked for.
+A_COPY_THAT_REPEATS_BUT_LACKS_THE_PASSAGE = _copy(
+    "जैमिनि का एक और अनुवाद, जिसमें यह नियम नहीं है। "
+    "यह पंक्ति हर पृष्ठ के नीचे छपी है। यह पंक्ति हर पृष्ठ के नीचे छपी है।",
+    key="a_copy_that_lacks_the_passage",
+)
 
 #: The rule as the second translation states it — long enough that resolving is not free.
 ATTESTING_PASSAGE = "यदि दो या अधिक ग्रहों के अंश समान हों तो वे दोनों ही आत्मकारक माने जाएँगे"
@@ -1674,11 +1738,45 @@ def test_a_rule_filed_as_a_hands_words_is_attested_outside_that_hands_reach():
     ] == 0
 
 
-def test_the_copy_that_passed_the_retired_test_perfectly_fails_this_one():
-    """⭐⭐⭐ THE WHOLE POINT, ON ONE COPY. A rendering in which nothing of the work survives
-    scores a perfect pass on an absence and cannot attest anything here."""
+def test_a_copy_that_repeats_and_lacks_the_passage_attests_nothing():
+    """⭐ The refusal *locates nothing*, earned by a copy that really does lack the rule.
+
+    ⚠ This is the case the noise copy used to stand in for, and it stood in for it wrongly.
+    """
     with pytest.raises(TextualError, match="locates nothing"):
+        _attestation(attested_in=A_COPY_THAT_REPEATS_BUT_LACKS_THE_PASSAGE)
+
+
+def test_the_copy_that_passed_the_retired_test_perfectly_fails_this_one():
+    """⭐⭐⭐ THE WHOLE POINT, ON ONE COPY — and the cause has changed.
+
+    ⛔ The old fixture was twenty aksharas long and was refused because it could not supply
+    the passage. The real thing supplies whatever it is asked for, so what refuses it is that
+    NOTHING IN IT REPEATS.
+    """
+    with pytest.raises(TextualError, match="NOTHING IN THIS COPY REPEATS"):
         _attestation(attested_in=A_RENDERING_OF_NOISE)
+
+
+def test_a_presence_is_free_wherever_nothing_repeats():
+    """⛔⛔⛔ THE DEFECT THIS GUARD WAS ARMED FOR, AND IT IS IN THE PRESENCE-SHAPED VERDICT.
+
+    A passage quoted out of a copy's own noise resolves exactly once, carries the original's
+    script and clears the length floor — so it attested a rule nobody has ever stated. ⭐ The
+    verdict shape does not save an instrument from a rendering that repeats nothing: a reader
+    that LOSES text cannot manufacture a presence, and a reader that returns NOISE can.
+    """
+    # ⚠ Every older guard passes this copy, and the passage really does resolve exactly once.
+    assert A_RENDERING_OF_NOISE.carries_searchable_text
+    assert A_RENDERING_OF_NOISE.carries_script("devanagari")
+    assert resolve(
+        NOISE_THE_PASSAGE_IS_QUOTED_OUT_OF, PASSAGE_QUOTED_OUT_OF_THE_NOISE
+    ).resolved
+    with pytest.raises(TextualError, match="NOTHING IN THIS COPY REPEATS"):
+        _attestation(
+            attested_in=NOISE_THE_PASSAGE_IS_QUOTED_OUT_OF,
+            the_attesting_passages=(PASSAGE_QUOTED_OUT_OF_THE_NOISE,),
+        )
 
 
 def test_a_second_printing_of_the_same_translation_is_refused_at_the_door():
@@ -1766,3 +1864,254 @@ def test_the_row_publishes_that_its_verdict_is_a_presence():
     assert "NOT discharged by this row" in (
         row["the_attesting_copy_is_outside_the_reach_because"]["why_this_is_the_condition"]
     )
+
+
+# ==========================================================================================
+# A RENDERING IN WHICH NOTHING REPEATS ANSWERS EVERY QUESTION EXACTLY ONCE
+# ==========================================================================================
+#
+# ⛔⛔⛔ Every guard above this line asks whether a copy was READ. None of them asks what a
+# resolution in it is WORTH — and in a machine reading that returned noise, resolving exactly
+# once is free. ⭐ That defeats an ABSENCE (every spelling returns zero and the positive
+# control quoted from the copy's own noise resolves perfectly) and it defeats a PRESENCE
+# (a passage quoted out of that same noise attests whatever it is said to state).
+
+
+def test_recurrence_is_counted_at_every_position_and_never_sampled():
+    """⭐ Exact arithmetic, on a copy small enough to check by hand."""
+    fifteen = recurrence_of(edition("A" * 15))
+    # ⚠ Four windows of twelve characters, all the same one.
+    assert fifteen["distinct_fragments"] == 1
+    assert fifteen["fragments_that_recur"] == 1
+    assert fifteen["the_most_frequent_fragment_occurs"] == 4
+    assert fifteen["share_that_recurs"] == 1.0
+    assert fifteen["fragment_length"] == RECURRENCE_MEASURED_AT
+
+    thirteen = recurrence_of(edition("ABCDEFGHIJKLM"))
+    assert thirteen["distinct_fragments"] == 2
+    assert thirteen["fragments_that_recur"] == 0
+    assert thirteen["share_that_recurs"] == 0.0
+
+
+def test_a_copy_too_small_to_repeat_is_refused_rather_than_passed():
+    """⛔ A copy shorter than the length recurrence is measured at establishes nothing.
+
+    ⚠ The refusal matters more than it looks: a share of `None` compared with a floor would
+    be a guard that passes exactly the copies it can say least about.
+    """
+    with pytest.raises(TextualError, match="too small to repeat"):
+        refuse_a_rendering_that_does_not_repeat(
+            edition("AB"), what_it_would_make_free="anything at all"
+        )
+
+
+def test_the_floor_stands_between_a_rendering_of_noise_and_a_rendering_of_language():
+    """⭐⭐ The direction, pinned. ⛔ The floor is only half of it — the LENGTH is the other."""
+    noise = recurrence_of(A_RENDERING_OF_NOISE)["share_that_recurs"]
+    book = recurrence_of(edition())["share_that_recurs"]
+    assert noise < LEAST_RECURRENCE < book
+    # ⚠ And the noise copy is not mute, not out of extent and not in the wrong script: every
+    #   older guard passes it, which is why this one had to be written.
+    assert A_RENDERING_OF_NOISE.carries_searchable_text
+    assert A_RENDERING_OF_NOISE.carries_script("devanagari")
+    assert A_RENDERING_OF_NOISE.searchable_characters > 1000
+
+
+def test_an_absence_over_a_copy_that_repeats_nothing_is_refused():
+    """⛔⛔⛔ THE LATENT DEFECT THIS SESSION CLOSED, in the alphabet it was latent in.
+
+    Scored on a DEVANAGARI alphabet the rendering of noise passes every earlier guard: it
+    carries the script, it is not mute, and a control quoted out of its own noise resolves
+    exactly once. ⭐ The row it would have written is a twelve-spelling absence over a copy
+    that says nothing at all.
+    """
+    control = A_RENDERING_OF_NOISE.normalised[300:360]
+    assert resolve(A_RENDERING_OF_NOISE, control).resolved  # ⚠ the control really does resolve
+    assert scripts_required_by(("नियम", "अंश")) == {"devanagari"}
+    with pytest.raises(TextualError, match="NOTHING IN THIS COPY REPEATS") as excinfo:
+        AbsenceSearch(
+            claim="that this copy states no such rule",
+            alphabet=("नियम", "अंश"),
+            edition=A_RENDERING_OF_NOISE,
+            occurrences=[],
+            what_the_hits_do_say=[],
+            positive_control=control,
+        )
+    # ⛔ And it names the right cause: not mute, not the wrong alphabet, not out of extent.
+    assert "not the alphabet that is wrong" in str(excinfo.value)
+
+
+def test_the_same_absence_over_a_copy_that_repeats_is_accepted():
+    """⭐⭐ The accepting case, so the refusal above is known not to refuse everything.
+
+    ⛔ A guard that only forbids cannot tell an empty subject from a clean one.
+    """
+    taken = AbsenceSearch(
+        claim="that this copy does not state it",
+        alphabet=("widdershins",),
+        edition=edition(),
+        occurrences=[],
+        what_the_hits_do_say=[],
+        positive_control=CONTROL,
+    )
+    assert taken.hits == {"widdershins": 0}
+    worth = taken.as_row()["and_resolving_exactly_once_is_not_free_here"]
+    assert worth["share_that_recurs"] >= worth["the_floor_this_had_to_clear"]
+    assert worth["measured_over"] == "every position of the rendering, not a sample"
+
+
+def test_a_passage_absence_over_a_copy_that_repeats_nothing_is_refused_before_attestation():
+    """⛔⛔ AND THE CAUSE IS THE COPY, NOT THE VOCABULARY — for the third time in this class.
+
+    Both landmarks and every spelling are quoted out of the copy's own noise, so the region
+    is bounded, every spelling is attested, and the zeroes in it are the machine reading's.
+    """
+    body = A_RENDERING_OF_NOISE.normalised
+    after, before = body[100:130], body[400:430]
+    assert resolve(A_RENDERING_OF_NOISE, after).resolved
+    assert resolve(A_RENDERING_OF_NOISE, before).resolved
+    attested = body[700:712]  # ⚠ attested in the copy, so the guessed-alphabet rule passes
+    assert attested in body
+    with pytest.raises(TextualError, match="NOTHING IN THIS COPY REPEATS"):
+        PassageAbsence(
+            claim="that this passage does not state the rule",
+            edition=A_RENDERING_OF_NOISE,
+            passage_label="somewhere in the noise",
+            after=after,
+            before=before,
+            alphabet=(attested,),
+            alphabet_read_from="read off this copy, which is the whole trouble",
+        )
+
+
+def test_every_row_publishes_what_a_resolution_in_its_copy_is_worth():
+    """⭐ The measurement travels with the claim, because a reader cannot re-run it."""
+    absence = passage_absence().as_row()["and_resolving_exactly_once_is_not_free_here"]
+    assert absence["edition"] == "second_copy"
+    assert absence["fragment_length"] == RECURRENCE_MEASURED_AT
+    assert absence["the_floor_this_had_to_clear"] == LEAST_RECURRENCE
+    assert "NOTHING IN THIS COPY REPEATS" in absence["what_a_share_near_zero_means"]
+
+    attested = _attestation().as_row()["the_attesting_copy_repeats_itself"]
+    assert attested["edition"] == "the_second_translation"
+    assert attested["share_that_recurs"] >= LEAST_RECURRENCE
+
+
+#: ⛔⛔ THE CENSUS, AND IT IS DRIVEN OFF ITS OWN VALUE. Each entry below is OFFERED the
+#: rendering of noise and must refuse it, naming the copy rather than the alphabet, the
+#: vocabulary or the extent. ⚠ The roster is counted against the number of guarded
+#: resolutions in the module itself: a case quietly dropped from this list, or a guard armed
+#: without one, is an unmeasured guard — and an unmeasured guard reports a pass.
+#: ⭐ Measured, by disarming each call site in turn: eight of the nine were caught by this
+#: list and the ninth was NOT — the copy a hand is said NOT to be named in had no case here,
+#: so its guard could have been deleted in silence.
+RESOLUTIONS_THAT_ARE_EVIDENCE = 9
+
+
+def _offered_the_rendering_of_noise() -> dict[str, "callable"]:
+    noise = A_RENDERING_OF_NOISE
+    body = noise.normalised
+    second_reading = _copy(body, key="a_second_reading_of_the_noise")
+    return {
+        "AbsenceSearch": lambda: AbsenceSearch(
+            claim="that this copy states no such rule",
+            alphabet=("नियम",),
+            edition=noise,
+            occurrences=[],
+            what_the_hits_do_say=[],
+            positive_control=body[300:360],
+        ),
+        "PassageAbsence": lambda: PassageAbsence(
+            claim="that this passage states no such rule",
+            edition=noise,
+            passage_label="somewhere in the noise",
+            after=body[100:130],
+            before=body[400:430],
+            alphabet=(body[700:712],),
+            alphabet_read_from="read off this copy, which is the whole trouble",
+        ),
+        "IndependentHandAttestation": lambda: _attestation(
+            attested_in=noise, the_attesting_passages=(body[200:260],)
+        ),
+        "AbsenceAcrossReadings": lambda: AbsenceAcrossReadings(
+            claim="that this printing carries none of the marks",
+            alphabet=("नियम",),
+            readings=(noise, second_reading),
+            the_readings_are_of_one_edition_because=body[500:540],
+        ),
+        "SecondHand": lambda: SecondHand(
+            edition=noise,
+            the_notes_are_credited_to="the translator",
+            speaks_of_the_translator_in_the_third_person=(body[100:140],),
+            claims_work_of_its_own=(),
+            marked_by=("*",),
+            named_within_this_copy=False,
+        ),
+        "NamedInAnotherCopy, the copy that names the hand": lambda: _named_in_another_copy(
+            named_in=noise,
+            the_name_as_that_copy_prints_it=body[50:70],
+            the_passage_that_names_it=body[40:90],
+            the_printing_that_copy_declares=body[600:640],
+        ),
+        # ⛔ The other half of that row, and the half nothing was measuring: the copy said NOT
+        #   to name the hand. An absence re-measured over a rendering of noise is a zero.
+        "NamedInAnotherCopy, the copy that does not": lambda: _named_in_another_copy(
+            unnamed_in=noise
+        ),
+        "SelfContradiction": lambda: SelfContradiction(
+            edition=noise,
+            the_hand="the reviser",
+            statements=(("one thing", body[300:340]), ("another", body[400:440])),
+            why_they_cannot_both_be_relied_on="a reader needs the question they disagree about",
+            what_it_settles="nothing whatever",
+        ),
+        "MarkerAlphabet": lambda: MarkerAlphabet(
+            marks="a commenting hand",
+            alphabet=("नियम",),
+            edition=noise,
+            must_not_mark=(("the text", body[200:240]),),
+        ),
+    }
+
+
+def test_every_instrument_that_leans_on_a_resolution_refuses_the_rendering_of_noise():
+    """⭐⭐⭐ ONE DEFECT, EIGHT INSTRUMENTS. ⛔ A fix written for one cause is not a fix.
+
+    ⚠ Each is offered the copy and each must name the same cause. An instrument missing from
+    the roster is not tested, so the roster is counted rather than iterated in silence.
+    """
+    offered = _offered_the_rendering_of_noise()
+    assert len(offered) == RESOLUTIONS_THAT_ARE_EVIDENCE
+    # ⛔⛔ AND THE ROSTER IS TIED TO THE MODULE, not maintained beside it. A guard added
+    #    without a case here fails this line rather than passing quietly — which is how the
+    #    one unmeasured guard was found.
+    armed = inspect.getsource(saakshi.textual).count(
+        "refuse_a_rendering_that_does_not_repeat("
+    )
+    assert armed == RESOLUTIONS_THAT_ARE_EVIDENCE + 1  # ⚠ +1: the definition itself
+    for name, build in offered.items():
+        with pytest.raises(TextualError, match="NOTHING IN THIS COPY REPEATS") as excinfo:
+            build()
+        assert "not the alphabet that is wrong" in str(excinfo.value), name
+
+
+def test_a_locus_is_deliberately_not_guarded_and_the_reason_is_recorded():
+    """⭐⭐ A LOCUS IS AN ADDRESS, NOT EVIDENCE — which is why the guard stops here.
+
+    A locus says *these words are at this place in this copy*, and in a rendering of noise
+    that is still true: a reader following it finds the words. ⛔ What a resolution cannot do
+    there is stand as evidence FOR something, which is why every instrument that reasons from
+    one carries the guard and this one does not. ⚠ Recorded as a test rather than as prose so
+    that arming it later is a decision somebody has to take deliberately.
+    """
+    cited = Locus(
+        source_kind="commentary",
+        edition=A_RENDERING_OF_NOISE,
+        locus="somewhere in the noise",
+        interpretation_status="quoted",
+        fragment=A_RENDERING_OF_NOISE.normalised[900:960],
+    )
+    assert cited.resolution.resolved
+    # ⛔ And an Alignment built on two such loci is refused by the copies rather than by this
+    #   guard: an anchor must resolve in BOTH copies, and one copy's noise is not another's.
+    assert recurrence_of(A_RENDERING_OF_NOISE)["share_that_recurs"] < LEAST_RECURRENCE

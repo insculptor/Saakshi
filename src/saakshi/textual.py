@@ -35,7 +35,9 @@ from __future__ import annotations
 
 import hashlib
 import re
+from collections import Counter
 from dataclasses import dataclass
+from functools import lru_cache
 from typing import Any, Iterable, Mapping, Sequence
 
 from .fixture import INTERPRETATION_STATUS, SOURCE_KINDS
@@ -576,6 +578,123 @@ def refusal_summary(refusals: Sequence[Refusal]) -> dict[str, Any]:
 # --------------------------------------------------------------------------------------
 
 
+# --------------------------------------------------------------------------------------
+# Whether a rendering repeats itself, and what a resolution in it is worth
+# --------------------------------------------------------------------------------------
+
+#: The fragment length recurrence is measured at, in characters of the normalised rendering.
+#: ⚠ The **pair** (this length, `LEAST_RECURRENCE`) is what refuses, never either alone: at
+#: SIX characters that same floor passes the rendering of noise this guard exists for.
+RECURRENCE_MEASURED_AT = 12
+
+#: The least share of a rendering's own distinct fragments that must occur **more than
+#: once**, before a resolution in it is allowed to stand as evidence of anything.
+#:
+#: ⭐⭐⭐ **LANGUAGE REPEATS AND A RENDERING OF NOISE DOES NOT, AND THAT IS THE WHOLE
+#: MEASUREMENT.** Taken at twelve characters over every copy this repository holds — complete,
+#: at every position of the rendering, not a sample:
+#:
+#: * a machine reading that returned noise — **0.00018** (44 of 246 689);
+#: * the least legible of three readings of one printing — 0.068;
+#: * a real book printed in the script that noise is written in — 0.089;
+#: * every other copy held — 0.105 to 0.139.
+#:
+#: ⛔ Every real copy held stands at least **6.7×** above this floor and the rendering of
+#: noise **56×** below it. ⚠ And the number is fitted to those copies — seven renderings, one
+#: of them noise. It is **not a law about renderings**; it is a place to stand that seven
+#: measured copies agree on, and a copy refused by it is being compared to those seven.
+#: ⭐ What it stands on is not fitted: at every length from eight to twenty the noise
+#: rendering sits below every real copy, by 30× at eight characters and 1 900× at twenty.
+LEAST_RECURRENCE = 0.01
+
+
+@lru_cache(maxsize=16)
+def _recurrence(body: str, length: int) -> tuple[int, int, int]:
+    """`(distinct fragments, how many recur, the most frequent one's count)`.
+
+    ⛔ Case-sensitive and over `normalised` text, because that is exactly the body `resolve`
+    searches. ⚠ *A measurement whose subject is not the thing being claimed about has
+    measured nothing* — a recurrence taken over a lower-cased copy would describe a document
+    no locus in this file resolves against.
+    """
+    if len(body) < length:
+        return 0, 0, 0
+    counts = Counter(body[at : at + length] for at in range(len(body) - length + 1))
+    recurring = sum(1 for seen in counts.values() if seen > 1)
+    return len(counts), recurring, max(counts.values())
+
+
+def recurrence_of(edition: Edition, *, length: int = RECURRENCE_MEASURED_AT) -> dict[str, Any]:
+    """How much of a rendering repeats itself. ⭐ Complete — every position, never a sample.
+
+    ⚠ A cap nobody states reads as complete coverage, so this one takes no cap: the count is
+    over every fragment of `length` characters in the copy.
+    """
+    distinct, recurring, most = _recurrence(edition.normalised, length)
+    return {
+        "edition": edition.key,
+        "fragment_length": length,
+        "distinct_fragments": distinct,
+        "fragments_that_recur": recurring,
+        "share_that_recurs": (round(recurring / distinct, 6) if distinct else None),
+        "the_most_frequent_fragment_occurs": most,
+        "measured_over": "every position of the rendering, not a sample",
+        "what_a_share_near_zero_means": (
+            "⛔ that NOTHING IN THIS COPY REPEATS, so every fragment of it resolves exactly "
+            "once and resolving exactly once establishes nothing here. ⚠ Both a zero and a "
+            "presence are then free to obtain: a spelling searched returns zero because the "
+            "rendering cannot express it, and a passage quoted out of the copy's own noise "
+            "resolves once and attests whatever it is said to state"
+        ),
+    }
+
+
+def refuse_a_rendering_that_does_not_repeat(
+    edition: Edition, *, what_it_would_make_free: str, length: int = RECURRENCE_MEASURED_AT
+) -> dict[str, Any]:
+    """⛔ Refuse a copy in which resolving exactly once is free. Returns the measurement.
+
+    ⭐⭐⭐ **A RENDERING IN WHICH NOTHING REPEATS ANSWERS EVERY QUESTION EXACTLY ONCE, AND
+    THAT DEFEATS AN ABSENCE AND A PRESENCE ALIKE.** The second-printing test was retired
+    because its verdict was a zero — under an absence every way a reader can fail turns a hit
+    into a zero, and a zero is a pass. The replacement requires a **presence**, on the ground
+    that a reader can destroy the evidence of a presence but cannot manufacture it.
+
+    ⛔⛔⛔ **THAT IS TRUE OF A READER THAT LOSES TEXT AND FALSE OF ONE THAT INVENTS IT.**
+    Measured over a library scan in this repository's cache, whose machine reading returned a
+    quarter of a million characters of noise: **44 of 246 689** distinct twelve-character
+    fragments recur. So a passage quoted out of that copy's own noise resolves **exactly
+    once**, carries as many letters of an Indic script as any bound requires, and *attests a
+    rule nobody has ever stated*. ⇒ **A presence is free wherever nothing repeats**, and the
+    verdict shape does not save an instrument from a rendering that repeats nothing.
+
+    ⚠ This is the guard both absence instruments were missing and the attestation instrument
+    was armed without: every guard before it asks whether the copy was **read**, and a copy
+    read in the wrong alphabet answers yes to all of them.
+    """
+    measured = recurrence_of(edition, length=length)
+    share = measured["share_that_recurs"]
+    if share is None:
+        raise TextualError(
+            f"{edition.key}: this rendering is shorter than the {length} characters "
+            "recurrence is measured at, so nothing can be established about what a "
+            "resolution in it is worth. ⛔ A copy too small to repeat cannot witness"
+        )
+    if share < LEAST_RECURRENCE:
+        raise TextualError(
+            f"{edition.key}: {measured['fragments_that_recur']} of "
+            f"{measured['distinct_fragments']} distinct {length}-character fragments of this "
+            f"rendering occur more than once - a share of {share}, against the {LEAST_RECURRENCE} "
+            f"required. ⛔⛔⛔ NOTHING IN THIS COPY REPEATS, so {what_it_would_make_free} is "
+            "free to obtain: every fragment of it resolves exactly once whether or not the "
+            "copy says anything. ⚠ This copy is NOT mute and NOT out of extent - it carries "
+            f"{edition.searchable_characters} searchable characters - and it is not the "
+            "alphabet that is wrong either. It is a machine reading that returned noise, and "
+            "noise answers every question exactly once"
+        )
+    return measured
+
+
 @dataclass(frozen=True)
 class AbsenceSearch:
     """That a located extent does **not** state something — as a measurement.
@@ -669,6 +788,16 @@ class AbsenceSearch:
                 "catch: it resolves, the row is written, and every zero in it is a property "
                 "of the machine reading"
             )
+        # ⛔⛔⛔ AND CHECKED BEFORE THE CONTROL IS RESOLVED, BECAUSE IN A COPY THAT
+        #    REPEATS NOTHING THE RESOLUTION BELOW IS FREE. Every guard above asks
+        #    whether the copy was READ; none asks what a resolution in it is WORTH.
+        #    ⚠ Over the library scan held here, 44 of 246 689 distinct fragments recur,
+        #    so a control quoted out of its own noise resolves exactly once and licenses
+        #    a whole alphabet of zeroes.
+        refuse_a_rendering_that_does_not_repeat(
+            self.edition,
+            what_it_would_make_free="the positive control's resolution below",
+        )
         found = resolve(self.edition, self.positive_control)
         if not found.resolved:
             raise TextualError(
@@ -712,6 +841,13 @@ class AbsenceSearch:
                     "A copy in this repository's cache is 219 pages of page images whose "
                     "rendering carries no text at all, so the guard is not hypothetical"
                 ),
+            },
+            # ⭐⭐⭐ What the control above is WORTH, which is a property of the copy and
+            #   not of the control. A copy that repeats nothing resolves every fragment
+            #   of itself exactly once, so the reassurance one line up is free there.
+            "and_resolving_exactly_once_is_not_free_here": {
+                **recurrence_of(self.edition),
+                "the_floor_this_had_to_clear": LEAST_RECURRENCE,
             },
             "established_over": dict(self.edition.extent),
             "limit": (
@@ -804,6 +940,15 @@ class MarkerAlphabet:
                 "against a copy that renders to no searchable text. ⛔ Every passage would "
                 "resolve zero times and every spelling would look clean"
             )
+        # ⛔ A resolution here is EVIDENCE, not an address, and a rendering that
+        #   repeats nothing resolves every fragment of itself exactly once - see
+        #   `refuse_a_rendering_that_does_not_repeat`, which carries the measurement.
+        refuse_a_rendering_that_does_not_repeat(
+            self.edition,
+            what_it_would_make_free=(
+                "every passage of the material this alphabet must not mark"
+            ),
+        )
         if not self.must_not_mark:
             raise TextualError(
                 f"{self.edition.key}: an alphabet that marks {self.marks!r} is discriminating "
@@ -923,6 +1068,16 @@ class AbsenceAcrossReadings:
                     f"{reading.key}: a reading that carries no searchable text agrees with "
                     "every absence. ⛔ It cannot stand as a check on one"
                 )
+            # ⛔ A resolution here is EVIDENCE, not an address, and a rendering that
+            #   repeats nothing resolves every fragment of itself exactly once - see
+            #   `refuse_a_rendering_that_does_not_repeat`, which carries the measurement.
+            refuse_a_rendering_that_does_not_repeat(
+                reading,
+                what_it_would_make_free=(
+                    "the fragment tying these readings to one edition, and every "
+                    "zero this reading is being asked to confirm"
+                ),
+            )
             found = resolve(reading, self.the_readings_are_of_one_edition_because)
             if not found.resolved:
                 raise TextualError(
@@ -1093,6 +1248,17 @@ class IndependentHandAttestation:
                 "separate the two copies. ⛔ Then the reach condition is measuring nothing, "
                 "and a second printing of one translation could satisfy it"
             )
+        # ⛔⛔⛔ P2 - AND IT IS THE ONE THIS CLASS WAS ARMED WITHOUT. Its own limit reads
+        #    *a reader can destroy the evidence of a presence but cannot manufacture it*,
+        #    which is true of a reader that LOSES text and false of one that INVENTS it.
+        #    Measured: in the library scan whose machine reading returned noise, a
+        #    fifteen-letter run of that noise resolves exactly once, clears the passage
+        #    length floor, carries the original's script - and attested a rule nobody has
+        #    ever stated, in a row this class constructed without complaint.
+        refuse_a_rendering_that_does_not_repeat(
+            self.attested_in,
+            what_it_would_make_free="the attesting passage's resolution below",
+        )
         if not self.the_attesting_passages:
             raise TextualError(
                 f"{self.rule}: no attesting passage was given. ⛔ An attestation is a located "
@@ -1167,6 +1333,14 @@ class IndependentHandAttestation:
                 }
                 for passage in self.the_attesting_passages
             ],
+            # ⛔⛔ A PRESENCE IS FREE WHEREVER NOTHING REPEATS, so the attesting copy
+            #   carries its own recurrence here. ⚠ This row's limit says a reader can
+            #   destroy the evidence of a presence but cannot manufacture it - true of a
+            #   reader that loses text, false of one that returns noise.
+            "the_attesting_copy_repeats_itself": {
+                **recurrence_of(self.attested_in),
+                "the_floor_this_had_to_clear": LEAST_RECURRENCE,
+            },
             "the_attesting_copy_is_outside_the_reach_because": {
                 "the_original_is_written_in": self.the_original_is_written_in,
                 "letters_of_it_in_the_attesting_copy": self.attested_in.scripts.get(
@@ -1298,6 +1472,19 @@ class PassageAbsence:
                 "reading in the wrong script, which passes every check that asks whether the "
                 "copy was read and returns zero for every word in the book"
             )
+        # ⛔⛔⛔ AND A THIRD CAUSE, CHECKED BEFORE ATTESTATION FOR THE THIRD TIME. A copy
+        #    that repeats nothing attests every spelling quoted out of it and bounds a
+        #    region between two landmarks that each resolve exactly once - so the
+        #    attestation rule below passes, the region is *measured*, and the zeroes in
+        #    it are the machine reading's. ⚠ The cause is neither the vocabulary nor the
+        #    script: both landmarks and every spelling can be the copy's own noise.
+        refuse_a_rendering_that_does_not_repeat(
+            self.edition,
+            what_it_would_make_free=(
+                "the two landmarks that bound the passage, each of which must resolve "
+                "exactly once, and the attestation of every spelling below"
+            ),
+        )
         body = self.edition.normalised
         unattested = [s for s in self.alphabet if normalise(s) not in body]
         if unattested:
@@ -1339,6 +1526,13 @@ class PassageAbsence:
             ],
             "hits_in_total": sum(counts.values()),
             "established": self.established,
+            # ⭐ The bound below is measured, and this is what makes it worth measuring:
+            #   two landmarks resolving exactly once bound nothing in a copy where every
+            #   fragment resolves exactly once.
+            "and_resolving_exactly_once_is_not_free_here": {
+                **recurrence_of(self.edition),
+                "the_floor_this_had_to_clear": LEAST_RECURRENCE,
+            },
             "where_the_spellings_came_from": self.alphabet_read_from,
             "bounded_by": (
                 "the region between two landmarks that each resolve exactly once in this "
@@ -1401,6 +1595,13 @@ class SecondHand:
                 f"{self.edition.key}: a second hand cannot be established in a copy that "
                 "renders to no searchable text"
             )
+        # ⛔ A resolution here is EVIDENCE, not an address, and a rendering that
+        #   repeats nothing resolves every fragment of itself exactly once - see
+        #   `refuse_a_rendering_that_does_not_repeat`, which carries the measurement.
+        refuse_a_rendering_that_does_not_repeat(
+            self.edition,
+            what_it_would_make_free="every passage said to locate the second hand",
+        )
         if not self.speaks_of_the_translator_in_the_third_person:
             raise TextualError(
                 f"{self.edition.key}: a second hand is established by the copy speaking of "
@@ -1504,6 +1705,19 @@ class NamedInAnotherCopy:
                 f"{self.unnamed_in.key}: a copy cannot be the one that fails to name a hand "
                 "and the one that names it. ⛔ That is not a second copy, it is a re-reading"
             )
+        # ⛔ A resolution here is EVIDENCE, not an address, and a rendering that
+        #   repeats nothing resolves every fragment of itself exactly once - see
+        #   `refuse_a_rendering_that_does_not_repeat`, which carries the measurement.
+        refuse_a_rendering_that_does_not_repeat(
+            self.named_in,
+            what_it_would_make_free="the passage naming the hand and the printing that copy declares",
+        )
+        # ⚠ And the copy said NOT to name it: an absence measured over a rendering that
+        #   repeats nothing is the reassuring zero this repository keeps finding.
+        refuse_a_rendering_that_does_not_repeat(
+            self.unnamed_in,
+            what_it_would_make_free="the re-measured absence of the name from the copy that does not name it",
+        )
         for fragment, where in (
             (self.the_passage_that_names_it, self.named_in),
             (self.the_printing_that_copy_declares, self.named_in),
@@ -1618,6 +1832,13 @@ class SelfContradiction:
                 f"{self.edition.key}: one statement is not a contradiction. ⛔ Two located "
                 "statements, or this is a reader's unease about a sentence"
             )
+        # ⛔ A resolution here is EVIDENCE, not an address, and a rendering that
+        #   repeats nothing resolves every fragment of itself exactly once - see
+        #   `refuse_a_rendering_that_does_not_repeat`, which carries the measurement.
+        refuse_a_rendering_that_does_not_repeat(
+            self.edition,
+            what_it_would_make_free="both statements this copy is said to make",
+        )
         for _, fragment in self.statements:
             found = resolve(self.edition, fragment)
             if not found.resolved:
