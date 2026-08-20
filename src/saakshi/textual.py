@@ -1161,6 +1161,13 @@ class IndependentHandAttestation:
     errors all point at success. ⇒ This class requires a **presence**, and its errors are
     refusals.
 
+    ⛔⛔⛔ **AND ITS ERRORS ARE REFUSALS ONLY ABOVE A FLOOR NOBODY HAD MEASURED.** A reader
+    that loses text cannot manufacture a presence; a reader that returns **noise** does —
+    every fragment of a rendering that repeats nothing resolves exactly once, so a passage
+    quoted out of a copy's own noise attested a rule nobody has ever stated, in a row this
+    class constructed without complaint. ⇒ `refuse_a_rendering_that_does_not_repeat` is what
+    the verdict shape was resting on, and it was armed a session later than the verdict.
+
     ⭐⭐ **Discrimination is structural here, not lexical, so there is no alphabet to
     contaminate.** The hand at issue is a reviser of **one translation**; a different
     translator working from the original into another language is outside that reach **by
@@ -1363,16 +1370,26 @@ class IndependentHandAttestation:
                 "candidate copy, and a zero is the one measurement a broken reader produces "
                 "for free: a library scan of this work whose machine reading carries no Latin "
                 "letters at all scores a PERFECT pass on the eleven spellings that are words. "
-                "⛔ The same copy scores nothing here, because it can state nothing"
+                "⛔⛔ The same copy scores nothing here - and NOT because it can state "
+                "nothing, which is what this row said before it was measured. Quoted against "
+                "itself that copy states whatever it is asked to: 44 of its 246 689 distinct "
+                "fragments recur, so any run of its noise resolves exactly once. It scores "
+                "nothing here because a rendering that does not repeat is refused outright, "
+                "and that refusal was armed a session AFTER this verdict shape was"
             ),
             "what_this_does_not_establish": self.what_this_does_not_establish,
             "limit": (
                 "⛔ one attesting copy, in the passages quoted, in this rendering of it. ⚠ A "
-                "reader can destroy the evidence of a presence but cannot manufacture it, so "
-                "a presence found in ONE reading needs no second reader - which is the "
-                "asymmetry that made the retired test need a guard against every way a reader "
-                "can fail. ⭐ That is a reason this row is weaker than it looks, not stronger: "
-                "it bounds an invention, it does not attribute a sentence"
+                "reader that LOSES text can destroy the evidence of a presence but cannot "
+                "manufacture one, so a presence found in ONE reading needs no second reader - "
+                "which is the asymmetry that made the retired test need a guard against every "
+                "way a reader can fail. ⛔⛔⛔ A READER THAT RETURNS NOISE MANUFACTURES ONE, "
+                "AND THAT CORRECTS THE SENTENCE THIS ROW CARRIED BEFORE: where nothing "
+                "repeats every fragment resolves exactly once, and a passage quoted out of a "
+                "copy's own noise attested a rule nobody has ever stated. ⇒ What stands in "
+                "the second reader's place is `the_attesting_copy_repeats_itself` above; the "
+                "asymmetry holds only above that floor. ⭐ This row is weaker than it looks, "
+                "not stronger: it bounds an invention, it does not attribute a sentence"
             ),
         }
 

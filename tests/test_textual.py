@@ -2095,6 +2095,23 @@ def test_every_instrument_that_leans_on_a_resolution_refuses_the_rendering_of_no
         assert "not the alphabet that is wrong" in str(excinfo.value), name
 
 
+def test_the_row_no_longer_claims_a_presence_cannot_be_manufactured():
+    """⛔⛔ A PUBLISHED SENTENCE THE MEASUREMENT REFUTED, PINNED SO IT CANNOT DRIFT BACK.
+
+    The row carried *a reader can destroy the evidence of a presence but cannot manufacture
+    it* as an unqualified claim. ⚠ Pinned by BOTH halves: the correction must be present and
+    the unqualified form must be gone — a test that only forbids cannot tell a corrected
+    sentence from a deleted one.
+    """
+    row = _attestation().as_row()
+    limit = row["limit"]
+    assert "A READER THAT RETURNS NOISE MANUFACTURES ONE" in limit
+    assert "the_attesting_copy_repeats_itself" in limit
+    assert "reader can destroy the evidence of a presence but cannot manufacture it" not in limit
+    # ⭐ And the verdict-shape note says why the copy of noise scores nothing, correctly.
+    assert "NOT because it can state nothing" in row["the_verdict_is_a_presence_not_an_absence"]
+
+
 def test_a_locus_is_deliberately_not_guarded_and_the_reason_is_recorded():
     """⭐⭐ A LOCUS IS AN ADDRESS, NOT EVIDENCE — which is why the guard stops here.
 
