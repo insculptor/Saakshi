@@ -46,7 +46,8 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 from saakshi.fixture import Header, describe_reserved_names, write_jsonl  # noqa: E402
 from saakshi.provenance import generator_for, today  # noqa: E402
 from saakshi.texts import (
-    NOISE_SPECIMEN_KEYS,  # noqa: E402
+    COPIES_THAT_CLEARED_KEYS,  # noqa: E402
+    COPIES_THIS_FLOOR_REFUSES_KEYS,
     CACHE,
     DEVANAGARI,
     acquire,
@@ -55,7 +56,13 @@ from saakshi.texts import (
     script_presence,
 )
 from saakshi.textual import (  # noqa: E402
+    COMMONEST_WORDS,
+    LANGUAGE_MEASURED_OVER_BLOCKS_OF,
+    LEAST_LENGTH_A_DECLARED_WORD_CARRIES,
     NO_LICENCE_DETERMINATION,
+    blocks_that_carry_declared_words,
+    declared_words_of,
+    declared_words_that_occur,
     AbsenceAcrossReadings,
     AbsenceSearch,
     Alignment,
@@ -74,7 +81,7 @@ from saakshi.textual import (  # noqa: E402
     alphabet_contamination,
     collect_occurrences,
     digest,
-    GREATEST_EXTENT_AT_WHICH_A_RENDERING_OF_NOISE_HAS_CLEARED,
+    GREATEST_EXTENT_AT_WHICH_A_WINDOW_OF_A_REFUSED_COPY_HAS_CLEARED,
     LEAST_EXTENT_A_REFUSAL_DISCRIMINATES_AT,
     LEAST_RECURRENCE,
     RECURRENCE_MEASURED_AT,
@@ -1199,7 +1206,10 @@ def main() -> int:
             # ⛔ The specimens the accepting side is measured over. They are acquired like
             #   every other copy - to the network, with the retrieval written down beside
             #   the bytes - because a specimen with no acquisition record is a file.
-            *NOISE_SPECIMEN_KEYS,
+            *COPIES_THIS_FLOOR_REFUSES_KEYS,
+            # ⛔ AND THE OTHER SIDE OF THE SAME TWO DRAWS. Held on the same terms, because a
+            #   floor measured only over what it refuses cannot be asked whether it is right.
+            *COPIES_THAT_CLEARED_KEYS,
         ):
             record = acquire(key, cache=args.cache, today=today())
             print(f"acquired {key}: {record['copy_bytes']} bytes, status {record['http_status']}")
@@ -2580,11 +2590,17 @@ def main() -> int:
     SPECIMENS_WINDOWED_AT = (
         314, 315, 1000, 5000, 20000, 100000, 200000, 300000, 320000, 321000, 400000,
     )
+
+    #: ⚠ THREE CRITERIA, NOT ONE, for calling a copy a carrier of a language. A single
+    #: cut-off would be doing work nothing measured; three published side by side show how
+    #: little of the reading is the cut-off's - ⭐ the same discipline every grid in this
+    #: file travels under.
+    CARRYING_A_LANGUAGE_ACROSS = (0.25, 0.5, 0.75)
     # ⛔ 314 IS ON THIS GRID ON PURPOSE. It is the number the accepting bound was read
     #   off when one rendering of noise was held, and a grid that started at 315 would
     #   report NOTHING for that copy - so the row that is supposed to show the old value
     #   being reproduced would silently show a blank instead.
-    assert GREATEST_EXTENT_AT_WHICH_A_RENDERING_OF_NOISE_HAS_CLEARED in SPECIMENS_WINDOWED_AT
+    assert GREATEST_EXTENT_AT_WHICH_A_WINDOW_OF_A_REFUSED_COPY_HAS_CLEARED in SPECIMENS_WINDOWED_AT
 
     recurrence_by_copy = [
         recurrence_of(copy)
@@ -2853,10 +2869,15 @@ def main() -> int:
             )
         ),
     }
+    # ⛔ SORTED BY THE BRANCH'S OWN MARKER, NOT BY ITS PROSE. This read "NOTHING IN THIS
+    #   COPY REPEATS" until the refusal was corrected to say LITTLE - a copy refused here can
+    #   have a share of 0.008 and *nothing* was the wrong word. ⚠ A rewording of a message is
+    #   enough to empty this dictionary, and an empty one reads as nine instruments that
+    #   never refused rather than as a broken match.
     refused_for_the_copy = {
         where: cause
         for where, cause in offered_the_noise_copy.items()
-        if "NOTHING IN THIS COPY REPEATS" in cause
+        if "THE EXTENT IS NOT THE CAUSE" in cause
     }
     print(
         f"offered the rendering of noise to {len(offered_the_noise_copy)} instrument(s); "
@@ -2960,8 +2981,8 @@ def main() -> int:
                 # ⛔ NOT "the extent an acceptance discriminates at" - there is none. What
                 #   this row can honestly carry is the largest extent at which a rendering of
                 #   noise has been measured to clear this floor anyway.
-                "the_greatest_extent_at_which_noise_has_cleared_this_floor": (
-                    GREATEST_EXTENT_AT_WHICH_A_RENDERING_OF_NOISE_HAS_CLEARED
+                "the_greatest_extent_at_which_a_window_of_a_refused_copy_has_cleared": (
+                    GREATEST_EXTENT_AT_WHICH_A_WINDOW_OF_A_REFUSED_COPY_HAS_CLEARED
                 ),
                 "and_that_was_314_when_one_such_rendering_was_held": 314,
                 # ⭐⭐⭐ EVERY WINDOW, AT EVERY OFFSET - the measurement both bounds rest on.
@@ -3201,8 +3222,8 @@ def main() -> int:
     # ⛔ THE GUARD CERTIFIES THEM, NOT THIS GENERATOR. A copy is a specimen only if
     #    `refuse_a_rendering_that_does_not_repeat` refuses it for its RENDERING. One refused
     #    for its EXTENT is not certified noise, and two copies the draws returned were
-    #    excluded for exactly that - see `_NOISE_SPECIMENS` in `texts.py`.
-    specimens = [load(key, cache=args.cache) for key in NOISE_SPECIMEN_KEYS]
+    #    excluded for exactly that - see `_COPIES_THIS_FLOOR_REFUSES` in `texts.py`.
+    specimens = [load(key, cache=args.cache) for key in COPIES_THIS_FLOOR_REFUSES_KEYS]
     specimen_rows = []
     for copy in [*specimens, library_scan]:
         certified = None
@@ -3216,10 +3237,17 @@ def main() -> int:
             #   "a machine reading that returned noise", NEGATED - so a check that looked for
             #   the noise sentence first would read the denial as the verdict. ⚠ That is not
             #   hypothetical: it is the mistake this measurement made on its first pass.
+            # ⛔⛔⛔ EACH BRANCH NAMES ITSELF, AND THIS SORT NO LONGER READS EITHER ONE'S
+            #   PROSE. It used to key on "It is a machine reading that returned noise" -
+            #   which the extent branch contains NEGATED, so the extent test had to come
+            #   first. ⚠ That sentence has now been withdrawn from the branch that carried
+            #   it, so the old sort would classify every refused copy here as nothing in
+            #   particular: a string-matched branch detector fails silently in whichever
+            #   direction the message last moved. See the test that pins both markers.
             if "THE CAUSE IS THE EXTENT AND NOT THE RENDERING" in said:
                 certified = "refused_for_its_extent"
-            elif "It is a machine reading that returned noise" in said:
-                certified = "refused_as_a_rendering_of_noise"
+            elif "THE EXTENT IS NOT THE CAUSE" in said:
+                certified = "refused_for_its_recurrence"
             else:
                 certified = "refused_for_another_reason"
         measured = largest_extent_at_which_a_window_clears(
@@ -3261,7 +3289,7 @@ def main() -> int:
         {
             "finding": "control",
             "control": (
-                "the_accepting_side_measured_over_more_than_one_rendering_of_noise"
+                "the_accepting_side_measured_over_more_than_one_copy_this_floor_refuses"
             ),
             "measured": {
                 "how_they_were_drawn": (
@@ -3279,7 +3307,7 @@ def main() -> int:
                 "specimens": len(specimen_rows),
                 "every_one_certified_by_this_repositorys_own_guard": all(
                     row["this_repositorys_own_guard_says"]
-                    == "refused_as_a_rendering_of_noise"
+                    == "refused_for_its_recurrence"
                     for row in specimen_rows
                 ),
                 "by_specimen": specimen_rows,
@@ -3294,10 +3322,10 @@ def main() -> int:
                 },
                 "the_highest": highest_specimen,
                 "the_maximum_over_every_specimen_held": (
-                    GREATEST_EXTENT_AT_WHICH_A_RENDERING_OF_NOISE_HAS_CLEARED
+                    GREATEST_EXTENT_AT_WHICH_A_WINDOW_OF_A_REFUSED_COPY_HAS_CLEARED
                 ),
                 "how_much_the_number_moved": round(
-                    GREATEST_EXTENT_AT_WHICH_A_RENDERING_OF_NOISE_HAS_CLEARED / 315, 1
+                    GREATEST_EXTENT_AT_WHICH_A_WINDOW_OF_A_REFUSED_COPY_HAS_CLEARED / 315, 1
                 ),
                 "what_the_number_is_a_function_of": (
                     "⭐⭐⭐ NOT THE FLOOR AND NOT THE EXTENT - the specimen's own distance "
@@ -3327,7 +3355,7 @@ def main() -> int:
                 len(specimen_rows) >= 30
                 and all(
                     row["this_repositorys_own_guard_says"]
-                    == "refused_as_a_rendering_of_noise"
+                    == "refused_for_its_recurrence"
                     for row in specimen_rows
                 )
                 and the_copy_already_held[
@@ -3335,7 +3363,7 @@ def main() -> int:
                 ]
                 == 314
                 and highest_specimen["largest_extent_at_which_a_window_of_it_clears"]
-                == GREATEST_EXTENT_AT_WHICH_A_RENDERING_OF_NOISE_HAS_CLEARED
+                == GREATEST_EXTENT_AT_WHICH_A_WINDOW_OF_A_REFUSED_COPY_HAS_CLEARED
                 and highest_specimen["largest_extent_at_which_a_window_of_it_clears"]
                 > 1000 * 315
                 and highest_specimen["which_is_this_share_of_the_copy"] > 0.9
@@ -3346,13 +3374,335 @@ def main() -> int:
                 "repository held, the largest extent at which a window still CLEARS the floor "
                 "is 314, and that was published as the extent at which clearing this floor "
                 "says something about a copy. ⛔ Over thirty-three renderings of noise it is "
-                "320 000 - a specimen carrying no language at all clears this floor over "
-                "windows spanning 96.69 % of itself. ⇒ THE GUARD IS DISARMED ON THIS SIDE, "
+                "320 000 - a copy this floor refuses clears it over windows spanning "
+                "96.69 % of itself, and ⛔ that copy is measured to carry declared "
+                "Sanskrit across 48.8 % of itself. ⇒ THE GUARD IS DISARMED ON THIS SIDE, "
                 "and every recurrence row now says in terms that no extent has been "
                 "established at which clearing this floor means anything"
             ),
         },
     ]
+
+    # ======================================================================================
+    # ⛔⛔⛔ THE REFUSING SIDE, ASKED OF BOTH SIDES OF THE SAME TWO DRAWS
+    # ======================================================================================
+    #
+    # ⭐⭐⭐ Every question about this floor had been asked from BELOW it. The draws that
+    #    produced the refused copies above returned fifty-nine readable copies; the
+    #    twenty-five the floor ACCEPTED were measured, printed to a log and deleted. They are
+    #    re-fetched from the addresses the draws recorded — ⛔ the draws are not re-run,
+    #    because a search over a live collection is not a fixed function of its query, and
+    #    what reproduces is checked instead: every one of the twenty-five returns the same
+    #    normalised character count the draw wrote down.
+    #
+    # ⛔ WHAT IS ASKED OF THEM IS NOT RECURRENCE. It is which of the commonest words of a
+    #    language a copy uses — words declared in `COMMONEST_WORDS` before any copy was
+    #    measured and taken out of none of them, so a copy that answers to them is answering
+    #    to something it did not supply.
+    language_rows = []
+    for side, keys in (
+        ("this floor refuses it", COPIES_THIS_FLOOR_REFUSES_KEYS),
+        ("this floor accepts it", COPIES_THAT_CLEARED_KEYS),
+    ):
+        for key in keys:
+            copy = load(key, cache=args.cache)
+            row = {
+                "copy": copy.key,
+                "characters": copy.searchable_characters,
+                "share_that_recurs": recurrence_of(copy)["share_that_recurs"],
+                "this_floor": side,
+            }
+            for language in sorted(COMMONEST_WORDS):
+                occurring = declared_words_that_occur(copy, language=language)
+                blocks = blocks_that_carry_declared_words(
+                    copy, language=language, block=LANGUAGE_MEASURED_OVER_BLOCKS_OF[0]
+                )
+                row[language] = {
+                    "per_ten_thousand_words": occurring["per_ten_thousand_words"],
+                    "share_of_its_blocks_carrying_one": blocks["share_of_the_copy"],
+                    "the_three_commonest_that_occur": list(
+                        occurring["which_ones"]
+                    )[:3],
+                }
+            language_rows.append(row)
+            del copy
+    # ⚠ Four copies held here, at both ends of the scale: two real books, one in each
+    #   script, and ⛔ the copy this floor was built to catch, which is on this scale too.
+    for copy, what in (
+        (second, "a real book, held, printed and read in Devanagari"),
+        (load(BPHS_SANTHANAM, cache=args.cache), "a real book, held, in English"),
+        (fifth, "a real book, held, in English - a printing of the work this file is about"),
+        (library_scan, "the machine reading of an English book set to an Indic script"),
+    ):
+        row = {
+            "copy": copy.key,
+            "characters": copy.searchable_characters,
+            "share_that_recurs": recurrence_of(copy)["share_that_recurs"],
+            "this_floor": (
+                "accepts it" if recurrence_of(copy)["share_that_recurs"] >= LEAST_RECURRENCE
+                else "refuses it"
+            ),
+            "held_here_as": what,
+        }
+        for language in sorted(COMMONEST_WORDS):
+            occurring = declared_words_that_occur(copy, language=language)
+            blocks = blocks_that_carry_declared_words(
+                copy, language=language, block=LANGUAGE_MEASURED_OVER_BLOCKS_OF[0]
+            )
+            row[language] = {
+                "per_ten_thousand_words": occurring["per_ten_thousand_words"],
+                "share_of_its_blocks_carrying_one": blocks["share_of_the_copy"],
+                "the_three_commonest_that_occur": list(occurring["which_ones"])[:3],
+            }
+        language_rows.append(row)
+
+    def _carrying(language: str, at_least: float) -> list[dict[str, Any]]:
+        return sorted(
+            (
+                row
+                for row in language_rows
+                if (row[language]["share_of_its_blocks_carrying_one"] or 0) >= at_least
+            ),
+            key=lambda row: row["share_that_recurs"],
+        )
+
+    #: ⚠ Three criteria, not one, and the range is reported at each. A single cut-off would
+    #: be doing work nothing measured; three show how little of the reading is the cut-off's.
+    by_language = {
+        f"carrying_it_across_at_least_{int(at_least * 100)}_per_cent_of_the_copy": {
+            language: {
+                "copies": len(_carrying(language, at_least)),
+                "least_share_that_recurs": (
+                    _carrying(language, at_least)[0]["share_that_recurs"]
+                    if _carrying(language, at_least)
+                    else None
+                ),
+                "greatest_share_that_recurs": (
+                    _carrying(language, at_least)[-1]["share_that_recurs"]
+                    if _carrying(language, at_least)
+                    else None
+                ),
+                "how_many_this_floor_refuses": sum(
+                    1
+                    for row in _carrying(language, at_least)
+                    if row["share_that_recurs"] < LEAST_RECURRENCE
+                ),
+            }
+            for language in sorted(COMMONEST_WORDS)
+        }
+        for at_least in CARRYING_A_LANGUAGE_ACROSS
+    }
+
+    refused_carriers = [
+        row
+        for row in _carrying("sanskrit_or_hindi", 0.5)
+        if row["share_that_recurs"] < LEAST_RECURRENCE
+    ]
+    accepted_carriers = [
+        row
+        for row in _carrying("sanskrit_or_hindi", 0.5)
+        if row["share_that_recurs"] >= LEAST_RECURRENCE
+    ]
+    # ⭐⭐⭐ THE PAIR. The refused copy carrying the most language, and the accepted copy
+    #    nearest it on both measurements. ⛔ Chosen by the measurement, not by hand.
+    the_refused = max(
+        refused_carriers,
+        key=lambda row: row["sanskrit_or_hindi"]["per_ten_thousand_words"],
+    )
+    the_accepted = min(
+        accepted_carriers,
+        key=lambda row: abs(
+            row["sanskrit_or_hindi"]["per_ten_thousand_words"]
+            - the_refused["sanskrit_or_hindi"]["per_ten_thousand_words"]
+        ),
+    )
+    english_carriers = _carrying("english", 0.25)
+
+    controls += [
+        {
+            "finding": "control",
+            "control": "what_language_each_copy_of_both_draws_carries",
+            "measured": {
+                "how_both_sides_were_obtained": (
+                    "⛔ THE SAME TWO DECLARED DRAWS, WITH THE ACCEPTED SIDE KEPT THIS TIME. "
+                    "The copies this floor refused were held; the copies it accepted were "
+                    "measured and deleted, so every question about this floor could only be "
+                    "asked from below it. They are re-fetched from the addresses the draws "
+                    "recorded - ⚠ the draws are NOT re-run, because a search over a live "
+                    "collection is not a fixed function of its query. What reproduces is "
+                    "checked instead: each copy's normalised character count against what "
+                    "the draw wrote down"
+                ),
+                "where_the_words_came_from": (
+                    "⛔⛔⛔ DECLARED BEFORE ANY COPY WAS MEASURED AND TAKEN OUT OF NONE OF "
+                    "THEM. A term drawn out of a copy resolves in that copy for free - it is "
+                    "the defect the recurrence floor exists to catch - so a word list "
+                    "harvested from these copies would reproduce it exactly"
+                ),
+                "the_word_lists": {
+                    language: {
+                        "declared": len(COMMONEST_WORDS[language]),
+                        "used": len(declared_words_of(language)),
+                        "the_length_rule": (
+                            LEAST_LENGTH_A_DECLARED_WORD_CARRIES,
+                            "characters, enforced in code from the declared list",
+                        ),
+                    }
+                    for language in sorted(COMMONEST_WORDS)
+                },
+                "why_the_length_rule_is_not_tidiness": (
+                    "⭐⭐⭐ A WORD LIST IS NOT A MEASUREMENT UNTIL THE SHORTEST THING IN IT IS "
+                    "LONGER THAN WHAT NOISE MAKES BY ACCIDENT. With the two-character "
+                    "particles left in, a machine reading of an English book of 1993 set to "
+                    "an Indic script - carrying no Sanskrit whatever - scores 370.4 declared "
+                    "words per ten thousand, ABOVE a Sanskrit commentary of 1933 read in its "
+                    "own script at 329.9. ⛔ The whole of that reading is one two-character "
+                    "word occurring 744 times. Under the rule it scores 0.0. ⚠ And the rule "
+                    "had been stated in a comment and never applied"
+                ),
+                "copies": len(language_rows),
+                "by_language_carried": by_language,
+                "the_pair_across_the_floor": {
+                    "refused": {
+                        "copy": the_refused["copy"],
+                        "share_that_recurs": the_refused["share_that_recurs"],
+                        **the_refused["sanskrit_or_hindi"],
+                    },
+                    "accepted": {
+                        "copy": the_accepted["copy"],
+                        "share_that_recurs": the_accepted["share_that_recurs"],
+                        **the_accepted["sanskrit_or_hindi"],
+                    },
+                    "how_far_apart_in_language": {
+                        "per_ten_thousand_words": round(
+                            abs(
+                                the_refused["sanskrit_or_hindi"]["per_ten_thousand_words"]
+                                - the_accepted["sanskrit_or_hindi"]["per_ten_thousand_words"]
+                            ),
+                            1,
+                        ),
+                        "share_of_its_blocks_carrying_one": round(
+                            abs(
+                                the_refused["sanskrit_or_hindi"][
+                                    "share_of_its_blocks_carrying_one"
+                                ]
+                                - the_accepted["sanskrit_or_hindi"][
+                                    "share_of_its_blocks_carrying_one"
+                                ]
+                            ),
+                            4,
+                        ),
+                    },
+                    "how_far_apart_in_what_this_floor_measures": round(
+                        the_accepted["share_that_recurs"]
+                        / the_refused["share_that_recurs"],
+                        3,
+                    ),
+                },
+                "copies_this_floor_refuses_that_carry_a_declared_language": [
+                    {
+                        "copy": row["copy"],
+                        "share_that_recurs": row["share_that_recurs"],
+                        "characters": row["characters"],
+                        **row["sanskrit_or_hindi"],
+                    }
+                    for row in refused_carriers
+                ],
+                "by_copy": language_rows,
+            },
+            # ⛔⛔ BOTH DIRECTIONS, AND A CONTROL THAT CANNOT COME OUT WRONG IN EITHER.
+            #   A copy this floor refuses must carry a declared language across most of
+            #   itself; the copies it refuses must NOT all do so, or the instrument is
+            #   returning a high reading everywhere; a real book held here must be at the top
+            #   of the scale; and the copy this floor was built to catch must be near the
+            #   bottom of it. ⭐ Without the last two the first two measure only each other.
+            "held": bool(
+                len(language_rows) >= 59
+                and refused_carriers
+                and len(refused_carriers) < len(COPIES_THIS_FLOOR_REFUSES_KEYS) / 4
+                and the_refused["sanskrit_or_hindi"]["share_of_its_blocks_carrying_one"]
+                > 0.75
+                and next(
+                    row for row in language_rows if row["copy"] == second.key
+                )["sanskrit_or_hindi"]["share_of_its_blocks_carrying_one"]
+                > 0.95
+                and next(
+                    row for row in language_rows if row["copy"] == library_scan.key
+                )["sanskrit_or_hindi"]["share_of_its_blocks_carrying_one"]
+                < 0.15
+                # ⛔ And the floor is below EVERY copy carrying English, at every criterion.
+                and english_carriers
+                and all(
+                    row["share_that_recurs"] >= LEAST_RECURRENCE
+                    for row in english_carriers
+                )
+            ),
+            "meaning": (
+                "⛔⛔⛔ THIS FLOOR REFUSES WHOLE REAL BOOKS, AND WHAT IT SEPARATES IS "
+                "LANGUAGES. Of the copies carrying declared English across at least a "
+                f"quarter of themselves, {len(english_carriers)} of {len(english_carriers)} "
+                "clear it; the copies carrying declared Sanskrit or Hindi STRADDLE it, and "
+                f"{len(refused_carriers)} whole books below it carry the commonest words of "
+                "their own language across most of themselves. ⭐⭐⭐ The two copies nearest "
+                "each other in language sit on OPPOSITE sides of it: "
+                f"{the_refused['sanskrit_or_hindi']['per_ten_thousand_words']} against "
+                f"{the_accepted['sanskrit_or_hindi']['per_ten_thousand_words']} per ten "
+                "thousand words, across "
+                f"{the_refused['sanskrit_or_hindi']['share_of_its_blocks_carrying_one']} and "
+                f"{the_accepted['sanskrit_or_hindi']['share_of_its_blocks_carrying_one']} of "
+                "themselves. ⚠ Twelve characters of English is about two words and twelve "
+                "characters of a Devanagari compound is part of one, and this floor was "
+                "fitted to six English renderings and one Devanagari rendering OF an English "
+                "book - ⇒ fitted where it is loosest and applied where it is tightest"
+            ),
+        },
+    ]
+
+    rows.append(
+        {
+            "finding": "correction",
+            "rule": "a_copy_that_does_not_repeat_is_a_machine_reading_that_returned_noise",
+            "what_was_published": (
+                "the refusing branch of `refuse_a_rendering_that_does_not_repeat`, for three "
+                "sessions, ended: *it is not the alphabet that is wrong either. It is a "
+                "machine reading that returned noise, and noise answers every question "
+                "exactly once* - a DIAGNOSIS, stated as established, on a copy over the "
+                "extent bound whose share fell under the floor"
+            ),
+            "what_refutes_it": (
+                "⛔⛔⛔ WHOLE BOOKS IT FIRES ON CARRY THE COMMONEST WORDS OF THEIR OWN "
+                "LANGUAGE ACROSS FOUR FIFTHS OF THEMSELVES. Measured with words declared "
+                "before any copy was read and taken out of none of them: a Bibliotheca "
+                "Indica edition of a Sanskrit commentary, refused here, carries them in "
+                "82.6 % of its thousand-character blocks at 249.1 per ten thousand words - "
+                "against 83.0 % and 247.9 for a copy this same floor ACCEPTS. ⚠ Neither "
+                "reading is 1 % from the other and the floor puts them on opposite sides"
+            ),
+            "what_is_published_now": (
+                "the refusal, without the cause. What is measured is that little in the copy "
+                "repeats, and that is enough to refuse - a presence is free wherever nothing "
+                "repeats, whatever made the copy that way. ⭐ The branch now names ITSELF "
+                "rather than being sorted by its prose, every recurrence row carries "
+                "`a_low_share_here_is_about_the_reading` beginning NOT ESTABLISHED, and "
+                "`language_a_copy_carries` is the measurement to ask instead"
+            ),
+            "how_the_error_was_made": (
+                "⭐⭐⭐ THE FLOOR WAS FITTED WHERE IT IS LOOSEST AND APPLIED WHERE IT IS "
+                "TIGHTEST. Its seven copies are six English renderings and one Devanagari "
+                "rendering OF an English book. Twelve characters of English is about two "
+                "words; twelve characters of a Devanagari compound is three or four syllables "
+                "of one, so the same share asks a far harder question of Sanskrit. ⇒ The "
+                "cause the refusal named was the only cause the fitting set contained"
+            ),
+            "what_would_have_caught_it": (
+                "⛔ nothing held, and the reason is that the evidence was ONE-SIDED BY "
+                "CONSTRUCTION. The census that gathered the refused copies kept them and "
+                "deleted the twenty-five it accepted, so the only copies available to ask "
+                "about this floor were the ones it had already condemned. ⭐ A comparison "
+                "needs both sides, and the accepted side is now held on the same terms"
+            ),
+        }
+    )
 
     rows.append(
         {

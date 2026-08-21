@@ -35,6 +35,7 @@ from __future__ import annotations
 
 import hashlib
 import re
+import unicodedata
 from collections import Counter
 from dataclasses import dataclass
 from functools import lru_cache
@@ -613,6 +614,40 @@ RECURRENCE_MEASURED_AT = 12
 #: copies stands at 6.8×, so a margin read off the seven alone overstates the headroom by a
 #: third. ⚠ Every held-out body is language; none of them is a second rendering of noise, so
 #: none of them measures the other side of this floor.
+#:
+#: ⛔⛔⛔ **AND IT REFUSES WHOLE REAL BOOKS. MEASURED, NOT ARGUED.** Sixty-one copies — the
+#: fifty-seven held of the fifty-nine two declared draws over a public archive returned, both
+#: sides kept this time, plus the four held here — asked what language they carry, with words
+#: declared in `COMMONEST_WORDS` before any copy was measured and taken out of none of them:
+#:
+#: | copy | share | declared Sanskrit per 10 000 words | share of its 1 000-character blocks carrying one | this floor |
+#: |---|---|---|---|---|
+#: | `bodhicaryavatarapanjika…1902` | 0.00864 | **249.1** | **82.6 %** | ⛔ REFUSED |
+#: | `haaralatabyaniruddhabhatta…` | 0.01036 | **247.9** | **83.0 %** | ✅ accepted |
+#:
+#: ⭐⭐⭐ **THE SAME LANGUAGE, AT THE SAME RATE, ACROSS THE SAME SHARE OF THE COPY — 0.5 %
+#: APART ON BOTH MEASUREMENTS, AND OPPOSITE SIDES OF THIS FLOOR.** The refused one is told
+#: it is a machine reading that returned noise. It is a Bibliotheca Indica edition of a
+#: Sanskrit commentary, read in Devanagari, legible at every offset opened.
+#: ⚠ And the verdict does not even track how much language a copy carries: two rows above
+#: the accepted `haaralata` sits `krsnakarnamrtam…` at 0.01379 with **67.6** — a quarter of
+#: the refused copy's rate — and it passes.
+#:
+#: ⛔⛔⛔ **BECAUSE WHAT THIS FLOOR SEPARATES IS LANGUAGES.** Of the sixty-one, the twelve
+#: carrying declared English across at least a quarter of their thousand-character blocks run
+#: **0.0125 to 0.161** and every one of them clears. The fourteen carrying declared
+#: Sanskrit or Hindi run **0.00687 to 0.0892** and **straddle** it, three of them below.
+#: ⭐ The same at every criterion published — a quarter, a half, three quarters of the copy —
+#: so the reading is not the criterion's. Twelve characters of
+#: English is about two words; twelve characters of a Devanagari compound is three or four
+#: syllables of one, so the same floor asks a far harder question of the second. ⚠ The seven
+#: copies it was fitted to are six English renderings and one Devanagari rendering *of an
+#: English book* — ⇒ **it was fitted where it is loosest and applied where it is tightest.**
+#:
+#: ⚠ Read the two sides asymmetrically, as `COMMONEST_WORDS` says: a copy that answers to
+#: those words carries the language, and a copy that does not may still be legible — a
+#: Devanagari astrology dictionary refused here scores 21.1 because a dictionary is headwords
+#: and glosses. So the count of refused real books is a **lower bound**.
 LEAST_RECURRENCE = 0.01
 
 #: The least **extent** at which a copy's failure to clear `LEAST_RECURRENCE` says anything
@@ -659,8 +694,19 @@ LEAST_RECURRENCE = 0.01
 #: held-out evidence it transfers and is not tight.
 LEAST_EXTENT_A_REFUSAL_DISCRIMINATES_AT = 7686
 
-#: The greatest extent at which a window of a rendering **this floor calls noise** has been
-#: measured to CLEAR it anyway, over every specimen this repository holds.
+#: The greatest extent at which a window of a copy **this floor refuses** has been measured
+#: to CLEAR it anyway, over every refused copy this repository holds.
+#:
+#: ⛔⛔⛔ **RENAMED A SECOND TIME, AND THE VALUE DID NOT MOVE — WHAT MOVED IS WHAT IT IS A
+#: MEASUREMENT OF.** It was published as the greatest extent at which *a rendering of noise*
+#: has cleared this floor. The copy it is read off, `TheTheoryOfTheSamdhis…`, is measured to
+#: carry declared Sanskrit words in **48.8 %** of its thousand-character blocks, at **239.3**
+#: per ten thousand words — more than eight of the twenty-five copies this floor ACCEPTED.
+#: It is an English monograph on the Nāṭyaśāstra whose Devanagari quotations the wrong-script
+#: reader got *right*, and one of them reads, in the clear, `चाणक्यः- भक्त्या कार्यधुरं …`.
+#: ⇒ ⭐⭐⭐ **THE SPECIMEN IS NOT ESTABLISHED TO BE A RENDERING OF NOISE, SO THE OLD NAME
+#: ASSERTED THE ONE THING THE MEASUREMENT COULD NOT.** The 320 000 stands as what it always
+#: was: a window of a copy this floor refuses, clearing this floor.
 #:
 #: ⛔⛔⛔ **A MEASURED MAXIMUM, NOT A BOUND, AND THE DIFFERENCE IS THE WHOLE ENTRY.** A bound
 #: would say *at or above this extent, clearing this floor says something about the copy*.
@@ -709,7 +755,7 @@ LEAST_EXTENT_A_REFUSAL_DISCRIMINATES_AT = 7686
 #: survives into the noise. In one specimen the fragments that recur across a clearing window
 #: are garbled body text repeated ten times; in another they are the page numbers of a
 #: bibliography, which the wrong-script reader got right because digits survived it.
-GREATEST_EXTENT_AT_WHICH_A_RENDERING_OF_NOISE_HAS_CLEARED = 320000
+GREATEST_EXTENT_AT_WHICH_A_WINDOW_OF_A_REFUSED_COPY_HAS_CLEARED = 320000
 
 
 @lru_cache(maxsize=16)
@@ -756,19 +802,32 @@ def recurrence_of(edition: Edition, *, length: int = RECURRENCE_MEASURED_AT) -> 
         #   nothing measured. There is no extent at which clearing this floor is known to
         #   mean anything, so what travels is the largest extent at which a rendering of
         #   noise has cleared it anyway, and whether this copy is even that long.
-        "the_greatest_extent_at_which_noise_has_cleared_this_floor": (
-            GREATEST_EXTENT_AT_WHICH_A_RENDERING_OF_NOISE_HAS_CLEARED
+        "the_greatest_extent_at_which_a_window_of_a_refused_copy_has_cleared": (
+            GREATEST_EXTENT_AT_WHICH_A_WINDOW_OF_A_REFUSED_COPY_HAS_CLEARED
         ),
         "this_copy_is_longer_than_that": (
-            len(body) > GREATEST_EXTENT_AT_WHICH_A_RENDERING_OF_NOISE_HAS_CLEARED
+            len(body) > GREATEST_EXTENT_AT_WHICH_A_WINDOW_OF_A_REFUSED_COPY_HAS_CLEARED
         ),
         "a_high_share_here_is_about_the_copy": (
-            "⛔ NOT ESTABLISHED AT ANY EXTENT. A specimen of 330 970 characters carrying no "
-            "language clears this floor over windows of 320 000, and the extent at which a "
-            "specimen stops clearing tracks how close its own share sits to the floor rather "
-            "than any property of the floor. ⚠ So a copy longer than that number has not "
-            "been shown to be safe either - it has only been shown to be longer than the "
-            "longest counter-example held"
+            "⛔ NOT ESTABLISHED AT ANY EXTENT. A copy of 330 970 characters this floor "
+            "refuses clears it over windows of 320 000, and the extent at which such a copy "
+            "stops clearing tracks how close its own share sits to the floor rather than any "
+            "property of the floor. ⚠ So a copy longer than that number has not been shown "
+            "to be safe either - it has only been shown to be longer than the longest "
+            "counter-example held"
+        ),
+        # ⛔⛔⛔ AND THE LOW SIDE IS NOT ABOUT THE READING EITHER, WHICH THIS ROW SAID FOR
+        #   THREE SESSIONS BY NAMING A CAUSE. Measured over sixty copies of one public
+        #   archive: below this floor sit two whole books carrying the commonest words of
+        #   their own language across 79 % and 83 % of themselves.
+        "a_low_share_here_is_about_the_reading": (
+            "⛔ NOT ESTABLISHED. This floor was fitted to six English renderings and one "
+            "Devanagari rendering of an English book. Asked of sixty-one copies it sits BELOW "
+            "every one of the twelve carrying English (0.0125 to 0.161) and INSIDE the "
+            "range of the fourteen carrying Sanskrit or Hindi (0.00687 to 0.0892), which "
+            "straddle it. ⚠ Twelve characters of English is about two words and twelve characters of "
+            "a Devanagari compound is part of one, so what a low share here is about may be "
+            "the LANGUAGE. Ask `language_a_copy_carries`"
         ),
         "what_a_share_near_zero_means": (
             "⛔ that NOTHING IN THIS COPY REPEATS, so every fragment of it resolves exactly "
@@ -783,7 +842,7 @@ def recurrence_of(edition: Edition, *, length: int = RECURRENCE_MEASURED_AT) -> 
             "fact about the extent and not about the rendering. ⚠ And a share near the floor "
             "from ABOVE is free at EVERY extent this repository has been able to test: a "
             "rendering of noise it holds clears this floor over windows of "
-            f"{GREATEST_EXTENT_AT_WHICH_A_RENDERING_OF_NOISE_HAS_CLEARED} characters"
+            f"{GREATEST_EXTENT_AT_WHICH_A_WINDOW_OF_A_REFUSED_COPY_HAS_CLEARED} characters"
         ),
     }
 
@@ -965,7 +1024,7 @@ def largest_extent_at_which_a_window_clears(
     The largest extent on `grid` at which **any** window of this copy still CLEARS
     `LEAST_RECURRENCE`. Asked of a rendering the floor refuses, it says how long a stretch of
     that rendering passes the floor anyway — which is the entire content of
-    `GREATEST_EXTENT_AT_WHICH_A_RENDERING_OF_NOISE_HAS_CLEARED`.
+    `GREATEST_EXTENT_AT_WHICH_A_WINDOW_OF_A_REFUSED_COPY_HAS_CLEARED`.
 
     ⛔⛔⛔ **THE SUPREMUM, NOT THE FIRST EXTENT THAT CLEARS NOTHING.** The count is not
     monotone in the extent on this side either: one specimen clears 21 850 windows at 100 000
@@ -1011,6 +1070,224 @@ def largest_extent_at_which_a_window_clears(
     }
 
 
+# --------------------------------------------------------------------------------------
+# What language a copy carries, asked with words declared OUTSIDE it
+# --------------------------------------------------------------------------------------
+
+#: A word of a rendering: a maximal run of letters and the marks that attach to them.
+#:
+#: ⛔⛔⛔ **`script_of` CANNOT BE USED TO CUT WORDS, AND THE REASON IS THE WHOLE FUNCTION.**
+#: That bucket asks `isalpha`, which is right for the question it answers and wrong for this
+#: one: a Devanagari vowel sign is a combining mark, not a letter, so `isalpha` is `False`
+#: for it. ⚠ Cutting on that rule shreds real Devanagari into consonant runs — measured on
+#: the real Devanagari book this repository holds, it reported a mean word length of **1.36
+#: characters**, and every measurement taken over those pieces was a measurement of debris.
+#: ⭐ With the marks kept, the same copy reads **4.23**.
+#:
+#: ⚠ A run must still carry at least one letter, so a bare string of marks is not a word.
+def words_of(text: str) -> tuple[str, ...]:
+    """Every word of `text`, in order. ⭐ Complete — every position, never a sample."""
+    words: list[str] = []
+    current: list[str] = []
+    for character in text:
+        if character.isalpha() or unicodedata.category(character) in _WORD_MARKS:
+            current.append(character)
+            continue
+        if current:
+            words.append("".join(current))
+            current = []
+    if current:
+        words.append("".join(current))
+    return tuple(word for word in words if any(c.isalpha() for c in word))
+
+
+#: Combining marks and format characters that belong **inside** a word: `Mn` and `Mc` are the
+#: vowel signs, the virama and the nukta; `Cf` is the zero-width joiner, which the archive's
+#: reader emits inside conjuncts and which would otherwise cut a word in half.
+_WORD_MARKS = frozenset({"Mn", "Mc", "Cf"})
+
+#: ⛔ **THE SHORTEST THING A DECLARED WORD LIST MAY CONTAIN, AND IT IS NOT A CONVENIENCE.**
+#:
+#: ⭐⭐⭐ **A WORD LIST IS NOT A MEASUREMENT UNTIL THE SHORTEST THING IN IT IS LONGER THAN
+#: WHAT NOISE MAKES BY ACCIDENT.** Measured, not argued: with the two-character particles
+#: left in — `वा`, `हि`, `एव` — a machine reading of *5000 Years of Kashmir*, an English book
+#: read by a machine set to an Indic script and carrying no Sanskrit whatever, scores **370.4
+#: declared words per ten thousand**, which is ABOVE the 329.9 of a Sanskrit commentary of
+#: 1933 read in its own script. ⛔ The whole of that reading is one two-character word: `वा`
+#: occurs **744** times in a copy that contains no Sanskrit. Under the rule below the same
+#: copy scores **0.0**.
+#:
+#: ⚠ Three *characters*, not three letters, and the difference was measured too: a rule of
+#: three letters drops `इति`, which occurs 466 times in one refused copy and twice in an
+#: English book of 1810 read the same wrong way. Both rules are enforced from the same raw
+#: list rather than applied by hand — ⛔ the reading above was produced by a list whose
+#: length rule was stated in a comment and never applied.
+LEAST_LENGTH_A_DECLARED_WORD_CARRIES = 3
+
+#: The commonest words of a language, **declared here and taken from outside every copy this
+#: repository holds** — from grammars and from ordinary knowledge of the language, not read
+#: off any rendering measured with them.
+#:
+#: ⛔⛔⛔ **THAT PROVENANCE IS THE ENTIRE INSTRUMENT.** A term drawn out of a copy resolves in
+#: that copy for free — it is the defect `refuse_a_rendering_that_does_not_repeat` exists to
+#: catch, and a word list harvested from the corpus would reproduce it exactly. These words
+#: were fixed before any copy was measured with them, so a copy that answers to them is
+#: answering to something it did not supply.
+#:
+#: ⭐⭐⭐ **A PRESENCE ESTABLISHES SOMETHING AND AN ABSENCE ESTABLISHES NOTHING**, which is
+#: the same asymmetry the guard below is built on: a reader can destroy the evidence of a
+#: presence but cannot manufacture it. ⚠ And the absence side is not hypothetical —
+#: `dictionaryofastrologybhansin`, a Devanagari astrology dictionary read in Devanagari and
+#: legible at any offset opened, scores **21.1** per ten thousand, barely above the
+#: certified rendering of noise at 14.7, because a dictionary is headwords and glosses and
+#: the commonest words of running prose hardly occur in it.
+#:
+#: ⚠ Two languages are declared and no more. Two copies the draws returned are in the Arabic
+#: script; `words_of` cuts them into words and no list here can meet them, so they measure
+#: zero — ⛔ a fact about this list and not about those copies.
+COMMONEST_WORDS: Mapping[str, tuple[str, ...]] = {
+    "sanskrit_or_hindi": (
+        "इति", "एव", "अपि", "यत्", "तत्", "तस्य", "तत्र", "तथा", "यथा", "किन्तु",
+        "स्यात्", "चैव", "नाम", "अस्ति", "भवति", "अत्र", "सर्व", "अथ", "वा", "हि",
+        "एतत्", "तेन", "एवं", "पुनः", "सह", "यदि", "लिए", "नहीं", "करने", "किया",
+        "गया", "उनके", "उसके", "होता", "होती", "कहा", "अपने", "बहुत", "साथ", "जाता",
+        "रहा", "करता", "इसके", "जिस", "सकता", "चाहिए", "अनुसार", "प्रकार", "स्थान",
+    ),
+    "english": (
+        "the", "and", "that", "for", "with", "this", "are", "not", "from", "have",
+        "which", "was", "his", "but", "they", "were", "been", "their", "would",
+        "when", "there", "said", "into", "more", "other",
+    ),
+}
+
+#: The grid the block measurement below is published on. ⚠ Travelling with the row for the
+#: reason every grid in this file does: a share quoted without the block it was taken over
+#: reads as a property of the copy, and it is not one — the same copy reads 49 % at a
+#: thousand characters and 88 % at twenty thousand.
+LANGUAGE_MEASURED_OVER_BLOCKS_OF = (1000, 5000, 20000)
+
+
+def declared_words_of(language: str) -> tuple[str, ...]:
+    """The declared list for `language`, with the length rule **enforced here**, not by hand."""
+    if language not in COMMONEST_WORDS:
+        raise TextualError(
+            f"no word list is declared for {language!r}; declared: "
+            f"{sorted(COMMONEST_WORDS)}"
+        )
+    return tuple(
+        word
+        for word in COMMONEST_WORDS[language]
+        if len(word) >= LEAST_LENGTH_A_DECLARED_WORD_CARRIES
+    )
+
+
+def declared_words_that_occur(edition: Edition, *, language: str) -> dict[str, Any]:
+    """How often a copy uses the commonest words of a language it did not supply.
+
+    ⭐ Complete over the copy's words — every one of them, counted once, never a sample.
+    ⛔ The rate is per ten thousand words and it is a **rank, not a verdict**: no threshold
+    is published here, because any number separating these copies would be fitted to the
+    thirty-three this repository happens to hold, and the copies do not fall into two piles.
+    """
+    terms = declared_words_of(language)
+    counts = Counter(words_of(edition.normalised))
+    total = sum(counts.values())
+    occurrences = {term: counts[term] for term in terms if counts[term]}
+    found = sum(occurrences.values())
+    return {
+        "edition": edition.key,
+        "language": language,
+        "words_in_the_copy": total,
+        "declared_words": len(terms),
+        "declared_words_that_occur": len(occurrences),
+        "occurrences": found,
+        "per_ten_thousand_words": (round(found / total * 10000, 1) if total else None),
+        "which_ones": dict(
+            sorted(occurrences.items(), key=lambda pair: -pair[1])
+        ),
+        "where_the_words_came_from": (
+            "declared in COMMONEST_WORDS before any copy was measured with them, from "
+            "grammars and ordinary knowledge of the language. ⛔ NOT read off any copy: a "
+            "term drawn out of a rendering resolves in it for free"
+        ),
+        "how_to_read_this": (
+            "⭐ AS A RANK AND NOT AS A VERDICT. A presence establishes that the copy carries "
+            "the language; an absence establishes nothing, because a copy can be legible and "
+            "still not be running prose - a Devanagari astrology dictionary held here scores "
+            "21.1 against a certified rendering of noise at 14.7. ⛔ No threshold is "
+            "published because none is measured"
+        ),
+    }
+
+
+def blocks_that_carry_declared_words(
+    edition: Edition, *, language: str, block: int
+) -> dict[str, Any]:
+    """How much **of** a copy carries the language — consecutive disjoint blocks from zero.
+
+    ⭐ **Complete over the copy's characters**, every one in exactly one block, the remainder
+    shorter than a block dropped and reported.
+
+    ⛔⛔ **AND THAT IS THE RIGHT NOUN HERE, WHICH IS EXACTLY WHY IT MUST BE SAID.** The same
+    completeness was true of the wrong noun once in this file and cost a constant: a bound on
+    an *extent* asks whether any specimen of that size exists, and the specimens are the
+    copy's windows, of which one tiling phase is a vanishing fraction. The question here is
+    different — *how much of this copy is language* — and a tiling answers it exactly,
+    because what it partitions is the copy itself.
+    """
+    if block <= 0:
+        raise TextualError("a block must be at least one character")
+    terms = frozenset(declared_words_of(language))
+    body = edition.normalised
+    blocks = len(body) // block
+    carrying = 0
+    for index in range(blocks):
+        piece = body[index * block : (index + 1) * block]
+        if terms & set(words_of(piece)):
+            carrying += 1
+    return {
+        "edition": edition.key,
+        "language": language,
+        "block": block,
+        "blocks": blocks,
+        "blocks_carrying_a_declared_word": carrying,
+        "share_of_the_copy": (round(carrying / blocks, 4) if blocks else None),
+        "characters_left_over": len(body) - blocks * block,
+        "measured_over": (
+            "consecutive disjoint blocks from offset zero - complete over the copy's "
+            "characters, which is the noun this question is about"
+        ),
+    }
+
+
+def language_a_copy_carries(
+    edition: Edition, *, grid: Sequence[int] = LANGUAGE_MEASURED_OVER_BLOCKS_OF
+) -> dict[str, Any]:
+    """Every declared language, asked of one copy, with the block grid on the row."""
+    return {
+        "edition": edition.key,
+        "characters": edition.searchable_characters,
+        "languages": [
+            {
+                **declared_words_that_occur(edition, language=language),
+                "how_much_of_the_copy_carries_them": [
+                    blocks_that_carry_declared_words(
+                        edition, language=language, block=block
+                    )
+                    for block in grid
+                ],
+            }
+            for language in sorted(COMMONEST_WORDS)
+        ],
+        "what_this_does_not_establish": (
+            "⛔ THAT THE COPY IS A GOOD READING, OR THAT ITS CATALOGUE ENTRY IS RIGHT. It "
+            "establishes that words nobody took out of this copy occur in it, and how much "
+            "of it they occur across. ⚠ A copy can carry a language and still have lost most "
+            "of what the printing said"
+        ),
+    }
+
+
 def refuse_a_rendering_that_does_not_repeat(
     edition: Edition, *, what_it_would_make_free: str, length: int = RECURRENCE_MEASURED_AT
 ) -> dict[str, Any]:
@@ -1033,6 +1310,14 @@ def refuse_a_rendering_that_does_not_repeat(
     ⚠ This is the guard both absence instruments were missing and the attestation instrument
     was armed without: every guard before it asks whether the copy was **read**, and a copy
     read in the wrong alphabet answers yes to all of them.
+
+    ⛔⛔⛔ **AND ITS OWN PRINCIPLE FALSIFIED ITS OWN DIAGNOSIS.** *A reader can destroy the
+    evidence of a presence but cannot manufacture it* — so words fixed in `COMMONEST_WORDS`
+    before any copy was measured, and taken out of none of them, resolve in a copy only
+    because the copy has them. Asked that way, copies this refusal used to call machine
+    readings that returned noise turn out to carry the commonest words of their own language
+    across four fifths of themselves. ⇒ The refusal stands on what it measures; ⛔ the cause
+    it named is gone.
     """
     measured = recurrence_of(edition, length=length)
     share = measured["share_that_recurs"]
@@ -1064,18 +1349,33 @@ def refuse_a_rendering_that_does_not_repeat(
             "says it is not"
         )
     if share < LEAST_RECURRENCE:
+        # ⛔⛔⛔ THE REFUSAL STANDS AND THE CAUSE IT USED TO NAME DOES NOT. What is measured
+        #    is that little in this copy repeats, and that is enough to refuse: a presence is
+        #    free wherever nothing repeats, whatever made the copy that way. ⚠ What this
+        #    message asserted for three sessions - *it is a machine reading that returned
+        #    noise* - is a DIAGNOSIS, and it is now measured to be false of copies it fires
+        #    on. See `LEAST_RECURRENCE`: a Bibliotheca Indica edition of a Sanskrit
+        #    commentary, refused here, carries declared Sanskrit across 82.6 % of itself at
+        #    a rate 0.5 % from a copy this same floor accepts.
         raise TextualError(
             f"{edition.key}: {measured['fragments_that_recur']} of "
             f"{measured['distinct_fragments']} distinct {length}-character fragments of this "
             f"rendering occur more than once - a share of {share}, against the {LEAST_RECURRENCE} "
-            f"required. ⛔⛔⛔ NOTHING IN THIS COPY REPEATS, so {what_it_would_make_free} is "
-            "free to obtain: every fragment of it resolves exactly once whether or not the "
-            "copy says anything. ⚠ This copy is NOT mute and NOT out of extent - it carries "
-            f"{edition.searchable_characters} searchable characters, over the "
-            f"{LEAST_EXTENT_A_REFUSAL_DISCRIMINATES_AT} at which every window of every real "
-            "copy held clears this floor - and it is not the alphabet that is wrong either. "
-            "It is a machine reading that returned noise, and noise answers every question "
-            "exactly once"
+            f"required. ⛔⛔⛔ LITTLE IN THIS COPY REPEATS, so {what_it_would_make_free} is "
+            "free to obtain: a fragment of it resolves exactly once whether or not the copy "
+            "says anything, and that is the whole of this refusal. ⭐ THE EXTENT IS NOT THE "
+            "CAUSE - this refusal names itself so that nothing downstream has to sort these "
+            "two branches by their prose. ⚠ This copy is NOT mute "
+            f"and NOT out of extent - it carries {edition.searchable_characters} searchable "
+            f"characters, over the {LEAST_EXTENT_A_REFUSAL_DISCRIMINATES_AT} at which every "
+            "window of every real copy held clears this floor - and it is not the alphabet "
+            "that is wrong either. ⛔⛔⛔ AND NOTHING HERE SAYS IT IS A MACHINE READING THAT "
+            "RETURNED NOISE, WHICH THIS REFUSAL USED TO SAY AND WAS WRONG TO. Measured over "
+            "sixty-one copies, fifty-seven of them from one public archive, this floor sits "
+            "BELOW every copy carrying English and INSIDE the range of the copies carrying "
+            "Devanagari, and two whole books it refuses carry the commonest words of their "
+            "own language across 79 % and 83 % of themselves. ⚠ Ask `language_a_copy_carries` before believing "
+            "anything about WHY this copy does not repeat"
         )
     # ⛔⛔⛔ THE ACCEPTING SIDE IS NOT ARMED, AND THAT IS A DECISION WITH A MEASUREMENT
     #    UNDER IT RATHER THAN A CONVENIENCE.

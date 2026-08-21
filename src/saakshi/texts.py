@@ -619,7 +619,7 @@ SOURCES: dict[str, Source] = {
 #    a specimen would have put a 220-character photograph caption in the evidence.
 
 
-def _a_specimen_of_noise_extent(text: str) -> dict[str, Any]:
+def _a_copy_this_floor_refuses_extent(text: str) -> dict[str, Any]:
     """⛔ NOTHING, and deliberately not measured.
 
     ⭐ These copies are held as specimens of a RENDERING KIND. The extent of a copy is what
@@ -661,7 +661,7 @@ def _a_specimen_of_noise_extent(text: str) -> dict[str, Any]:
 #   l39kaaratattvam39-nihitam39-guhaayaam_950_x - 4932 characters
 # 32 are certified renderings of noise by this repository's own guard.
 
-_NOISE_SPECIMENS: tuple[tuple[str, str, str], ...] = (
+_COPIES_THIS_FLOOR_REFUSES: tuple[tuple[str, str, str], ...] = (
     (
         '01wonhyowebcollectedworksofkoreanbuddhism_391_m',
         'the head of the collection',
@@ -950,8 +950,8 @@ _NOISE_SPECIMENS: tuple[tuple[str, str, str], ...] = (
 #: ⭐ Built by a loop rather than written out: every specimen carries the same identity,
 #: the same extent and the same reader, and thirty-two hand-written copies of one sentence
 #: would be thirty-two places for it to drift.
-for _identifier, _drawn, _address in _NOISE_SPECIMENS:
-    _key = "noise_specimen_" + "".join(
+for _identifier, _drawn, _address in _COPIES_THIS_FLOOR_REFUSES:
+    _key = "refused_copy_" + "".join(
         character if character.isalnum() else "_" for character in _identifier.lower()
     )
     SOURCES[_key] = Source(
@@ -969,13 +969,317 @@ for _identifier, _drawn, _address in _NOISE_SPECIMENS:
         filename=f"specimens/{_identifier}.txt",
         rendering_kind="optical_character_recognition",
         render=_plain_text,
-        extent=_a_specimen_of_noise_extent,
+        extent=_a_copy_this_floor_refuses_extent,
     )
 
 #: The specimen keys, in the order the table declares them. ⚠ Read by the generator, which
 #: re-measures every one of them rather than quoting a table.
-NOISE_SPECIMEN_KEYS: tuple[str, ...] = tuple(
-    key for key in SOURCES if key.startswith("noise_specimen_")
+COPIES_THIS_FLOOR_REFUSES_KEYS: tuple[str, ...] = tuple(
+    key for key in SOURCES if key.startswith("refused_copy_")
+)
+
+
+# --------------------------------------------------------------------------------------
+# The other side of the same two draws: every copy the floor ACCEPTED
+# --------------------------------------------------------------------------------------
+#
+# ⛔⛔⛔ **THEY WERE MEASURED AND THROWN AWAY, AND THAT MADE THE EVIDENCE ONE-SIDED.** The
+#    two draws that produced the specimens above returned fifty-nine readable copies. The
+#    thirty-four the floor refused were kept; the twenty-five it accepted were measured,
+#    printed to a log and deleted. ⇒ Every question about this floor could then only be
+#    asked from below it, and the one that mattered - *does it refuse real books?* - needs
+#    both sides: where real copies sit is a fact about the accepted side.
+#
+# ⭐ **THE DRAWS ARE NOT RE-RUN; THE COPIES ARE RE-FETCHED FROM THE ADDRESSES THE DRAWS
+#    RECORDED.** A search over a live collection is not a fixed function of its query -
+#    items are added - so re-running it would answer a different draw and the two sides
+#    would no longer be the same sixty items. What reproduces is checked instead: each
+#    copy's normalised character count and its share, against what the draw wrote down.
+#
+# ⚠ Held on exactly the terms the refused copies are held on: as instances of a READING.
+#    This repository has not read these works, cites nothing from them, and takes no
+#    position on what the archive's catalogue calls them.
+
+
+def _a_copy_this_floor_accepts_extent(text: str) -> dict[str, Any]:
+    """⛔ NOTHING, for the same reason the refused copies measure none.
+
+    ⚠ *And accepting is not a certificate.* A copy is here because a floor fitted to seven
+    renderings let it through, which is a fact about the floor. Nothing about the work, the
+    printing or the reading follows from it, and an extent measured here would be the first
+    thing a reader mistook for one.
+    """
+    return {
+        "describes": (
+            "nothing. This copy is held as the accepted side of a floor's own evidence, "
+            "not as a copy of the work its catalogue names"
+        ),
+        "divisions_looked_for": [],
+        "divisions_found": [],
+        "divisions_not_found": [],
+        "complete": False,
+        "established_from": (
+            "nothing in the copy. ⛔ No extent was measured, because nothing here reasons "
+            "about the work: the copy is evidence about a CONSTANT, and what is measured "
+            "over it is its recurrence and what language it carries"
+        ),
+        "beyond_this_extent_the_copy_establishes": (
+            "⛔ NOTHING WHATEVER ABOUT THE WORK, and ⚠ NOTHING ABOUT THE READING EITHER "
+            "beyond the two things measured on its row. Clearing a recurrence floor is not "
+            "a finding that a copy was read well: the floor is fitted to seven renderings "
+            "and a specimen carrying no language has cleared it over a window spanning "
+            "96.69 % of itself"
+        ),
+    }
+
+
+_COPIES_THAT_CLEARED: tuple[tuple[str, str, str], ...] = (
+    (
+        '0415073103encofphilosophy10vs_202003_611_x',
+        'the head of the collection',
+        (
+            'https://archive.org/download/0415073103encofphilosophy10vs_202003_611_'
+            'x/0415073103_Enc_of_Philosophy_10VS_djvu.txt'
+        ),
+    ),
+    (
+        '00bhagavatainkannada1stskandha_202003_821_F',
+        "bucket '0', position 1",
+        (
+            'https://archive.org/download/00bhagavatainkannada1stskandha_202003_821'
+            '_F/00_Bhagavata_in_Kannada_1st-Skandha_djvu.txt'
+        ),
+    ),
+    (
+        '30776245teachingsofthesidhaspart3conductenglish_202004_297_J',
+        "bucket '3', position 1",
+        (
+            'https://archive.org/download/30776245teachingsofthesidhaspart3conducte'
+            'nglish_202004_297_J/30776245-Teachings-of-the-Sidhas-Part-3-Conduct-'
+            'English_djvu.txt'
+        ),
+    ),
+    (
+        '46955728arutperunjotivazhipaadutamilenglish_202004_226_z',
+        "bucket '4', position 1",
+        (
+            'https://archive.org/download/46955728arutperunjotivazhipaadutamilengli'
+            'sh_202004_226_z/46955728-Arutperunjoti-Vazhipaadu-Tamil-'
+            'English_djvu.txt'
+        ),
+    ),
+    (
+        '84siddhomkavrittantahindicentralinstituteofhighertibetanstudies_130_T',
+        "bucket '8', position 1",
+        (
+            'https://archive.org/download/84siddhomkavrittantahindicentralinstitute'
+            'ofhighertibetanstudies_130_T/84%20Siddhom%20ka%20Vrittanta%20Hindi%20-'
+            '%20Central%20Institute%20of%20Higher%20Tibetan%20Studies_djvu.txt'
+        ),
+    ),
+    (
+        'a-brief-account-of-the-achievements-of-shri-baba-kali-kamli-wala-panchayat-kshet',
+        "bucket 'a', position 1",
+        (
+            'https://archive.org/download/a-brief-account-of-the-achievements-of-'
+            'shri-baba-kali-kamli-wala-panchayat-kshet/A%20Brief%20Account%20of%20t'
+            'he%20Achievements%20of%20Shri%20Baba%20Kali%20Kamli%20Wala%20Panchayat'
+            '%20Kshetra%20And%20Atma%20Vigryan%20Bhavan%20Rishikesh%20-'
+            '%20Baba%20Kali%20Kamali%20Baba%20Kshetra%20Calcutta_djvu.txt'
+        ),
+    ),
+    (
+        'AjitagamaVolIN.R.Bhatt',
+        "bucket 'a', position 500",
+        (
+            'https://archive.org/download/AjitagamaVolIN.R.Bhatt/Ajitagama%20Vol%20'
+            'I%20-%20N.R.%20Bhatt_djvu.txt'
+        ),
+    ),
+    (
+        'dli.bengal.10689.10312',
+        "bucket 'd', position 1000",
+        (
+            'https://archive.org/download/dli.bengal.10689.10312/10689.10312_djvu.t'
+            'xt'
+        ),
+    ),
+    (
+        'facetofacewithsriramanamaharshilakshminarainarticles_202004_426_D',
+        "bucket 'f', position 1",
+        (
+            'https://archive.org/download/facetofacewithsriramanamaharshilakshminar'
+            'ainarticles_202004_426_D/Face%20To%20Face%20With%20Sri%20Ramana%20Maha'
+            'rshi%20Lakshmi%20Narain%20%28Articles%29_djvu.txt'
+        ),
+    ),
+    (
+        'gaban-hans-publishers-premchand',
+        "bucket 'g', position 1",
+        (
+            'https://archive.org/download/gaban-hans-publishers-'
+            'premchand/Gaban%20Hans%20Publishers%20-%20Premchand_djvu.txt'
+        ),
+    ),
+    (
+        'gov.in.Notification.2022.99',
+        "bucket 'g', position 500",
+        (
+            'https://archive.org/download/gov.in.Notification.2022.99/notification-'
+            '99-2022_djvu.txt'
+        ),
+    ),
+    (
+        'haaralatabyaniruddhabhattabibliothecaindica_628_V',
+        "bucket 'h', position 1",
+        (
+            'https://archive.org/download/haaralatabyaniruddhabhattabibliothecaindi'
+            'ca_628_V/Haaralata%20by%20Aniruddha%20Bhatta%20-'
+            '%20Bibliotheca%20Indica_djvu.txt'
+        ),
+    ),
+    (
+        'iabu2012buddhasenlightenmentforthewellbeingofhumanity_62_Z',
+        "bucket 'i', position 1",
+        (
+            'https://archive.org/download/iabu2012buddhasenlightenmentforthewellbei'
+            'ngofhumanity_62_Z/IABU-2012-Buddha-s-Enlightenment-for-the-Well-Being-'
+            'of-Humanity_djvu.txt'
+        ),
+    ),
+    (
+        'in.ernet.dli.2015.101106',
+        "bucket 'i', position 500",
+        (
+            'https://archive.org/download/in.ernet.dli.2015.101106/2015.101106.The-'
+            'Penal-Law-Of-British-India_djvu.txt'
+        ),
+    ),
+    (
+        'in.ernet.dli.2015.101876',
+        "bucket 'i', position 1000",
+        (
+            'https://archive.org/download/in.ernet.dli.2015.101876/2015.101876.Old-'
+            'Mortality-Vol-Ii_djvu.txt'
+        ),
+    ),
+    (
+        'j-.-krishnamurti-as-i-knew-him-susunaga-veerperumma',
+        "bucket 'j', position 1",
+        (
+            'https://archive.org/download/j-.-krishnamurti-as-i-knew-him-susunaga-v'
+            'eerperumma/J%20.Krishnamurti%20as%20i%20Knew%20Him%20-'
+            '%20Susunaga%20Veerperumma_djvu.txt'
+        ),
+    ),
+    (
+        'krsnakarnamrtamsataka1sanskrittextsatgaudiyagranthamandir_209_z',
+        "bucket 'k', position 500",
+        (
+            'https://archive.org/download/krsnakarnamrtamsataka1sanskrittextsatgaud'
+            'iyagranthamandir_209_z/Krsna%20Karnamrtam%20Sataka%201%20-'
+            '%20%20Sanskrit%20Texts%20at%20Gaudiya%20Grantha%20Mandir_djvu.txt'
+        ),
+    ),
+    (
+        'noticesofsanskritmss.2dser.1871vol.3pt13_814_f',
+        "bucket 'n', position 500",
+        (
+            'https://archive.org/download/noticesofsanskritmss.2dser.1871vol.3pt13_'
+            '814_f/Notices%20of%20Sanskrit%20MSS.%202d%20ser.%20%281871%29%2C%20vol'
+            '.%203%2C%20Pt%201-3_djvu.txt'
+        ),
+    ),
+    (
+        'pli.kerala.rare.14973',
+        "bucket 'p', position 1000",
+        (
+            'https://archive.org/download/pli.kerala.rare.14973/pli.kerala.rare.149'
+            '73_djvu.txt'
+        ),
+    ),
+    (
+        'sankhyakarikagoudapadabhashyatattvakaumudiofvachaspatimisravrittiofswaminarayana_202003_46_y',
+        "bucket 's', position 500",
+        (
+            'https://archive.org/download/sankhyakarikagoudapadabhashyatattvakaumud'
+            'iofvachaspatimisravrittiofswaminarayana_202003_46_y/Sankhya%20Karika%2'
+            '0Goudapada%20Bhashya%20Tattva%20Kaumudi%20of%20Vachaspati%20Misra%20Vr'
+            'itti%20of%20Swami%20Narayana%20Svetha%20Vaikuntha%20Shastri_djvu.txt'
+        ),
+    ),
+    (
+        'tableofcontentsforthe18smritis_187_K',
+        "bucket 't', position 1",
+        (
+            'https://archive.org/download/tableofcontentsforthe18smritis_187_K/Tabl'
+            'e%20of%20Contents%20for%20the%2018%20Smritis_djvu.txt'
+        ),
+    ),
+    (
+        'uchchatar-sanskrit-pathavali-badri-dutt-shastri',
+        "bucket 'u', position 1",
+        (
+            'https://archive.org/download/uchchatar-sanskrit-pathavali-badri-dutt-s'
+            'hastri/Uchchatar%20Sanskrit%20Pathavali%20-'
+            '%20Badri%20Dutt%20Shastri_djvu.txt'
+        ),
+    ),
+    (
+        'VaallabhVedantaGoswamiShyamManohar',
+        "bucket 'v', position 1",
+        (
+            'https://archive.org/download/VaallabhVedantaGoswamiShyamManohar/Vaalla'
+            'bh%20Vedanta%20%20-%20Goswami%20Shyam%20Manohar_djvu.txt'
+        ),
+    ),
+    (
+        'Xagy_greek-kashmir-iqbal-ahmad',
+        "bucket 'x', position 1",
+        (
+            'https://archive.org/download/Xagy_greek-kashmir-iqbal-'
+            'ahmad/Greek%20Kashmir%20%E2%80%93%20Iqbal%20Ahmad_djvu.txt'
+        ),
+    ),
+    (
+        'yadavabhyudayabyvedantadesikaenglishtranslation',
+        "bucket 'y', position 1",
+        (
+            'https://archive.org/download/yadavabhyudayabyvedantadesikaenglishtrans'
+            'lation/Yadavabhyudaya%20by%20Vedanta%20Desika%20-'
+            '%20English%20translation_djvu.txt'
+        ),
+    ),
+)
+
+
+#: ⭐ Built by the same loop shape as the specimens, for the same reason.
+for _identifier, _drawn, _address in _COPIES_THAT_CLEARED:
+    _key = "cleared_copy_" + "".join(
+        character if character.isalnum() else "_" for character in _identifier.lower()
+    )
+    SOURCES[_key] = Source(
+        key=_key,
+        identity=(
+            f"a public archive's own machine reading of a scan it distributes as "
+            f"{_identifier!r}. ⛔ HELD AS THE ACCEPTED SIDE OF A FLOOR'S EVIDENCE, NOT AS "
+            "A COPY OF THE WORK: this repository has not read the work, cites nothing "
+            "from it and takes no position on what the archive's catalogue calls it. "
+            "⚠ And accepting is not a certificate - what is measured over it is its "
+            "recurrence and what language it carries, nothing else. "
+            f"⚠ Drawn from {_drawn}"
+        ),
+        language="und",
+        address=_address,
+        filename=f"copies-that-cleared/{_identifier}.txt",
+        rendering_kind="optical_character_recognition",
+        render=_plain_text,
+        extent=_a_copy_this_floor_accepts_extent,
+    )
+
+#: The accepted-side keys, in the order the table declares them.
+COPIES_THAT_CLEARED_KEYS: tuple[str, ...] = tuple(
+    key for key in SOURCES if key.startswith("cleared_copy_")
 )
 
 

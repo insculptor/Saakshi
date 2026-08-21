@@ -12,6 +12,7 @@ what lets continuous integration run them.
 from __future__ import annotations
 
 import inspect
+from collections import Counter
 
 import pytest
 
@@ -27,7 +28,9 @@ from saakshi.fixture import (
 )
 from saakshi.texts import DEVANAGARI, passage_fidelity, script_presence
 from saakshi.textual import (
-    GREATEST_EXTENT_AT_WHICH_A_RENDERING_OF_NOISE_HAS_CLEARED,
+    COMMONEST_WORDS,
+    GREATEST_EXTENT_AT_WHICH_A_WINDOW_OF_A_REFUSED_COPY_HAS_CLEARED,
+    LEAST_LENGTH_A_DECLARED_WORD_CARRIES,
     LEAST_EXTENT_A_REFUSAL_DISCRIMINATES_AT,
     LEAST_RECURRENCE,
     RECURRENCE_MEASURED_AT,
@@ -62,7 +65,11 @@ from saakshi.textual import (
     reading_disagreement,
     discrimination_of_resolving_once,
     read_integer_digits,
+    blocks_that_carry_declared_words,
     blocks_this_floor_refuses,
+    declared_words_of,
+    declared_words_that_occur,
+    words_of,
     every_window_of,
     largest_extent_at_which_a_window_clears,
     recurrence_of,
@@ -1789,7 +1796,7 @@ def test_the_copy_that_passed_the_retired_test_perfectly_fails_this_one():
     the passage. The real thing supplies whatever it is asked for, so what refuses it is that
     NOTHING IN IT REPEATS.
     """
-    with pytest.raises(TextualError, match="NOTHING IN THIS COPY REPEATS"):
+    with pytest.raises(TextualError, match="LITTLE IN THIS COPY REPEATS"):
         _attestation(attested_in=A_RENDERING_OF_NOISE)
 
 
@@ -1807,7 +1814,7 @@ def test_a_presence_is_free_wherever_nothing_repeats():
     assert resolve(
         NOISE_THE_PASSAGE_IS_QUOTED_OUT_OF, PASSAGE_QUOTED_OUT_OF_THE_NOISE
     ).resolved
-    with pytest.raises(TextualError, match="NOTHING IN THIS COPY REPEATS"):
+    with pytest.raises(TextualError, match="LITTLE IN THIS COPY REPEATS"):
         _attestation(
             attested_in=NOISE_THE_PASSAGE_IS_QUOTED_OUT_OF,
             the_attesting_passages=(PASSAGE_QUOTED_OUT_OF_THE_NOISE,),
@@ -1966,7 +1973,7 @@ def test_an_absence_over_a_copy_that_repeats_nothing_is_refused():
     control = A_RENDERING_OF_NOISE.normalised[300:360]
     assert resolve(A_RENDERING_OF_NOISE, control).resolved  # ⚠ the control really does resolve
     assert scripts_required_by(("नियम", "अंश")) == {"devanagari"}
-    with pytest.raises(TextualError, match="NOTHING IN THIS COPY REPEATS") as excinfo:
+    with pytest.raises(TextualError, match="LITTLE IN THIS COPY REPEATS") as excinfo:
         AbsenceSearch(
             claim="that this copy states no such rule",
             alphabet=("नियम", "अंश"),
@@ -2010,7 +2017,7 @@ def test_a_passage_absence_over_a_copy_that_repeats_nothing_is_refused_before_at
     assert resolve(A_RENDERING_OF_NOISE, before).resolved
     attested = body[700:712]  # ⚠ attested in the copy, so the guessed-alphabet rule passes
     assert attested in body
-    with pytest.raises(TextualError, match="NOTHING IN THIS COPY REPEATS"):
+    with pytest.raises(TextualError, match="LITTLE IN THIS COPY REPEATS"):
         PassageAbsence(
             claim="that this passage does not state the rule",
             edition=A_RENDERING_OF_NOISE,
@@ -2128,7 +2135,7 @@ def test_every_instrument_that_leans_on_a_resolution_refuses_the_rendering_of_no
     )
     assert armed == RESOLUTIONS_THAT_ARE_EVIDENCE + 1  # ⚠ +1: the definition itself
     for name, build in offered.items():
-        with pytest.raises(TextualError, match="NOTHING IN THIS COPY REPEATS") as excinfo:
+        with pytest.raises(TextualError, match="LITTLE IN THIS COPY REPEATS") as excinfo:
             build()
         assert "not the alphabet that is wrong" in str(excinfo.value), name
 
@@ -2321,8 +2328,8 @@ def test_the_extent_a_refusal_discriminates_at_is_the_measured_one():
     #    number and a `True`; both were read off ONE specimen and the number was 1 016x too
     #    small. What it carries now is the largest extent at which a rendering of noise HAS
     #    cleared this floor, and a sentence saying no extent has been established.
-    assert row["the_greatest_extent_at_which_noise_has_cleared_this_floor"] == (
-        GREATEST_EXTENT_AT_WHICH_A_RENDERING_OF_NOISE_HAS_CLEARED
+    assert row["the_greatest_extent_at_which_a_window_of_a_refused_copy_has_cleared"] == (
+        GREATEST_EXTENT_AT_WHICH_A_WINDOW_OF_A_REFUSED_COPY_HAS_CLEARED
     )
     assert row["this_copy_is_longer_than_that"] is False
     assert "NOT ESTABLISHED AT ANY EXTENT" in row["a_high_share_here_is_about_the_copy"]
@@ -2361,8 +2368,11 @@ def test_a_copy_under_the_extent_is_refused_for_its_size_and_not_for_being_noise
     #    refusal — and it is the VERDICT that must be gone, not the words, which the sentence
     #    above quotes in order to withdraw them.
     assert "NOTHING IN THIS COPY REPEATS" not in said
+    assert "LITTLE IN THIS COPY REPEATS" not in said
     assert "It is a machine reading that returned noise" not in said
     assert "not the alphabet that is wrong" not in said
+    # ⭐ And the branch that IS about the rendering names itself, so this one must not.
+    assert "THE EXTENT IS NOT THE CAUSE" not in said
 
 
 def test_the_fixture_that_stood_in_for_noise_was_itself_under_the_extent():
@@ -2398,7 +2408,7 @@ def test_the_fixture_that_stood_in_for_noise_was_itself_under_the_extent():
         )
     # ⭐⭐ And the copy standing there NOW earns the rendering's cause, not its size's. That
     #   is the positive half: without it this test would pass with the fixture at any size.
-    with pytest.raises(TextualError, match="NOTHING IN THIS COPY REPEATS"):
+    with pytest.raises(TextualError, match="LITTLE IN THIS COPY REPEATS"):
         refuse_a_rendering_that_does_not_repeat(
             A_RENDERING_OF_NOISE, what_it_would_make_free="the attestation"
         )
@@ -2561,12 +2571,12 @@ def test_the_accepting_side_is_disarmed_and_the_reason_is_measured():
     there is no honest smaller value: the extent at which a specimen stops clearing tracks how
     close its own share sits to the floor, so the next specimen moves it again.
     """
-    assert GREATEST_EXTENT_AT_WHICH_A_RENDERING_OF_NOISE_HAS_CLEARED == 320000
+    assert GREATEST_EXTENT_AT_WHICH_A_WINDOW_OF_A_REFUSED_COPY_HAS_CLEARED == 320000
     # ⛔ The old value, pinned as WRONG, so a revert cannot pass as a re-measurement.
-    assert GREATEST_EXTENT_AT_WHICH_A_RENDERING_OF_NOISE_HAS_CLEARED != 315
+    assert GREATEST_EXTENT_AT_WHICH_A_WINDOW_OF_A_REFUSED_COPY_HAS_CLEARED != 315
     # ⭐ And it is the far side of the refusing bound now, where it used to be 24x below it.
     assert (
-        GREATEST_EXTENT_AT_WHICH_A_RENDERING_OF_NOISE_HAS_CLEARED
+        GREATEST_EXTENT_AT_WHICH_A_WINDOW_OF_A_REFUSED_COPY_HAS_CLEARED
         > 40 * LEAST_EXTENT_A_REFUSAL_DISCRIMINATES_AT
     )
 
@@ -2587,7 +2597,7 @@ def test_the_accepting_side_is_disarmed_and_the_reason_is_measured():
     #    words. This is the whole of what replaced the refusal.
     assert passed["this_copy_is_longer_than_that"] is False
     assert "NOT ESTABLISHED AT ANY EXTENT" in passed["a_high_share_here_is_about_the_copy"]
-    assert passed["the_greatest_extent_at_which_noise_has_cleared_this_floor"] == 320000
+    assert passed["the_greatest_extent_at_which_a_window_of_a_refused_copy_has_cleared"] == 320000
 
     # ⛔⛔⛔ AND THE COST OF ARMING IT, MEASURED RATHER THAN ASSERTED. Every fixture this file
     #    builds an attestation or an absence on is orders of magnitude under the number, so an
@@ -2601,7 +2611,7 @@ def test_the_accepting_side_is_disarmed_and_the_reason_is_measured():
     ):
         assert (
             fixture.searchable_characters
-            < GREATEST_EXTENT_AT_WHICH_A_RENDERING_OF_NOISE_HAS_CLEARED
+            < GREATEST_EXTENT_AT_WHICH_A_WINDOW_OF_A_REFUSED_COPY_HAS_CLEARED
         )
     # ⚠ The largest of them is still four hundred times under it. Growing a fixture is not a
     #   route to arming this side, and that is why the arm went rather than the fixtures.
@@ -2611,25 +2621,29 @@ def test_the_accepting_side_is_disarmed_and_the_reason_is_measured():
             for fixture in (SECOND_TRANSLATION, A_RENDERING_OF_NOISE)
         )
         * 30
-        < GREATEST_EXTENT_AT_WHICH_A_RENDERING_OF_NOISE_HAS_CLEARED
+        < GREATEST_EXTENT_AT_WHICH_A_WINDOW_OF_A_REFUSED_COPY_HAS_CLEARED
     )
 
 
-def test_the_extent_refusal_contains_the_noise_sentence_negated():
-    """⛔⛔⛔ A CHECK THAT MATCHES ON A SUBSTRING WILL MATCH THE SENTENCE THAT DENIES IT.
+def test_each_refusal_names_its_own_branch_and_neither_is_sorted_by_its_prose():
+    """⛔⛔⛔ THE SENTENCE TWO BRANCHES WERE SORTED BY IS GONE FROM ONE OF THEM.
 
-    Two branches of `refuse_a_rendering_that_does_not_repeat` refuse a copy under the floor.
-    One says the cause is the RENDERING; the other says the cause is the EXTENT, and says so
-    with the words *"Nothing measured says this is a machine reading that returned noise"* —
-    ⛔ which **contains the other branch's sentence verbatim**.
+    Until this session `refuse_a_rendering_that_does_not_repeat` ended its rendering branch
+    *"It is a machine reading that returned noise"*, and the extent branch denied that
+    sentence by quoting it — ⛔ so every reader sorting the two had to test the extent branch
+    FIRST or read the denial as the verdict. That trap was pinned here, and the census that
+    gathered this file's refused copies had already fallen into it.
 
-    ⇒ Any reader that sorts these two refusals by looking for the noise sentence must test the
-    extent branch FIRST. ⚠ That is not a hypothetical: the census that gathered this file's
-    noise specimens got it wrong on its first pass and reported a 220-character photograph
-    caption as a certified rendering of noise.
+    ⛔⛔⛔ **AND THEN THE VERDICT ITSELF WAS WITHDRAWN, WHICH BREAKS THE SORT THE OTHER WAY.**
+    The diagnosis is measured to be false of copies this branch fires on — see
+    `LEAST_RECURRENCE` — so the branch no longer contains the sentence at all. ⚠ A reader
+    still sorting on it now classifies **every** refused copy as neither branch, and reports
+    it as nothing in particular: *a string-matched branch detector fails silently in whichever
+    direction the message last moved.*
 
-    ⭐ This test exists because the ordering itself is invisible to every other test here:
-    every specimen held is far above the refusing bound, so on that set the two orders agree.
+    ⇒ ⭐⭐⭐ **SO NEITHER BRANCH IS SORTED BY ITS PROSE ANY MORE. EACH NAMES ITSELF**, and this
+    test pins both markers, their exclusivity, and the fact that the withdrawn sentence can no
+    longer sort anything.
     """
     noise = A_RENDERING_OF_NOISE
     tiny = _copy(_noise(60)[:200], key="too_small_to_say_anything")
@@ -2642,35 +2656,50 @@ def test_the_extent_refusal_contains_the_noise_sentence_negated():
         refuse_a_rendering_that_does_not_repeat(tiny, what_it_would_make_free="a claim")
 
     rendering_said, extent_said = str(for_the_rendering.value), str(for_the_extent.value)
-    sentence = "a machine reading that returned noise"
+    withdrawn = "a machine reading that returned noise"
 
-    # ⛔ THE TRAP, PINNED. Both messages contain it, and only one of them MEANS it.
-    assert sentence in rendering_said
-    assert sentence in extent_said
-    # ⭐ What tells them apart is the extent branch's own marker, which is unambiguous.
-    marker = "THE CAUSE IS THE EXTENT AND NOT THE RENDERING"
-    assert marker in extent_said
-    assert marker not in rendering_said
-    # ⛔⛔ And the negation is really a negation, not a coincidence of wording.
-    assert "Nothing measured says this is " + sentence in extent_said
+    # ⛔ THE VERDICT IS GONE FROM THE BRANCH THAT USED TO CARRY IT, and the extent branch
+    #   still quotes it in order to deny it — so the old sort now returns the WRONG branch
+    #   for the copy it was written to catch, rather than none.
+    assert withdrawn not in rendering_said
+    assert withdrawn in extent_said
+    # ⭐ It is the VERDICT that is gone, not the words: the branch says in terms that nothing
+    #   here establishes it, which is a withdrawal and not a silence.
+    assert "NOTHING HERE SAYS IT IS A MACHINE READING THAT RETURNED NOISE" in rendering_said
+    assert "Nothing measured says this is a machine reading that returned noise" in extent_said
+
+    # ⭐ Each branch's own marker. Unambiguous, and exclusive both ways.
+    extent_marker = "THE CAUSE IS THE EXTENT AND NOT THE RENDERING"
+    rendering_marker = "THE EXTENT IS NOT THE CAUSE"
+    assert extent_marker in extent_said and extent_marker not in rendering_said
+    assert rendering_marker in rendering_said and rendering_marker not in extent_said
 
     def certify(said: str) -> str:
-        """⛔ The extent branch FIRST. Reverse these two clauses and the copy that is too
-        small to say anything is reported as a certified rendering of noise."""
-        if marker in said:
+        """⭐ Order-free, because the two markers cannot both appear — asserted above."""
+        if extent_marker in said:
             return "refused_for_its_extent"
-        if sentence in said:
+        if rendering_marker in said:
+            return "refused_for_its_recurrence"
+        return "refused_for_another_reason"
+
+    assert certify(rendering_said) == "refused_for_its_recurrence"
+    assert certify(extent_said) == "refused_for_its_extent"
+
+    # ⛔⛔ A CONTROL THAT CANNOT COME OUT WRONG: the sort this test replaces, run here, and
+    #    shown to misreport BOTH copies. Without this the repair above is only asserted.
+    def the_old_sort(said: str) -> str:
+        if withdrawn in said:
             return "refused_as_a_rendering_of_noise"
         return "refused_for_another_reason"
 
-    assert certify(rendering_said) == "refused_as_a_rendering_of_noise"
-    assert certify(extent_said) == "refused_for_its_extent"
+    assert the_old_sort(rendering_said) == "refused_for_another_reason"  # ⛔ it IS that
+    assert the_old_sort(extent_said) == "refused_as_a_rendering_of_noise"  # ⛔ it is NOT
 
 
 def test_the_specimens_the_accepting_side_rests_on_are_still_there():
     """⚠ THE NUMBER IS A MAXIMUM OVER A SET, SO THE SET IS PART OF THE MEASUREMENT.
 
-    `GREATEST_EXTENT_AT_WHICH_A_RENDERING_OF_NOISE_HAS_CLEARED` is 320 000 because
+    `GREATEST_EXTENT_AT_WHICH_A_WINDOW_OF_A_REFUSED_COPY_HAS_CLEARED` is 320 000 because
     thirty-two specimens were held out against it. ⛔ Silently losing them — a truncated
     table, a bad merge — would leave the constant standing on the one copy it stood on
     before, and **nothing else in this suite would notice**, because the constant is a
@@ -2679,23 +2708,23 @@ def test_the_specimens_the_accepting_side_rests_on_are_still_there():
     ⚠ This checks the registry, not the copies: the copies are acquired third-party material
     under a git-ignored cache, and a test that required them would fail on a fresh clone.
     """
-    from saakshi.texts import NOISE_SPECIMEN_KEYS, SOURCES
+    from saakshi.texts import COPIES_THIS_FLOOR_REFUSES_KEYS, SOURCES
 
-    assert len(NOISE_SPECIMEN_KEYS) >= 32
+    assert len(COPIES_THIS_FLOOR_REFUSES_KEYS) >= 32
     # ⛔ Distinct copies, not one copy registered thirty-two times.
-    addresses = {SOURCES[key].address for key in NOISE_SPECIMEN_KEYS}
-    assert len(addresses) == len(NOISE_SPECIMEN_KEYS)
-    filenames = {SOURCES[key].filename for key in NOISE_SPECIMEN_KEYS}
-    assert len(filenames) == len(NOISE_SPECIMEN_KEYS)
+    addresses = {SOURCES[key].address for key in COPIES_THIS_FLOOR_REFUSES_KEYS}
+    assert len(addresses) == len(COPIES_THIS_FLOOR_REFUSES_KEYS)
+    filenames = {SOURCES[key].filename for key in COPIES_THIS_FLOOR_REFUSES_KEYS}
+    assert len(filenames) == len(COPIES_THIS_FLOOR_REFUSES_KEYS)
     # ⭐ Each says in its own identity that it is held as a SPECIMEN and not as a work, so a
     #   reader meeting one in a fixture cannot take it for a copy this repository reasons from.
-    for key in NOISE_SPECIMEN_KEYS:
+    for key in COPIES_THIS_FLOOR_REFUSES_KEYS:
         identity = SOURCES[key].identity
         assert "HELD AS A SPECIMEN OF THE READING, NOT AS A COPY OF THE WORK" in identity
         assert SOURCES[key].language == "und"
     # ⛔⛔ And both draws are represented. The first draw is the one that found the defect and
     #    the one whose shape was its answer; dropping it would erase the accounting.
-    drawn = " ".join(SOURCES[key].identity for key in NOISE_SPECIMEN_KEYS)
+    drawn = " ".join(SOURCES[key].identity for key in COPIES_THIS_FLOOR_REFUSES_KEYS)
     assert "the head of the collection" in drawn
     assert "bucket" in drawn
 
@@ -2767,3 +2796,242 @@ def test_the_decision_taken_on_the_accepting_side_is_published_and_the_old_one_w
     assert "the largest extent at which any window of it clears this floor is **314**" not in published
     # ⛔⛔ The phase defect, published where the constant is read.
     assert "the word \"complete\" was true of the wrong noun" in published.lower()
+
+
+# ======================================================================================
+# ⛔⛔⛔ WHAT LANGUAGE A COPY CARRIES — the measurement that falsified the floor's diagnosis
+# ======================================================================================
+
+#: A short passage of real Devanagari Hindi, written out here rather than loaded, because the
+#: copies are third-party material under a git-ignored cache and a test that needed them
+#: would fail on a fresh clone.
+_REAL_DEVANAGARI = (
+    "यदि लग्न में शुभ ग्रह स्थित हो तो उसके अनुसार फल होता है । इसके अतिरिक्त जिस "
+    "स्थान में पाप ग्रह हो उसके प्रकार का विचार करने के लिए अपने ही नियम हैं । "
+    "किन्तु यहाँ तत्र और तस्य का प्रयोग नहीं किया गया है । अत्र सर्व प्रकार से "
+    "यह अस्ति कि जो भवति वह चाहिए के अनुसार ही होती है । "
+)
+
+
+def _syllables_and_no_words(syllables: int) -> str:
+    """Devanagari syllables in which no word of any language occurs. ⚠ Built, not quoted.
+
+    ⭐ A consonant and a vowel sign, which is what a machine reading set to the wrong script
+    actually returns — and what `_noise` does NOT return, because it emits bare consonants.
+    """
+    consonants = "कखगघचछजझटठडढणतथदधनपफबभमयरलवशषसह"
+    signs = "ािीुूेैोौ"
+    out, state, wanted, in_word = [], 11, 1, 0
+    for _ in range(syllables):
+        state = (state * 1103515245 + 12345) % 2147483648
+        out.append(consonants[state % len(consonants)])
+        out.append(signs[(state // len(consonants)) % len(signs)])
+        in_word += 1
+        # ⚠ Words of one, two and three syllables in turn. ⛔ A reader that returned only
+        #   long ones could not produce the single-syllable word this rule exists to keep
+        #   out, and the control would pass while measuring nothing.
+        if in_word == wanted:
+            out.append(" ")
+            in_word, wanted = 0, wanted % 3 + 1
+    return "".join(out)
+
+
+def test_a_word_is_cut_with_its_marks_and_the_bucket_that_cannot_cut_one():
+    """⛔⛔⛔ `script_of` ASKS `isalpha`, AND A DEVANAGARI VOWEL SIGN IS NOT A LETTER.
+
+    That bucket is right about the question it answers — *could this rendering express this
+    alphabet at all* — and cutting words on it is a different question. A matra, a virama and
+    a nukta are combining marks, so `isalpha` is `False` for every one of them and a word cut
+    on that rule falls apart at its first vowel.
+
+    ⭐ **A CONTROL THAT CANNOT COME OUT WRONG: the wrong rule is written out here and run.**
+    Asserting only that the right rule works cannot tell a repair from a coincidence.
+    """
+    body = normalise(_REAL_DEVANAGARI)
+
+    def cut_on_script_of(text: str) -> list[str]:
+        """⛔ The rule this instrument must NOT use, reimplemented from its definition."""
+        pieces, current = [], []
+        for character in text:
+            if script_of(character) is not None:
+                current.append(character)
+            elif current:
+                pieces.append("".join(current))
+                current = []
+        if current:
+            pieces.append("".join(current))
+        return pieces
+
+    wrong = cut_on_script_of(body)
+    right = words_of(body)
+    assert wrong, "the wrong rule must still return something, or this proves nothing"
+    mean_wrong = sum(len(piece) for piece in wrong) / len(wrong)
+    mean_right = sum(len(word) for word in right) / len(right)
+    # ⛔ The debris is measurably shorter, and it is shorter because the marks are gone.
+    assert mean_wrong < mean_right / 1.5
+    assert "यदि" in right and "यदि" not in wrong
+    # ⭐ And nothing is lost the other way: every letter of the body is still inside a word.
+    assert sum(1 for c in body if c.isalpha()) == sum(
+        1 for word in right for c in word if c.isalpha()
+    )
+    # ⚠ A run of bare marks is not a word.
+    assert words_of("ािे") == ()
+
+
+def test_the_length_rule_is_enforced_from_the_declared_list_and_not_by_hand():
+    """⛔⛔⛔ A WORD LIST IS NOT A MEASUREMENT UNTIL ITS SHORTEST TERM IS LONGER THAN NOISE.
+
+    The declared list carries two-character particles. They are declared — a reader must see
+    what was considered — and `declared_words_of` drops them, because a two-character
+    Devanagari word is one syllable and a wrong-script reader produces syllables by the
+    thousand. ⛔ On the real evidence this was not hypothetical: with them left in, a machine
+    reading of an English book of 1993 set to an Indic script scored 370.4 declared words per
+    ten thousand, above a Sanskrit commentary read in its own script at 329.9, and the whole
+    of that reading was `वा` occurring 744 times.
+
+    ⭐ **THE CONTROL IS THE FAILURE ITSELF**: the same count is taken here with the rule off,
+    over a copy carrying no Sanskrit at all, and it must come out non-zero.
+    """
+    declared = COMMONEST_WORDS["sanskrit_or_hindi"]
+    used = declared_words_of("sanskrit_or_hindi")
+    assert set(used) < set(declared), "the rule must actually drop something"
+    assert all(len(word) >= LEAST_LENGTH_A_DECLARED_WORD_CARRIES for word in used)
+    dropped = [word for word in declared if word not in used]
+    assert "वा" in dropped  # वा — the two-character word that produced the reading
+
+    # ⛔⛔ THE FIXTURE MUST HAVE THE PROPERTY UNDER TEST. `_noise` emits bare consonants and
+    #   never a vowel sign, so no two-character syllable ever appears in it and the failure
+    #   this rule exists for cannot happen. ⚠ A control run over it would have passed while
+    #   measuring nothing — the defect this file has now paid for four sessions running. What
+    #   the archive's wrong-script readers actually return is syllables, so this one does.
+    noise = _copy(_syllables_and_no_words(6000), key="carries_no_sanskrit")
+    counted = Counter(words_of(noise.normalised))
+    assert not any(counted[word] for word in used), "the fixture must carry no declared word"
+    # ⛔ THE RULE OFF: the dropped particles do occur in a copy with no language in it.
+    assert sum(counted[word] for word in dropped) > 0
+    # ⭐ THE RULE ON: the terms that survive it do not.
+    measured = declared_words_that_occur(noise, language="sanskrit_or_hindi")
+    assert measured["occurrences"] == 0
+    assert measured["per_ten_thousand_words"] == 0.0
+
+
+def test_a_presence_of_declared_words_says_something_and_an_absence_says_nothing():
+    """⭐⭐⭐ THE ASYMMETRY THE WHOLE INSTRUMENT RESTS ON, AND IT IS THE GUARD'S OWN.
+
+    *A reader can destroy the evidence of a presence but cannot manufacture it.* Words fixed
+    before any copy was measured, and taken out of none of them, occur in a copy only because
+    the copy has them. ⛔ The converse does not hold and the row says so: a copy can be
+    perfectly legible and still not be running prose.
+    """
+    carries = _copy(_REAL_DEVANAGARI * 40, key="a_copy_carrying_devanagari")
+    carries_none = _copy(_noise(4000), key="a_copy_carrying_no_language")
+
+    present = declared_words_that_occur(carries, language="sanskrit_or_hindi")
+    absent = declared_words_that_occur(carries_none, language="sanskrit_or_hindi")
+    assert present["occurrences"] > 0 and present["per_ten_thousand_words"] > 100
+    assert absent["occurrences"] == 0
+    # ⛔ BOTH DIRECTIONS ON THE OTHER LIST TOO, or the reading is about one word list.
+    assert declared_words_that_occur(carries, language="english")["occurrences"] == 0
+    assert declared_words_that_occur(edition(), language="english")["occurrences"] > 0
+    # ⚠ And the row refuses to be read as a verdict.
+    assert "NOT" in present["how_to_read_this"] or "no threshold" in present["how_to_read_this"]
+    assert "an absence establishes nothing" in present["how_to_read_this"]
+    with pytest.raises(TextualError, match="no word list is declared"):
+        declared_words_that_occur(carries, language="martian")
+
+
+def test_the_block_measurement_is_complete_and_disjoint_over_the_copys_characters():
+    """⭐ COMPLETE OVER THE COPY'S CHARACTERS — which is the noun THIS question is about.
+
+    ⛔⛔ The same word was true of the wrong noun once in this file and cost a constant: a
+    bound on an *extent* asks whether a specimen of that size exists, and the specimens are
+    the copy's windows. This asks *how much of this copy is language*, and a tiling from
+    offset zero partitions exactly that. ⚠ Checked here rather than asserted: the blocks and
+    the remainder must account for every character.
+    """
+    copy = _copy(_REAL_DEVANAGARI * 40, key="a_copy_to_tile")
+    for block in (500, 1000, 3000):
+        measured = blocks_that_carry_declared_words(
+            copy, language="sanskrit_or_hindi", block=block
+        )
+        assert (
+            measured["blocks"] * block + measured["characters_left_over"]
+            == copy.searchable_characters
+        )
+        assert 0 <= measured["characters_left_over"] < block
+        assert 0 <= measured["blocks_carrying_a_declared_word"] <= measured["blocks"]
+    # ⭐ A copy that is language throughout carries a declared word nearly everywhere; a copy
+    #   that is not carries one nowhere. ⛔ Both, or the measurement is about the tiling.
+    carries = blocks_that_carry_declared_words(
+        copy, language="sanskrit_or_hindi", block=1000
+    )
+    assert carries["share_of_the_copy"] > 0.9
+    none = blocks_that_carry_declared_words(
+        _copy(_noise(4000), key="tiled_noise"), language="sanskrit_or_hindi", block=1000
+    )
+    assert none["blocks"] > 0 and none["share_of_the_copy"] == 0.0
+    with pytest.raises(TextualError, match="at least one character"):
+        blocks_that_carry_declared_words(copy, language="english", block=0)
+
+
+def test_the_refusal_no_longer_names_a_cause_and_the_row_says_so_on_both_sides():
+    """⛔⛔⛔ THE DIAGNOSIS IS GONE FROM THE REFUSAL AND FROM THE ROW, AND BOTH ARE CHECKED.
+
+    A copy over the extent bound whose share falls under the floor used to be told *it is a
+    machine reading that returned noise*. Measured over sixty-one copies, that is false of
+    copies the branch fires on: two whole books it refuses carry the commonest words of their
+    own language across 79 % and 83 % of themselves.
+
+    ⭐ The refusal stands — a presence is free wherever little repeats, whatever made the copy
+    that way — and it is the CAUSE that is withdrawn, in terms rather than by omission.
+    """
+    with pytest.raises(TextualError) as excinfo:
+        refuse_a_rendering_that_does_not_repeat(
+            A_RENDERING_OF_NOISE, what_it_would_make_free="a claim"
+        )
+    said = str(excinfo.value)
+    assert "LITTLE IN THIS COPY REPEATS" in said
+    assert "NOTHING HERE SAYS IT IS A MACHINE READING THAT RETURNED NOISE" in said
+    assert "language_a_copy_carries" in said
+    # ⛔ And the row a caller reads carries the same withdrawal on the LOW side, where it used
+    #   to carry nothing at all — the high side has said NOT ESTABLISHED since last session.
+    row = recurrence_of(A_RENDERING_OF_NOISE)
+    assert row["a_low_share_here_is_about_the_reading"].startswith("⛔ NOT ESTABLISHED")
+    assert "language_a_copy_carries" in row["a_low_share_here_is_about_the_reading"]
+    assert row["a_high_share_here_is_about_the_copy"].startswith("⛔ NOT ESTABLISHED")
+
+
+def test_both_sides_of_the_draws_are_registered_and_the_accepted_side_is_not_certified():
+    """⛔⛔⛔ A FLOOR MEASURED ONLY OVER WHAT IT REFUSES CANNOT BE ASKED WHETHER IT IS RIGHT.
+
+    The two draws returned fifty-nine readable copies. The thirty-four the floor refused were
+    kept — thirty-two of them certified, two refused for their extent and excluded — and the
+    twenty-five it accepted were measured and deleted. ⇒ Every question about this floor could
+    only be asked from below it.
+
+    ⚠ This checks the registry, not the copies: they are third-party material under a
+    git-ignored cache, and a test that required them would fail on a fresh clone.
+    """
+    from saakshi.texts import (
+        COPIES_THAT_CLEARED_KEYS,
+        COPIES_THIS_FLOOR_REFUSES_KEYS,
+        SOURCES,
+    )
+
+    assert len(COPIES_THAT_CLEARED_KEYS) >= 25
+    both = (*COPIES_THIS_FLOOR_REFUSES_KEYS, *COPIES_THAT_CLEARED_KEYS)
+    # ⛔ No copy may be on both sides, and no address or filename may be shared.
+    assert len(set(both)) == len(both)
+    assert len({SOURCES[key].address for key in both}) == len(both)
+    assert len({SOURCES[key].filename for key in both}) == len(both)
+    for key in COPIES_THAT_CLEARED_KEYS:
+        source = SOURCES[key]
+        assert source.filename.startswith("copies-that-cleared/")
+        assert source.address.startswith("https://archive.org/download/")
+        # ⭐⭐ AND ACCEPTING IS NOT A CERTIFICATE, which the identity must say rather than
+        #    leave to the reader — the whole reason this side is held is that the floor's
+        #    verdict is under test, not being relied on.
+        assert "NOT AS A COPY OF THE WORK" in source.identity
+        assert "accepting is not a certificate" in source.identity
+    drawn = " ".join(SOURCES[key].identity for key in COPIES_THAT_CLEARED_KEYS)
+    assert "the head of the collection" in drawn and "bucket" in drawn
