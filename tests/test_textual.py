@@ -3133,6 +3133,36 @@ def test_the_least_error_curve_is_complete_and_the_published_value_is_already_le
     # ⭐ The cost of refusing every wrong-script reading, which is what an armed guard costs.
     assert measured["the_least_value_that_refuses_every_wrong_script_reading"] == 0.09
     assert measured["what_that_value_costs"] == 3
+    # ⛔⛔⛔ AND THE FIELD THAT SAYS THE PUBLISHED VALUE CANNOT BE IMPROVED IS DRIVEN BOTH
+    #    WAYS, ON TWO INPUTS. It reads True over the real evidence, and the generator's
+    #    control asserts that - so a field hard-wired True satisfies the control it was
+    #    written for and nothing says otherwise. Here it must read FALSE: the published value
+    #    misclassifies four of these seven and the least any value reaches is two.
+    assert measured["the_published_value_is_already_least"] is False
+    assert measured["at_the_published_value"]["copies_misclassified"] == 4
+    assert measured["least_copies_any_value_misclassifies"] == 2
+    assert measured["the_value_that_reaches_it"] == 0.006873
+
+
+def test_the_least_error_curve_reports_a_separation_when_there_is_one():
+    """⭐⭐⭐ THE POSITIVE CONTROL. Every other fixture here crosses, so a verdict that
+    could only ever say *no* would satisfy all of them and measure nothing.
+
+    ⛔ On two sets that DO separate, the same instrument says so, reports zero
+    misclassified, and reports the published value already at the minimum.
+    """
+    measured = least_error_a_single_value_can_reach(
+        carrying_their_own_language={"a real book": 0.02},
+        read_in_a_script_the_work_cannot_be_printed_in={"a wrong-script reading": 0.005},
+    )
+    assert measured["any_value_separates_them"] is True
+    assert measured["least_copies_any_value_misclassifies"] == 0
+    assert measured["at_the_published_value"]["copies_misclassified"] == 0
+    assert measured["the_published_value_is_already_least"] is True
+    assert measured["at_the_published_value"]["real_books_refused"] == []
+    assert measured["at_the_published_value"]["wrong_script_readings_accepted"] == []
+    assert measured["the_least_value_that_refuses_every_wrong_script_reading"] == 0.02
+    assert measured["what_that_value_costs"] == 0
 
 
 def test_the_least_error_curve_refuses_a_copy_certified_on_both_sides():
@@ -3308,10 +3338,12 @@ def test_the_wrong_script_certification_is_a_declaration_over_copies_this_reposi
     assert len(READINGS_IN_A_SCRIPT_THE_WORK_CANNOT_BE_PRINTED_IN) == 21
     assert len(ABSTAINED_FROM_CERTIFYING) == 13
     # ⛔ Disjoint, and every key is a copy this repository actually registers.
-    assert not (
-        set(READINGS_IN_A_SCRIPT_THE_WORK_CANNOT_BE_PRINTED_IN)
-        & set(ABSTAINED_FROM_CERTIFYING)
+    overlap = set(READINGS_IN_A_SCRIPT_THE_WORK_CANNOT_BE_PRINTED_IN) & set(
+        ABSTAINED_FROM_CERTIFYING
     )
+    # ⛔ Named, not counted: a copy certified AND abstained from is a contradiction, and a
+    #   bare `assert not` would print a boolean where the reader needs the key.
+    assert overlap == set(), sorted(overlap)
     for key in (
         *READINGS_IN_A_SCRIPT_THE_WORK_CANNOT_BE_PRINTED_IN,
         *ABSTAINED_FROM_CERTIFYING,
