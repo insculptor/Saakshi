@@ -3796,8 +3796,8 @@ def main() -> int:
                 - len(readings_certified)
                 - len(wrong_script_certified),
                 "the_separation": separation,
-                "wrong_script_readings_this_floor_ACCEPTS": accepted_wrong_script,
-                "readings_this_floor_REFUSES": refused_readings,
+                "wrong_script_readings_this_floor_accepts": accepted_wrong_script,
+                "readings_this_floor_refuses": refused_readings,
                 "by_copy": certified_rows,
             },
             # ⛔⛔ A CONTROL THAT CANNOT COME OUT RIGHT BY ACCIDENT, IN BOTH DIRECTIONS.
