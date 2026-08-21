@@ -37,7 +37,7 @@ import sys
 import tempfile
 from importlib.metadata import version as _distribution_version
 from pathlib import Path
-from typing import Any
+from typing import Any, Callable
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
@@ -60,10 +60,10 @@ from saakshi.swiss import (  # noqa: E402
     assert_window,
     calendar_ut,
     coverage_edges,
+    assert_library_state_returned,
     entry_point_records,
     ephe_set_identity,
     offset_attribution,
-    source_name,
     state_dependence,
     verify_ephe_set,
 )
@@ -1128,7 +1128,20 @@ def substitution_demonstration(
 OFFSET_EPOCH_YEARS: tuple[int, ...] = (1900, 2000)
 
 
-def offset_survey(session: Session, ephe_path: Path) -> list[dict[str, Any]]:
+def _library_state(session: Session) -> tuple[float, int]:
+    """The two channels the restoration is read on, always from a reset state.
+
+    ⛔ One helper for both readings. A "before" taken one way and an "after" taken another
+    is not a comparison, and the difference is invisible in the code that reads them.
+    """
+    session.reset()
+    _, flag = swe.calc_ut(JD_J2000, swe.SUN, swe.FLG_SWIEPH | swe.FLG_SPEED)
+    return float(swe.get_tid_acc()), flag
+
+
+def offset_survey(
+    session: Session, *, read_state: Callable[[Session], tuple[float, int]] = _library_state
+) -> list[dict[str, Any]]:
     """Survey `deltat_ex` and `deltat`, then put the library back and check that it went.
 
     ⚠ **The second regime is a state this repository refuses to record in.**
@@ -1140,32 +1153,36 @@ def offset_survey(session: Session, ephe_path: Path) -> list[dict[str, Any]]:
     ⛔ **The restoration is measured, not assumed.** Leaving the library pointed at an empty
     directory would make every later call analytical and successful. The check is the tidal
     constant and a reporting call, read back after the survey: both must be what they were.
-    """
-    before_constant = float(swe.get_tid_acc())
-    session.reset()
-    _, before_flag = swe.calc_ut(JD_J2000, swe.SUN, swe.FLG_SWIEPH | swe.FLG_SPEED)
 
+    ⭐⭐ **The two readings are taken through ONE helper, so they cannot be taken
+    differently.** They were not, at first: the "before" constant was read from whatever
+    state the run happened to be in while the "after" one was read from a reset, which
+    makes the comparison a comparison of two different things and works only by luck.
+
+    ⛔ **`read_state` is a seam for the suite and nothing else.** It exists because a
+    disarming sweep replaced the second reading with a copy of the first -- making the
+    check tautological -- and NOTHING caught it: not the suite, which has no ephemeris data
+    files and so cannot make the two states differ, and not the generator, whose refusal
+    fires only on a real divergence. ⚠ A guard nothing can be shown to catch is a guard
+    nobody has measured.
+    """
     epochs = [
         (f"year_{year}", float(swe.julday(year, 1, 1, 0.0))) for year in OFFSET_EPOCH_YEARS
     ]
+    before_constant, before_flag = read_state(session)
     with tempfile.TemporaryDirectory() as empty:
         rows = offset_attribution(
             epochs=epochs,
             with_files=session,
             without_files=Session(ephe_path=empty, sidereal_mode=session.sidereal_mode),
         )
-
-    session.reset()
-    after_constant = float(swe.get_tid_acc())
-    _, after_flag = swe.calc_ut(JD_J2000, swe.SUN, swe.FLG_SWIEPH | swe.FLG_SPEED)
-    if after_constant != before_constant or after_flag != before_flag:
-        raise EphemerisSubstitution(
-            "offset_survey: the library did not come back. The tidal constant read "
-            f"{before_constant!r} before the survey and {after_constant!r} after it, and a "
-            f"data-file request was answered by {source_name(before_flag)} before and "
-            f"{source_name(after_flag)} after. ⛔ Every later measurement in this run would "
-            "have been taken against the wrong ephemeris, successfully and silently."
-        )
+    after_constant, after_flag = read_state(session)
+    assert_library_state_returned(
+        before_constant=before_constant,
+        before_flag=before_flag,
+        after_constant=after_constant,
+        after_flag=after_flag,
+    )
     return rows
 
 
@@ -1259,7 +1276,7 @@ def main() -> int:
     #    repository otherwise refuses -- a directory with no data file in it -- and nothing
     #    after this point may be measured in that state. ⭐ The real session is restored
     #    and the restoration is CHECKED rather than assumed.
-    offset_rows = offset_survey(session, args.ephe_path)
+    offset_rows = offset_survey(session)
     verdict = next(row for row in offset_rows if row["row"] == "verdict")
     print(
         "offset attribution: "

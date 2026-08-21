@@ -46,6 +46,7 @@ from saakshi.swiss import (  # noqa: E402
     TIDAL_CONSTANTS,
     EntryPointDeclarationError,
     EphemerisSubstitution,
+    assert_library_state_returned,
     Session,
     SurveyRefusal,
     _check_declaration,
@@ -241,29 +242,71 @@ def test_every_audited_entry_point_states_the_assertion_available_for_it():
             assert row["assertion_caveat"]
 
 
-@pytest.mark.parametrize(
-    "field, value, why",
-    [
-        ("assertion_available", "hearsay", "not one of the three"),
-        ("assertion_available", "reported", "it returns no report"),
-        ("accepts_flag", True, "a flag makes a request, so 'none' is not owed"),
-        ("assertion_caveat", "", "an uncaveated weak assertion reads as free"),
-    ],
-)
-def test_the_declaration_guard_refuses_each_way_it_can_be_lied_to(field, value, why):
-    """⭐⭐⭐ DISARM THE GUARD YOU JUST WROTE. Four ways in, four refusals."""
-    base = next(e for e in ENTRY_POINTS if e.name == "deltat")
-    bad = replace(base, **{field: value})
-    with pytest.raises(EntryPointDeclarationError):
-        _check_declaration(bad)
+#: ⛔⛔⛔ THE BASE ROW IS PART OF THE TEST, AND CHOOSING IT BADLY TESTS ONE BRANCH SIX
+#: TIMES. Written first with `deltat` as the base throughout, three of these cases passed
+#: with their own branch deleted -- because `deltat` takes no ephemeris flag, which makes
+#: the flagless branch a catch-all that fires for every wrong value. A disarming sweep
+#: found it; the suite could not, because each case asserted only that *some* refusal came
+#: back. ⭐ Each case now names the row that isolates its branch AND the words of the
+#: refusal it is owed.
+_DECLARATION_CASES = [
+    ("houses_ex", {"assertion_available": "hearsay"}, "is not one of"),
+    (
+        "calc_ut",
+        {"assertion_available": "proxy_window", "assertion_caveat": "x"},
+        "so the assertion available for it is",
+    ),
+    ("houses_ex", {"assertion_available": "reported"}, "it returns no report"),
+    ("houses_ex", {"assertion_available": "none"}, "so a request exists"),
+    ("deltat", {"assertion_available": "proxy_window"}, "no request for a proxy to find"),
+    ("houses_ex", {"assertion_caveat": ""}, "reads as free"),
+]
 
 
-def test_the_declaration_guard_refuses_a_flagless_entry_point_that_claims_a_proxy():
-    """⛔ The fifth direction: a proxy asserts a request was honoured, and none was made."""
-    base = next(e for e in ENTRY_POINTS if e.name == "deltat")
+@pytest.mark.parametrize("base_name, overrides, owed", _DECLARATION_CASES)
+def test_the_declaration_guard_refuses_each_way_it_can_be_lied_to(base_name, overrides, owed):
+    """⭐⭐⭐ DISARM THE GUARD YOU JUST WROTE -- and check WHICH guard answered.
+
+    ⛔ A test that accepts any refusal is satisfied by a different guard than the one it
+    was written for, and reports full coverage while a branch sits dead.
+    """
+    base = next(e for e in ENTRY_POINTS if e.name == base_name)
     with pytest.raises(EntryPointDeclarationError) as excinfo:
-        _check_declaration(replace(base, assertion_available="proxy_window"))
-    assert "no request" in str(excinfo.value)
+        _check_declaration(replace(base, **overrides))
+    assert owed in str(excinfo.value)
+
+
+def test_each_declaration_case_is_refused_by_exactly_one_branch():
+    """⚠ The property the cases above rely on, asserted rather than assumed: no two of
+    them are owed the same words, so none can be standing in for another."""
+    owed = [case[2] for case in _DECLARATION_CASES]
+    assert len(set(owed)) == len(owed)
+
+
+def test_the_writing_path_re_checks_the_table_and_not_only_the_import():
+    """⛔ Deleting one import-time statement is the cheapest way for this table to start
+    lying, so the check the fixture writer goes through is checked too."""
+    base = next(e for e in ENTRY_POINTS if e.name == "deltat")
+    with pytest.raises(EntryPointDeclarationError):
+        entry_point_records([replace(base, assertion_available="proxy_window")])
+    # ⚠ And it passes the table that is actually declared, or it would prove nothing.
+    assert len(entry_point_records()) == len(ENTRY_POINTS)
+
+
+def test_a_survey_that_left_the_library_pointed_elsewhere_is_refused():
+    """⛔ The offset survey builds a state this repository refuses to record in. Left in
+    place it would answer every later call analytically, successfully and silently."""
+    ok = dict(
+        before_constant=-25.936, before_flag=swe.FLG_SWIEPH,
+        after_constant=-25.936, after_flag=swe.FLG_SWIEPH,
+    )
+    assert assert_library_state_returned(**ok) is None
+    with pytest.raises(EphemerisSubstitution) as by_constant:
+        assert_library_state_returned(**{**ok, "after_constant": -25.8})
+    assert "tidal constant" in str(by_constant.value)
+    with pytest.raises(EphemerisSubstitution) as by_flag:
+        assert_library_state_returned(**{**ok, "after_flag": swe.FLG_MOSEPH})
+    assert "moshier" in str(by_flag.value)
 
 
 def test_the_declaration_guard_passes_every_row_actually_declared():
@@ -395,6 +438,42 @@ def test_the_survey_publishes_a_refusal_for_every_offset_value_it_records(two_em
     verdict = next(r for r in rows if r["row"] == "verdict")
     assert verdict["epochs_where_the_flag_changes_the_answer"] == ["year_1900"]
     assert verdict["epochs_where_it_does_not"] == ["year_2000"]
+    # ⭐⭐⭐ BOTH DIRECTIONS, INSIDE THE SURVEY. An instrument that only ever disagreed
+    #     would produce this same file and would be measuring nothing.
+    per_flag = [r for r in rows if r["row"] == "per_flag"]
+    assert any(r["constant_and_reported_source_agree"] for r in per_flag)
+    assert any(not r["constant_and_reported_source_agree"] for r in per_flag)
+    assert verdict["combinations_where_the_constant_identifies_one_source"] > 0
+    assert verdict["combinations_where_it_and_the_position_report_disagree"] > 0
+
+
+def test_the_survey_refuses_to_return_where_the_library_did_not_come_back(tmp_path):
+    """⛔⛔ THE ONE DISARM NOTHING CAUGHT, AND WHAT WAS DONE ABOUT IT.
+
+    Replacing the survey's second state reading with a copy of the first makes its restore
+    check tautological. The suite could not see it -- no ephemeris data files here, so the
+    two states cannot differ -- and neither could the generator, whose refusal fires only
+    on a real divergence. ⭐ So the readings come through a seam, and the seam is driven
+    both ways: a run whose state comes back is let through, and one whose state does not is
+    refused.
+    """
+    session = Session(ephe_path=str(tmp_path), sidereal_mode=swe.SIDM_LAHIRI)
+
+    def reader(values):
+        pending = list(values)
+        return lambda _session: pending.pop(0)
+
+    steady = [(-25.936, swe.FLG_SWIEPH), (-25.936, swe.FLG_SWIEPH)]
+    moved = [(-25.936, swe.FLG_SWIEPH), (-25.8, swe.FLG_MOSEPH)]
+    try:
+        # ⚠ The control first: an unmoved state must NOT be refused, or the test below
+        #    would pass against a survey that refuses everything.
+        assert r3.offset_survey(session, read_state=reader(steady))
+        with pytest.raises(EphemerisSubstitution) as excinfo:
+            r3.offset_survey(session, read_state=reader(moved))
+    finally:
+        swe.close()
+    assert "did not come back" in str(excinfo.value)
 
 
 def test_the_unflagged_entry_point_is_recorded_as_having_chosen_a_flag_anyway(

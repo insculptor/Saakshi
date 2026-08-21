@@ -409,8 +409,19 @@ for _entry in ENTRY_POINTS:
 del _entry
 
 
-def entry_point_records() -> list[dict[str, Any]]:
-    """The audit table, as fixture rows."""
+def entry_point_records(
+    entries: Iterable[EntryPoint] = ENTRY_POINTS,
+) -> list[dict[str, Any]]:
+    """The audit table, as fixture rows.
+
+    ⛔ **Every row is re-checked on the way out, not only at import.** The import-time
+    loop above is one statement, and deleting one statement is the cheapest way for this
+    table to start lying; the check on the writing path is the one a disarming sweep can
+    reach.
+    """
+    entries = list(entries)
+    for entry in entries:
+        _check_declaration(entry)
     return [
         {
             "finding": "flag_reporting",
@@ -423,7 +434,7 @@ def entry_point_records() -> list[dict[str, Any]]:
             "assertion_available": e.assertion_available,
             "assertion_caveat": e.assertion_caveat,
         }
-        for e in ENTRY_POINTS
+        for e in entries
     ]
 
 
@@ -869,6 +880,28 @@ def _harness_control(session: Session, jd: float) -> dict[str, Any]:
             "own message buffer for these two"
         ),
     }
+
+
+def assert_library_state_returned(
+    *, before_constant: float, before_flag: int, after_constant: float, after_flag: int
+) -> None:
+    """Refuse to continue where a survey left the library pointed somewhere else.
+
+    ⛔ **A survey that constructs a deliberately broken state owes the run its state
+    back.** Left pointed at a directory with no data file, every later call is answered
+    analytically -- successfully, plausibly and without a word, which is the exact failure
+    this whole module exists to make visible. ⭐ So the restoration is measured on two
+    channels rather than assumed from the fact that a reset was called.
+    """
+    if after_constant == before_constant and after_flag == before_flag:
+        return
+    raise EphemerisSubstitution(
+        "the library did not come back. The tidal constant read "
+        f"{before_constant!r} before the survey and {after_constant!r} after it, and a "
+        f"data-file request was answered by {source_name(before_flag)} before and "
+        f"{source_name(after_flag)} after. ⛔ Every later measurement in this run would "
+        "have been taken against the wrong ephemeris, successfully and silently."
+    )
 
 
 def offset_attribution(
