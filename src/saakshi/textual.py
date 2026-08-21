@@ -659,27 +659,57 @@ LEAST_RECURRENCE = 0.01
 #: held-out evidence it transfers and is not tight.
 LEAST_EXTENT_A_REFUSAL_DISCRIMINATES_AT = 7686
 
-#: The least extent at which a copy's **clearing** `LEAST_RECURRENCE` says anything about
-#: that copy, in characters of the normalised rendering.
+#: The greatest extent at which a window of a rendering **this floor calls noise** has been
+#: measured to CLEAR it anyway, over every specimen this repository holds.
 #:
-#: ⭐⭐⭐ **A PASS AND A FAILURE BECOME TRUSTWORTHY AT DIFFERENT EXTENTS, AND THEY ARE 24×
-#: APART.** The two sides fail for opposite reasons and neither bound is the other's: a short
-#: copy fails the floor because there was not enough of it for anything to come round twice,
-#: and a short copy *passes* it because a handful of accidental collisions is a large share of
-#: a handful of fragments. Asked of every window of the rendering of noise — every offset, not
-#: a sample — the largest extent at which any window of it clears this floor is **314**, three
-#: of 286 fragments coming round twice for a share of 0.01049 at 300 characters. This constant
-#: is one above that.
+#: ⛔⛔⛔ **A MEASURED MAXIMUM, NOT A BOUND, AND THE DIFFERENCE IS THE WHOLE ENTRY.** A bound
+#: would say *at or above this extent, clearing this floor says something about the copy*.
+#: **Nothing here establishes that**, and the name of the constant this replaces claimed it.
+#: What is established is the opposite: a specimen of 330 970 characters — an English
+#: monograph of 1978 read by a machine set to an Indic script, carrying not one English word
+#: — has windows of **320 000 characters that clear this floor**, which is 96.69 % of itself,
+#: and it clears at **2 721 of the 2 731** extents it was asked at.
 #:
-#: ⛔⛔⛔ **THIS SIDE WAS LEFT UNARMED FOR A SESSION ON THE OTHER SIDE'S NUMBER.** The reason
-#: published for leaving it was *refusing every copy shorter than six thousand characters
-#: would refuse every fixture the suite is built from* — true, and about the refusing bound.
-#: The accepting side never needed six thousand. ⭐ Between 315 and 7 686 characters a pass
-#: means something and a failure does not, and that band is most of the interesting range.
+#: ⛔⛔⛔ **IT READ 315 FOR A SESSION, AND THE DEFECT WAS THAT IT HAD ONE SPECIMEN.** The 315
+#: was the supremum over *the single rendering of noise this repository then held*, and every
+#: body ever held out against these constants was language, so nothing held out spoke to it
+#: at all. Thirty-two more specimens — drawn from the same public collection the held one came
+#: from, by two declared draws, every copy either draw returned that the floor refuses — put
+#: the number **1 016× higher**.
 #:
-#: ⚠ Fitted to **one** copy — the single rendering of noise this repository holds — where the
-#: refusing bound has six. It is the weaker of the two numbers and it says so.
-LEAST_EXTENT_AN_ACCEPTANCE_DISCRIMINATES_AT = 315
+#: | specimen | its own share | largest extent at which a window of it clears |
+#: |---|---|---|
+#: | the copy this repository already held | 0.00018 | **314** |
+#: | `m.hiriyannacommemorationvolume` | 0.00002 | 500 |
+#: | `06kssayingsoflalleshwari` | 0.00042 | 1 000 |
+#: | `01wonhyoweb…koreanbuddhism` | 0.00473 | 5 000 |
+#: | `60yearsofchinesemisrule…` | 0.00577 | 50 000 |
+#: | `02chinulweb…koreanbuddhism` | 0.00630 | 100 000 |
+#: | `04hwaomiweb…koreanbuddhism` | 0.00737 | 150 000 |
+#: | `TheTheoryOfTheSamdhis…` | **0.00967** | ⛔ **320 000** |
+#:
+#: ⭐⭐⭐ **AND THE TABLE SAYS WHAT THE NUMBER IS A FUNCTION OF, WHICH IS NOT THE FLOOR.** The
+#: extent at which a specimen stops clearing rises with **how close that specimen's own share
+#: sits to the floor** — across all thirty-three, with no inversion of consequence. That is
+#: not a fact about how long a window has to be; it is arithmetic. A copy sitting 1.03× below
+#: the floor has windows above it almost everywhere, and a copy sitting 500× below has them
+#: almost nowhere. ⇒ **The accepting side is bounded only by the size of the noisiest copy
+#: anyone happens to hold, so this number is a lower bound on itself and will rise again with
+#: the next specimen.**
+#:
+#: ⛔⛔ **WHICH IS WHY THE GUARD BELOW NO LONGER FIRES ON IT — see
+#: `refuse_a_rendering_that_does_not_repeat`.** Armed at 315 it certified the band from 315
+#: to 320 000 as safe, and that band is where every copy anyone would offer lives. ⚠ *A guard
+#: that fires at a hundredth of the true value is worse than no guard, because a caller reads
+#: the copies it passes as having been checked.*
+#:
+#: ⚠ The mechanism, for a reader who wants to know why noise repeats at all: a machine
+#: reading is a **deterministic function of the printing**, so a word the printing repeats
+#: produces the *same* garbage string every time it is met, and the printing's own recurrence
+#: survives into the noise. In one specimen the fragments that recur across a clearing window
+#: are garbled body text repeated ten times; in another they are the page numbers of a
+#: bibliography, which the wrong-script reader got right because digits survived it.
+GREATEST_EXTENT_AT_WHICH_A_RENDERING_OF_NOISE_HAS_CLEARED = 320000
 
 
 @lru_cache(maxsize=16)
@@ -720,14 +750,25 @@ def recurrence_of(edition: Edition, *, length: int = RECURRENCE_MEASURED_AT) -> 
         "characters_measured": len(body),
         "the_extent_a_low_share_means_anything_at": LEAST_EXTENT_A_REFUSAL_DISCRIMINATES_AT,
         "a_low_share_here_is_about_the_copy": len(body) >= LEAST_EXTENT_A_REFUSAL_DISCRIMINATES_AT,
-        # ⭐⭐⭐ BOTH BOUNDS, because they are 24x apart and a row carrying one of them reads
-        #   as though the other did not exist. Between them a pass means something and a
-        #   failure does not.
-        "the_extent_a_high_share_means_anything_at": (
-            LEAST_EXTENT_AN_ACCEPTANCE_DISCRIMINATES_AT
+        # ⛔⛔⛔ AND THE OTHER SIDE HAS NO BOUND TO PUBLISH, WHICH THE ROW MUST SAY RATHER
+        #   THAN OMIT. This field used to carry a number and the boolean beside it read
+        #   `True` for every real copy, which is exactly how a row certifies something
+        #   nothing measured. There is no extent at which clearing this floor is known to
+        #   mean anything, so what travels is the largest extent at which a rendering of
+        #   noise has cleared it anyway, and whether this copy is even that long.
+        "the_greatest_extent_at_which_noise_has_cleared_this_floor": (
+            GREATEST_EXTENT_AT_WHICH_A_RENDERING_OF_NOISE_HAS_CLEARED
+        ),
+        "this_copy_is_longer_than_that": (
+            len(body) > GREATEST_EXTENT_AT_WHICH_A_RENDERING_OF_NOISE_HAS_CLEARED
         ),
         "a_high_share_here_is_about_the_copy": (
-            len(body) >= LEAST_EXTENT_AN_ACCEPTANCE_DISCRIMINATES_AT
+            "⛔ NOT ESTABLISHED AT ANY EXTENT. A specimen of 330 970 characters carrying no "
+            "language clears this floor over windows of 320 000, and the extent at which a "
+            "specimen stops clearing tracks how close its own share sits to the floor rather "
+            "than any property of the floor. ⚠ So a copy longer than that number has not "
+            "been shown to be safe either - it has only been shown to be longer than the "
+            "longest counter-example held"
         ),
         "what_a_share_near_zero_means": (
             "⛔ that NOTHING IN THIS COPY REPEATS, so every fragment of it resolves exactly "
@@ -740,8 +781,9 @@ def recurrence_of(edition: Edition, *, length: int = RECURRENCE_MEASURED_AT) -> 
             "1 710 541 of them, so under "
             f"{LEAST_EXTENT_A_REFUSAL_DISCRIMINATES_AT} characters a near-zero share is a "
             "fact about the extent and not about the rendering. ⚠ And a share near the floor "
-            "from ABOVE is free under "
-            f"{LEAST_EXTENT_AN_ACCEPTANCE_DISCRIMINATES_AT} characters for the mirror reason"
+            "from ABOVE is free at EVERY extent this repository has been able to test: a "
+            "rendering of noise it holds clears this floor over windows of "
+            f"{GREATEST_EXTENT_AT_WHICH_A_RENDERING_OF_NOISE_HAS_CLEARED} characters"
         ),
     }
 
@@ -889,6 +931,86 @@ def every_window_of(
     }
 
 
+def one_per_cent_grid(length: int, *, start: int = 300) -> tuple[int, ...]:
+    """Extents to ask a bound of: one per cent resolution at every scale, `start` upward.
+
+    ⭐ **A BOUND QUOTED WITHOUT ITS GRID READS AS EXACT, AND EVERY BOUND HERE IS A GRID
+    POINT.** The refusing side's first published value for one held-out body was 2 000 only
+    because the grid it was taken on jumped 2 000 → 5 000. So the grid is a named thing that
+    travels with the number, rather than a literal buried in whichever caller took it: step 1
+    from 300 to 1 000, 10 to 10 000, 100 to 100 000, and so on, which locates a bound to
+    within one per cent of itself wherever on the scale it lands.
+
+    ⚠ It is still a grid. Nothing here rules out a clearance strictly between two of its
+    points, and a value read off it is the largest **grid point** that clears.
+    """
+    points: list[int] = []
+    at, step = start, 1
+    while at <= length:
+        points.append(at)
+        at += step
+        if at >= step * 1000:
+            step *= 10
+    return tuple(points)
+
+
+def largest_extent_at_which_a_window_clears(
+    edition: Edition,
+    *,
+    grid: Sequence[int] | None = None,
+    length: int = RECURRENCE_MEASURED_AT,
+) -> dict[str, Any]:
+    """The accepting side's number for ONE copy, measured rather than quoted.
+
+    The largest extent on `grid` at which **any** window of this copy still CLEARS
+    `LEAST_RECURRENCE`. Asked of a rendering the floor refuses, it says how long a stretch of
+    that rendering passes the floor anyway — which is the entire content of
+    `GREATEST_EXTENT_AT_WHICH_A_RENDERING_OF_NOISE_HAS_CLEARED`.
+
+    ⛔⛔⛔ **THE SUPREMUM, NOT THE FIRST EXTENT THAT CLEARS NOTHING.** The count is not
+    monotone in the extent on this side either: one specimen clears 21 850 windows at 100 000
+    and 25 497 at 150 000. *The smallest extent at which nothing clears* is the rule that put
+    the refusing bound 1 686 characters wrong, and it is wrong here for the same reason.
+
+    ⭐ Termination is not an accident of the grid. A copy whose own share is under the floor
+    must refuse the one window that is the whole copy, so the value is bounded by the copy's
+    own length.
+    """
+    body = edition.normalised
+    points = tuple(grid) if grid is not None else one_per_cent_grid(len(body))
+    distinct, recurring, _ = _recurrence(body, length)
+    highest: int | None = None
+    clearing = 0
+    checked = 0
+    for extent in points:
+        measured = every_window_of(edition, extent=extent, length=length)
+        if not measured["windows"]:
+            continue
+        checked += 1
+        if measured["windows_cleared"]:
+            highest = extent
+            clearing += 1
+    return {
+        "edition": edition.key,
+        "characters": len(body),
+        "fragment_length": length,
+        "share_that_recurs": (recurring / distinct if distinct else None),
+        "largest_extent_at_which_a_window_clears": highest,
+        "the_accepting_bound_this_copy_alone_would_set": (
+            highest + 1 if highest is not None else None
+        ),
+        "extents_checked": checked,
+        "extents_at_which_some_window_clears": clearing,
+        "the_grid_it_was_taken_on": {
+            "least": points[0] if points else None,
+            "greatest": points[-1] if points else None,
+            "points": len(points),
+            "resolution": "one per cent of the extent, at every scale",
+        },
+        "measured_over": "every window of each extent, at every offset",
+    }
+
+
 def refuse_a_rendering_that_does_not_repeat(
     edition: Edition, *, what_it_would_make_free: str, length: int = RECURRENCE_MEASURED_AT
 ) -> dict[str, Any]:
@@ -955,24 +1077,33 @@ def refuse_a_rendering_that_does_not_repeat(
             "It is a machine reading that returned noise, and noise answers every question "
             "exactly once"
         )
-    # ⛔⛔⛔ THE ACCEPTING SIDE, ARMED. A copy can clear this floor for the same reason a
-    #    short one fails it - too few fragments for the share to mean anything - and measured
-    #    over every window of the rendering of noise, one of 314 characters DOES clear it.
-    #    ⭐ The bound is the noise copy's own supremum and it is 24x smaller than the refusing
-    #    side's: the reason this side went a session unarmed was the OTHER side's number.
-    if edition.searchable_characters < LEAST_EXTENT_AN_ACCEPTANCE_DISCRIMINATES_AT:
-        raise TextualError(
-            f"{edition.key}: this rendering clears the floor - {measured['fragments_that_recur']} "
-            f"of {measured['distinct_fragments']} distinct {length}-character fragments occur "
-            f"more than once, a share of {share} against the {LEAST_RECURRENCE} required - but "
-            f"it carries only {edition.searchable_characters} searchable characters, under the "
-            f"{LEAST_EXTENT_AN_ACCEPTANCE_DISCRIMINATES_AT} at which CLEARING this floor says "
-            f"anything about a copy. ⛔⛔⛔ A PASS IS FREE DOWN HERE TOO: measured over every "
-            "window of the rendering of noise this repository holds, one of 314 characters "
-            "clears this same floor with three of its 286 fragments coming round twice. ⚠ So "
-            f"{what_it_would_make_free} is not established by this measurement - offer more of "
-            "the copy"
-        )
+    # ⛔⛔⛔ THE ACCEPTING SIDE IS NOT ARMED, AND THAT IS A DECISION WITH A MEASUREMENT
+    #    UNDER IT RATHER THAN A CONVENIENCE.
+    #
+    #    It WAS armed, at 315 - the supremum over the one rendering of noise this repository
+    #    then held. Thirty-two further specimens, drawn from the same public collection by two
+    #    declared draws, put that number at 320 000: a copy carrying no language at all clears
+    #    this floor over windows spanning 96.69 % of itself.
+    #
+    #    ⛔ At 320 000 the arm refuses every copy anyone would offer. Measured, not argued: it
+    #    fails 44 of this suite's own tests, and the copies it would refuse include every
+    #    fixture every attestation and absence in this file is built on. ⭐ And there is no
+    #    honest smaller value, because the extent at which a specimen stops clearing tracks
+    #    how close its own share sits to the floor - not the extent - so the next specimen
+    #    moves it again.
+    #
+    #    ⇒ ⭐⭐⭐ **ARMED AT 315 THIS GUARD WAS WORSE THAN ABSENT.** It refused copies under 315
+    #    and passed everything above, and a caller reads what a guard passes as checked - so it
+    #    certified the whole band from 315 to 320 000, which is where every real copy lives, on
+    #    the strength of a number a thousand times too small. The fifteenth session declined to
+    #    arm this side saying it *would refuse every fixture the suite is built from*; the
+    #    sixteenth overturned that as having used the refusing side's number. ⛔ The reason was
+    #    right and the number it was argued with was wrong, and the accepting side's OWN number
+    #    says the same thing 1 016× louder.
+    #
+    #    ⚠ What replaces the refusal is not silence: every row `recurrence_of` returns carries
+    #    the 320 000 and says in terms that no extent has been established at which clearing
+    #    this floor means anything.
     return measured
 
 

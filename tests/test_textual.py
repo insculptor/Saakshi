@@ -27,7 +27,7 @@ from saakshi.fixture import (
 )
 from saakshi.texts import DEVANAGARI, passage_fidelity, script_presence
 from saakshi.textual import (
-    LEAST_EXTENT_AN_ACCEPTANCE_DISCRIMINATES_AT,
+    GREATEST_EXTENT_AT_WHICH_A_RENDERING_OF_NOISE_HAS_CLEARED,
     LEAST_EXTENT_A_REFUSAL_DISCRIMINATES_AT,
     LEAST_RECURRENCE,
     RECURRENCE_MEASURED_AT,
@@ -57,12 +57,14 @@ from saakshi.textual import (
     digest,
     measured_extent,
     normalise,
+    one_per_cent_grid,
     read_integer_cells,
     reading_disagreement,
     discrimination_of_resolving_once,
     read_integer_digits,
     blocks_this_floor_refuses,
     every_window_of,
+    largest_extent_at_which_a_window_clears,
     recurrence_of,
     reduce_by_trine_minimum,
     refuse_a_rendering_that_does_not_repeat,
@@ -1639,13 +1641,16 @@ REPEATS_LIKE_A_BOOK_IN_THE_ORIGINALS_SCRIPT = (
     " यह पंक्ति हर पृष्ठ के नीचे छपी है। यह पंक्ति हर पृष्ठ के नीचे छपी है।"
 )
 
-#: ⛔⛔ **AND IT WAS 225 CHARACTERS, WHICH THE ARMED ACCEPTING SIDE REFUSES.** Every
-#: attestation in this file rests on this copy, and a copy that *clears* the recurrence floor
-#: under `LEAST_EXTENT_AN_ACCEPTANCE_DISCRIMINATES_AT` clears it for the same reason a window
-#: of pure noise does — too few fragments for the share to mean anything. ⭐ Grown with new
-#: prose rather than more repetitions of the tail: padding it with the line it already repeats
-#: would raise the share by making the copy *less* like a book, which is the measurement
-#: pointing at its own fixture.
+#: ⛔⛔ **IT WAS 225 CHARACTERS AND WAS GROWN TO 381 TO CLEAR AN ACCEPTING BOUND OF 315.**
+#: ⛔⛔⛔ **THAT BOUND IS GONE, AND 381 WOULD NOT HAVE SAVED IT.** The accepting side's own
+#: number, measured over thirty-three specimens instead of one, is **320 000** — so a copy
+#: this size clears the floor for exactly the reason a window of noise does, and no amount of
+#: growing a fixture reaches that. ⇒ The arm was removed rather than raised; see
+#: `test_the_accepting_side_is_disarmed_and_the_reason_is_measured`.
+#: ⭐ The copy is left at 381 all the same, because it was grown with **new prose** rather
+#: than more repetitions of its own tail — padding it with the line it already repeats would
+#: raise the share by making the copy *less* like a book — and shrinking it back would be
+#: churn that erases the record of why it grew.
 SECOND_TRANSLATION = _copy(
     "जैमिनिसूत्रम् — हिन्दी अनुवाद सहित। "
     "यदि दो या अधिक ग्रहों के अंश समान हों तो वे दोनों ही आत्मकारक माने जाएँगे। "
@@ -2179,6 +2184,123 @@ def test_a_locus_is_deliberately_not_guarded_and_the_reason_is_recorded():
 # published *it is a machine reading that returned noise* for both.
 
 
+#: ⭐⭐⭐ A COPY WHOSE CLEARING IS NON-MONOTONE IN THE EXTENT, BUILT FROM THE REAL MECHANISM.
+#: Two copies of one passage separated by a stretch that repeats nothing are invisible to
+#: every window shorter than that stretch: a window seeing one copy sees no repeat at all. So
+#: this copy clears the floor at small extents (inside a short doubled phrase), refuses across
+#: a band of middling ones, and clears AGAIN once a window is finally long enough to span both
+#: copies of the passage.
+#:
+#: ⛔ That shape is not invented for the test. It is the shape a real rendering of noise has:
+#: one specimen clears 21 850 windows at 100 000 characters and 25 497 at 150 000.
+_A_DOUBLED_PHRASE = "और फिर वही बात आती है। "
+#: ⚠ 190 characters, and the length is load-bearing twice over. A window spanning both
+#: copies is lifted over the floor by about `len(passage) / extent`, so too short a passage
+#: cannot lift a long window at all — at 98 characters the copy below never cleared above the
+#: band and the test asserted a property its fixture did not have.
+_A_PASSAGE_PRINTED_TWICE = (
+    "यह वाक्य इस पुस्तक में दो बार छपा है और दोनों के बीच बहुत सारा ऐसा पाठ है जो "
+    "कभी दुबारा नहीं आता। इसी तरह एक पुस्तक के हर पृष्ठ पर एक ही शीर्षरेखा छपती है "
+    "और वह भी दूर दूर पर दुबारा आती है। "
+)
+
+
+def _clears_at_some_extents_and_not_at_others() -> Edition:
+    """⛔ Built from DISJOINT slices of one noise string, never the same slice twice: two
+    calls to `_noise` return the same characters, and reusing one would plant a repeat this
+    copy is not supposed to have."""
+    filler = _noise(40000)
+    return _copy(
+        filler[:2000]
+        + _A_DOUBLED_PHRASE
+        + _A_DOUBLED_PHRASE
+        + filler[2000:4000]
+        + _A_PASSAGE_PRINTED_TWICE
+        + filler[4000:12000]
+        + _A_PASSAGE_PRINTED_TWICE
+        + filler[12000:26000],
+        key="clears_at_some_extents_and_not_at_others",
+    )
+
+
+#: ⚠ Coarse on purpose. The default grid asks a thousand extents of this copy and the suite
+#: runs in two seconds; eleven points are enough to show the property, and the points are
+#: written here so the band between them is visible rather than implied.
+_A_GRID_WITH_THE_BAND_IN_IT = (
+    300, 1000, 1200, 1400, 2000, 4000, 8000, 8500, 12000, 19000, 20000, 24000,
+)
+
+
+def test_the_accepting_bound_is_a_supremum_and_not_the_first_extent_that_clears_nothing():
+    """⛔⛔⛔ THE RULE THAT PUT THE REFUSING BOUND 1 686 CHARACTERS WRONG IS WRONG HERE TOO.
+
+    `LEAST_EXTENT_A_REFUSAL_DISCRIMINATES_AT` read 6 000 for a session because it was taken as
+    *the smallest extent at which nothing is refused*, and the count is not monotone: 7 450
+    refused nothing, 7 500 refused 42. The accepting side is measured the same way and is not
+    monotone either, so `largest_extent_at_which_a_window_clears` takes the **supremum**.
+
+    ⭐ The two rules are told apart here by a copy that genuinely has a band — and the losing
+    rule is written out in this test rather than described, because a rule nobody computes is
+    a rule nobody has checked.
+    """
+    subject = _clears_at_some_extents_and_not_at_others()
+    cleared_at = {
+        extent: every_window_of(subject, extent=extent)["windows_cleared"]
+        for extent in _A_GRID_WITH_THE_BAND_IN_IT
+    }
+
+    # ⛔ THE FIXTURE MUST HAVE THE PROPERTY, or the two rules agree and this proves nothing.
+    #    Something clears low down, a whole band clears nothing, and something clears above it.
+    assert cleared_at[300] > 0 and cleared_at[1000] > 0 and cleared_at[1200] > 0
+    assert all(cleared_at[extent] == 0 for extent in (1400, 2000, 4000, 8000))
+    assert cleared_at[8500] > 0 and cleared_at[12000] > 0 and cleared_at[19000] > 0
+    assert cleared_at[20000] == 0 and cleared_at[24000] == 0
+
+    # ⛔ The rule this function must NOT use, computed here from scratch.
+    the_wrong_rule = next(
+        extent for extent in _A_GRID_WITH_THE_BAND_IN_IT if cleared_at[extent] == 0
+    )
+    assert the_wrong_rule == 1400
+
+    measured = largest_extent_at_which_a_window_clears(
+        subject, grid=_A_GRID_WITH_THE_BAND_IN_IT
+    )
+    assert measured["largest_extent_at_which_a_window_clears"] == 19000
+    assert measured["the_accepting_bound_this_copy_alone_would_set"] == 19001
+    # ⭐ THIRTEEN TIMES APART, and the wrong rule is the one that looks safe.
+    assert measured["largest_extent_at_which_a_window_clears"] > 13 * the_wrong_rule
+    assert measured["extents_at_which_some_window_clears"] == 6
+    assert measured["extents_checked"] == len(_A_GRID_WITH_THE_BAND_IN_IT)
+
+
+def test_a_bound_carries_the_grid_it_was_taken_on():
+    """⚠ A BOUND QUOTED WITHOUT ITS GRID READS AS EXACT AND THIS ONE IS A GRID POINT.
+
+    The refusing side published 2 000 for one held-out body only because its grid jumped
+    2 000 → 5 000. ⭐ So `one_per_cent_grid` is a named thing, its resolution is a property
+    anyone can check, and every row a bound appears on carries the grid beside it.
+    """
+    grid = one_per_cent_grid(50000)
+    assert grid[0] == 300
+    assert grid[-1] <= 50000
+    # ⛔ The property, recomputed here rather than trusted: no step is coarser than one per
+    #    cent of where it lands, so a bound is located to within one per cent of itself.
+    for lower, upper in zip(grid, grid[1:]):
+        assert upper > lower
+        assert (upper - lower) <= max(1, upper / 100)
+    # ⭐ And it is a grid, not a continuum: it does NOT contain every integer.
+    assert len(grid) < 50000 - 300
+
+    # ⚠ The row says which grid it was taken on, so a value read off a coarser one is not
+    #   mistaken for a value read off this.
+    subject = _clears_at_some_extents_and_not_at_others()
+    said = largest_extent_at_which_a_window_clears(
+        subject, grid=_A_GRID_WITH_THE_BAND_IN_IT
+    )["the_grid_it_was_taken_on"]
+    assert said["points"] == len(_A_GRID_WITH_THE_BAND_IN_IT)
+    assert said["least"] == 300 and said["greatest"] == 24000
+
+
 def test_the_extent_a_refusal_discriminates_at_is_the_measured_one():
     """⚠ Pinned, because it is fitted — and because it MOVED, by 1 686 characters.
 
@@ -2195,11 +2317,15 @@ def test_the_extent_a_refusal_discriminates_at_is_the_measured_one():
     assert row["characters_measured"] == A_RENDERING_OF_NOISE.searchable_characters
     assert row["the_extent_a_low_share_means_anything_at"] == LEAST_EXTENT_A_REFUSAL_DISCRIMINATES_AT
     assert row["a_low_share_here_is_about_the_copy"] is True
-    # ⛔ BOTH bounds on the row. One of them alone reads as though the other side had none.
-    assert row["the_extent_a_high_share_means_anything_at"] == (
-        LEAST_EXTENT_AN_ACCEPTANCE_DISCRIMINATES_AT
+    # ⛔⛔⛔ AND THE OTHER SIDE, WHICH HAS NO BOUND TO PUT HERE. The row used to carry a
+    #    number and a `True`; both were read off ONE specimen and the number was 1 016x too
+    #    small. What it carries now is the largest extent at which a rendering of noise HAS
+    #    cleared this floor, and a sentence saying no extent has been established.
+    assert row["the_greatest_extent_at_which_noise_has_cleared_this_floor"] == (
+        GREATEST_EXTENT_AT_WHICH_A_RENDERING_OF_NOISE_HAS_CLEARED
     )
-    assert row["a_high_share_here_is_about_the_copy"] is True
+    assert row["this_copy_is_longer_than_that"] is False
+    assert "NOT ESTABLISHED AT ANY EXTENT" in row["a_high_share_here_is_about_the_copy"]
     # ⚠ The correction to the published sentence, present: a near-zero share means what it
     #   says ONLY above the extent. ⛔ Pinned by the qualification rather than by the number,
     #   which appears in the same sentence for a different reason.
@@ -2416,53 +2542,162 @@ def test_every_window_of_agrees_with_a_naive_reading_of_its_own_definition():
     assert naive_refused > 0 and naive_cleared > 0
 
 
-def test_the_accepting_side_is_armed_at_its_own_bound():
-    """✅ ARMED. ⛔⛔⛔ AND THE REASON IT WAS NOT, FOR A SESSION, WAS THE OTHER SIDE'S NUMBER.
+def test_the_accepting_side_is_disarmed_and_the_reason_is_measured():
+    """⛔⛔⛔ IT WAS ARMED LAST SESSION AT 315, ON ONE SPECIMEN. THE SECOND SPECIMEN MOVED IT.
 
-    The published reason for leaving this side alone was *refusing every copy shorter than six
-    thousand characters would refuse every fixture this suite is built from*. True — and six
-    thousand is the **refusing** side's bound, arrived at over real books. The accepting side's
-    own bound is the largest extent at which a window of the rendering of noise CLEARS the
-    floor, and that is **314**. ⭐ Twenty-four times smaller, and the cost of arming it was two
-    fixtures that grew.
+    The accepting bound is the largest extent at which a window of a rendering of noise still
+    CLEARS the floor. Over the single such rendering this repository then held it is **314**,
+    and that number was published as *the extent at which clearing this floor says something
+    about a copy*. ⛔ Thirty-two further specimens — drawn from the same public collection by
+    two declared draws, every copy either draw returned that the floor refuses — put it at
+    **320 000**: one of them carries no language at all and clears this floor over windows
+    spanning 96.69 % of itself.
 
-    ⇒ Between 315 and 7 686 characters a pass means something and a failure does not. That
-    band is most of the interesting range and neither constant alone describes it.
+    ⇒ ⭐⭐⭐ **ARMED AT 315 THE GUARD WAS WORSE THAN ABSENT.** A caller reads what a guard
+    passes as checked, so it certified the entire band from 315 to 320 000 — which is where
+    every copy anyone would offer lives — on a number a thousand times too small.
+
+    ⚠ And it cannot simply be raised. At 320 000 it refuses every fixture in this file, and
+    there is no honest smaller value: the extent at which a specimen stops clearing tracks how
+    close its own share sits to the floor, so the next specimen moves it again.
     """
-    assert LEAST_EXTENT_AN_ACCEPTANCE_DISCRIMINATES_AT == 315
-    assert LEAST_EXTENT_AN_ACCEPTANCE_DISCRIMINATES_AT < LEAST_EXTENT_A_REFUSAL_DISCRIMINATES_AT
+    assert GREATEST_EXTENT_AT_WHICH_A_RENDERING_OF_NOISE_HAS_CLEARED == 320000
+    # ⛔ The old value, pinned as WRONG, so a revert cannot pass as a re-measurement.
+    assert GREATEST_EXTENT_AT_WHICH_A_RENDERING_OF_NOISE_HAS_CLEARED != 315
+    # ⭐ And it is the far side of the refusing bound now, where it used to be 24x below it.
+    assert (
+        GREATEST_EXTENT_AT_WHICH_A_RENDERING_OF_NOISE_HAS_CLEARED
+        > 40 * LEAST_EXTENT_A_REFUSAL_DISCRIMINATES_AT
+    )
 
-    # ⛔ A copy that CLEARS the floor and is under the accepting bound: now refused.
+    # ⛔⛔⛔ THE DISARM ITSELF. A copy that CLEARS the floor and is far under the number is
+    #    NOT refused - which is the behaviour this test exists to pin, because the previous
+    #    session's test pinned the opposite.
     short_and_repeating = _copy(
         (REPEATS_LIKE_A_BOOK_IN_THE_ORIGINALS_SCRIPT * 4)[:200], key="short_but_repeating"
     )
-    assert short_and_repeating.searchable_characters < LEAST_EXTENT_AN_ACCEPTANCE_DISCRIMINATES_AT
+    assert short_and_repeating.searchable_characters < 315
     assert recurrence_of(short_and_repeating)["share_that_recurs"] >= LEAST_RECURRENCE
-    with pytest.raises(TextualError) as excinfo:
-        refuse_a_rendering_that_does_not_repeat(
-            short_and_repeating, what_it_would_make_free="the attestation"
-        )
-    said = str(excinfo.value)
-    assert "at which CLEARING this floor says" in said
-    assert "A PASS IS FREE DOWN HERE TOO" in said
-    # ⛔⛔ AND IT MUST NOT BORROW THE REFUSING SIDE'S CAUSE. The copy is not being called noise.
-    assert "NOTHING IN THIS COPY REPEATS" not in said
-    assert "THE CAUSE IS THE EXTENT AND NOT THE RENDERING" not in said
-
-    # ⭐ THE BAND, which is the finding: between the two bounds a pass still stands.
-    in_the_band = SECOND_TRANSLATION
-    assert (
-        LEAST_EXTENT_AN_ACCEPTANCE_DISCRIMINATES_AT
-        <= in_the_band.searchable_characters
-        < LEAST_EXTENT_A_REFUSAL_DISCRIMINATES_AT
-    )
     passed = refuse_a_rendering_that_does_not_repeat(
-        in_the_band, what_it_would_make_free="the attestation"
+        short_and_repeating, what_it_would_make_free="the attestation"
     )
     assert passed["share_that_recurs"] >= LEAST_RECURRENCE
-    # ⚠ And the row says of itself that a LOW share here would NOT have been about the copy.
-    assert passed["a_low_share_here_is_about_the_copy"] is False
-    assert passed["a_high_share_here_is_about_the_copy"] is True
+
+    # ⛔⛔ BUT PASSING IS NOT CERTIFYING, and the row it returns has to say so in its own
+    #    words. This is the whole of what replaced the refusal.
+    assert passed["this_copy_is_longer_than_that"] is False
+    assert "NOT ESTABLISHED AT ANY EXTENT" in passed["a_high_share_here_is_about_the_copy"]
+    assert passed["the_greatest_extent_at_which_noise_has_cleared_this_floor"] == 320000
+
+    # ⛔⛔⛔ AND THE COST OF ARMING IT, MEASURED RATHER THAN ASSERTED. Every fixture this file
+    #    builds an attestation or an absence on is orders of magnitude under the number, so an
+    #    armed guard refuses all of them - including the copy that IS a rendering of noise,
+    #    which is refused for its rendering and would additionally be refused for its size.
+    for fixture in (
+        SECOND_TRANSLATION,
+        REVISED_TRANSLATION,
+        A_COPY_THAT_REPEATS_BUT_LACKS_THE_PASSAGE,
+        A_RENDERING_OF_NOISE,
+    ):
+        assert (
+            fixture.searchable_characters
+            < GREATEST_EXTENT_AT_WHICH_A_RENDERING_OF_NOISE_HAS_CLEARED
+        )
+    # ⚠ The largest of them is still four hundred times under it. Growing a fixture is not a
+    #   route to arming this side, and that is why the arm went rather than the fixtures.
+    assert (
+        max(
+            fixture.searchable_characters
+            for fixture in (SECOND_TRANSLATION, A_RENDERING_OF_NOISE)
+        )
+        * 30
+        < GREATEST_EXTENT_AT_WHICH_A_RENDERING_OF_NOISE_HAS_CLEARED
+    )
+
+
+def test_the_extent_refusal_contains_the_noise_sentence_negated():
+    """⛔⛔⛔ A CHECK THAT MATCHES ON A SUBSTRING WILL MATCH THE SENTENCE THAT DENIES IT.
+
+    Two branches of `refuse_a_rendering_that_does_not_repeat` refuse a copy under the floor.
+    One says the cause is the RENDERING; the other says the cause is the EXTENT, and says so
+    with the words *"Nothing measured says this is a machine reading that returned noise"* —
+    ⛔ which **contains the other branch's sentence verbatim**.
+
+    ⇒ Any reader that sorts these two refusals by looking for the noise sentence must test the
+    extent branch FIRST. ⚠ That is not a hypothetical: the census that gathered this file's
+    noise specimens got it wrong on its first pass and reported a 220-character photograph
+    caption as a certified rendering of noise.
+
+    ⭐ This test exists because the ordering itself is invisible to every other test here:
+    every specimen held is far above the refusing bound, so on that set the two orders agree.
+    """
+    noise = A_RENDERING_OF_NOISE
+    tiny = _copy(_noise(60)[:200], key="too_small_to_say_anything")
+    assert tiny.searchable_characters < LEAST_EXTENT_A_REFUSAL_DISCRIMINATES_AT
+    assert noise.searchable_characters > LEAST_EXTENT_A_REFUSAL_DISCRIMINATES_AT
+
+    with pytest.raises(TextualError) as for_the_rendering:
+        refuse_a_rendering_that_does_not_repeat(noise, what_it_would_make_free="a claim")
+    with pytest.raises(TextualError) as for_the_extent:
+        refuse_a_rendering_that_does_not_repeat(tiny, what_it_would_make_free="a claim")
+
+    rendering_said, extent_said = str(for_the_rendering.value), str(for_the_extent.value)
+    sentence = "a machine reading that returned noise"
+
+    # ⛔ THE TRAP, PINNED. Both messages contain it, and only one of them MEANS it.
+    assert sentence in rendering_said
+    assert sentence in extent_said
+    # ⭐ What tells them apart is the extent branch's own marker, which is unambiguous.
+    marker = "THE CAUSE IS THE EXTENT AND NOT THE RENDERING"
+    assert marker in extent_said
+    assert marker not in rendering_said
+    # ⛔⛔ And the negation is really a negation, not a coincidence of wording.
+    assert "Nothing measured says this is " + sentence in extent_said
+
+    def certify(said: str) -> str:
+        """⛔ The extent branch FIRST. Reverse these two clauses and the copy that is too
+        small to say anything is reported as a certified rendering of noise."""
+        if marker in said:
+            return "refused_for_its_extent"
+        if sentence in said:
+            return "refused_as_a_rendering_of_noise"
+        return "refused_for_another_reason"
+
+    assert certify(rendering_said) == "refused_as_a_rendering_of_noise"
+    assert certify(extent_said) == "refused_for_its_extent"
+
+
+def test_the_specimens_the_accepting_side_rests_on_are_still_there():
+    """⚠ THE NUMBER IS A MAXIMUM OVER A SET, SO THE SET IS PART OF THE MEASUREMENT.
+
+    `GREATEST_EXTENT_AT_WHICH_A_RENDERING_OF_NOISE_HAS_CLEARED` is 320 000 because
+    thirty-two specimens were held out against it. ⛔ Silently losing them — a truncated
+    table, a bad merge — would leave the constant standing on the one copy it stood on
+    before, and **nothing else in this suite would notice**, because the constant is a
+    literal and the specimens live in another module.
+
+    ⚠ This checks the registry, not the copies: the copies are acquired third-party material
+    under a git-ignored cache, and a test that required them would fail on a fresh clone.
+    """
+    from saakshi.texts import NOISE_SPECIMEN_KEYS, SOURCES
+
+    assert len(NOISE_SPECIMEN_KEYS) >= 32
+    # ⛔ Distinct copies, not one copy registered thirty-two times.
+    addresses = {SOURCES[key].address for key in NOISE_SPECIMEN_KEYS}
+    assert len(addresses) == len(NOISE_SPECIMEN_KEYS)
+    filenames = {SOURCES[key].filename for key in NOISE_SPECIMEN_KEYS}
+    assert len(filenames) == len(NOISE_SPECIMEN_KEYS)
+    # ⭐ Each says in its own identity that it is held as a SPECIMEN and not as a work, so a
+    #   reader meeting one in a fixture cannot take it for a copy this repository reasons from.
+    for key in NOISE_SPECIMEN_KEYS:
+        identity = SOURCES[key].identity
+        assert "HELD AS A SPECIMEN OF THE READING, NOT AS A COPY OF THE WORK" in identity
+        assert SOURCES[key].language == "und"
+    # ⛔⛔ And both draws are represented. The first draw is the one that found the defect and
+    #    the one whose shape was its answer; dropping it would erase the accounting.
+    drawn = " ".join(SOURCES[key].identity for key in NOISE_SPECIMEN_KEYS)
+    assert "the head of the collection" in drawn
+    assert "bucket" in drawn
 
 
 def test_each_constant_publishes_what_it_was_fitted_to_and_what_held_it_out():
@@ -2475,14 +2710,22 @@ def test_each_constant_publishes_what_it_was_fitted_to_and_what_held_it_out():
     where the constant is READ, and that it is written with its limits rather than as a
     clean bill.
 
-    ⛔⛔⛔ Including the limit that matters most: the accepting bound is fitted to ONE copy,
-    every held-out body is language, and so nothing held out speaks to it at all.
+    ⛔⛔⛔ AND THE LIMIT THAT MATTERED MOST HAS SINCE BEEN MEASURED. This test used to pin
+    the sentence *⚠ Fitted to **one** copy* on the accepting bound — a limit correctly
+    published and then left standing for a session. Thirty-two specimens later that bound is
+    gone, so what is pinned here now is that the constant which replaced it says it is a
+    **maximum and not a bound**, and says what it is a function of.
     """
     published = inspect.getsource(saakshi.textual)
-    # ⭐ Each of the three says out loud that it is fitted, not derived.
+    # ⭐ Each of the constants that IS fitted says out loud that it is fitted, not derived.
     assert "⚠ Fitted, exactly as `LEAST_RECURRENCE` is" in published
     assert "**not a law about renderings**" in published
-    assert "⚠ Fitted to **one** copy" in published
+    # ⛔ And the one that is not a bound at all refuses to be read as one.
+    assert "A MEASURED MAXIMUM, NOT A BOUND" in published
+    assert "a lower bound on itself" in published
+    # ⛔⛔ The withdrawn limit must be GONE, not left standing beside its own correction:
+    #    a copy fitted to ONE specimen is no longer what this number is.
+    assert "⚠ Fitted to **one** copy" not in published
     # ⭐⭐ And the refusing extent carries the held-out result, with the bodies named.
     assert "four bodies it was **not** fitted to" in published
     assert "held-out evidence it transfers and is not tight" in published
@@ -2490,7 +2733,10 @@ def test_each_constant_publishes_what_it_was_fitted_to_and_what_held_it_out():
     assert "AND IT TRANSFERS, BUT THE FITTED SET IS THE FLATTERING ONE" in published
     assert "overstates the headroom by a" in published
     # ⛔ The weakest number must be labelled the weakest number, at the point of reading.
-    assert "It is the weaker of the two numbers and it says so." in published
+    #   ⚠ It used to be labelled *the weaker of the two*, which reads as a ranking between
+    #   two comparable things. It is not one: nothing establishes it at all.
+    assert "It is the weaker of the two numbers and it says so." not in published
+    assert "will rise again with" in published
 
 
 def test_the_decision_taken_on_the_accepting_side_is_published_and_the_old_one_withdrawn():
@@ -2498,17 +2744,26 @@ def test_the_decision_taken_on_the_accepting_side_is_published_and_the_old_one_w
 
     ⭐⭐ **BOTH HALVES.** A test asserting only the new sentence cannot tell a corrected
     decision from one printed beside the withdrawn one — the same defect this file fixed for
-    `a_reader_cannot_manufacture_the_evidence_of_a_presence`. So the arming is pinned present,
-    the number it was measured from is pinned, and the sentence that left it unarmed on the
-    refusing side's constant is pinned **absent**.
+    `a_reader_cannot_manufacture_the_evidence_of_a_presence`. So the DISARMING is pinned
+    present with the measurement under it, and the arming this session withdrew — together
+    with the 314 it was read off — is pinned **absent**.
+
+    ⛔⛔⛔ THIS TEST HAS NOW PINNED TWO OPPOSITE DECISIONS ON THE SAME QUESTION IN TWO
+    SESSIONS, and that is the point of it: each time, what it refuses to allow is the old
+    sentence surviving next to the new one where a reader would meet both and believe the
+    first.
     """
     published = inspect.getsource(saakshi.textual)
-    # ⭐ The arming, and the measured counter-example it rests on.
-    assert "the largest extent at which any window of it clears this floor is **314**" in published
-    assert "0.01049 at 300 characters" in published
-    assert "THIS SIDE WAS LEFT UNARMED FOR A SESSION ON THE OTHER SIDE'S NUMBER" in published
-    # ⛔ And the withdrawn decision must be GONE, not merely outvoted by a newer paragraph.
+    # ⭐ The disarming, and the measured counter-example it rests on.
+    assert "THE ACCEPTING SIDE IS NOT ARMED" in published
+    assert "ARMED AT 315 THIS GUARD WAS WORSE THAN ABSENT" in published
+    assert "96.69 % of itself" in published
+    # ⭐⭐ And the reason the fifteenth session gave, restored on the right number.
+    assert "right and the number it was argued with was wrong" in published
+    # ⛔ The withdrawn decision must be GONE, not merely outvoted by a newer paragraph.
     assert "That is a decision, not a" not in published
     assert "It is recorded here so that arming it later is" not in published
+    assert "THE ACCEPTING SIDE, ARMED." not in published
+    assert "the largest extent at which any window of it clears this floor is **314**" not in published
     # ⛔⛔ The phase defect, published where the constant is read.
     assert "the word \"complete\" was true of the wrong noun" in published.lower()

@@ -45,7 +45,8 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
 from saakshi.fixture import Header, describe_reserved_names, write_jsonl  # noqa: E402
 from saakshi.provenance import generator_for, today  # noqa: E402
-from saakshi.texts import (  # noqa: E402
+from saakshi.texts import (
+    NOISE_SPECIMEN_KEYS,  # noqa: E402
     CACHE,
     DEVANAGARI,
     acquire,
@@ -73,7 +74,7 @@ from saakshi.textual import (  # noqa: E402
     alphabet_contamination,
     collect_occurrences,
     digest,
-    LEAST_EXTENT_AN_ACCEPTANCE_DISCRIMINATES_AT,
+    GREATEST_EXTENT_AT_WHICH_A_RENDERING_OF_NOISE_HAS_CLEARED,
     LEAST_EXTENT_A_REFUSAL_DISCRIMINATES_AT,
     LEAST_RECURRENCE,
     RECURRENCE_MEASURED_AT,
@@ -81,8 +82,10 @@ from saakshi.textual import (  # noqa: E402
     normalise,
     blocks_this_floor_refuses,
     every_window_of,
+    largest_extent_at_which_a_window_clears,
     recurrence_of,
     reading_disagreement,
+    refuse_a_rendering_that_does_not_repeat,
     refusal_summary,
     resolve,
     scripts_in,
@@ -1193,6 +1196,10 @@ def main() -> int:
             FIFTH_EDITION,
             LIBRARY_SCAN,
             *THIRD_EDITION_READINGS,
+            # ⛔ The specimens the accepting side is measured over. They are acquired like
+            #   every other copy - to the network, with the retrieval written down beside
+            #   the bytes - because a specimen with no acquisition record is a file.
+            *NOISE_SPECIMEN_KEYS,
         ):
             record = acquire(key, cache=args.cache, today=today())
             print(f"acquired {key}: {record['copy_bytes']} bytes, status {record['http_status']}")
@@ -2554,12 +2561,30 @@ def main() -> int:
     #    old table was measured with it and a reader must be able to reproduce that, the
     #    window one because it is the measurement the constant now rests on.
     WINDOWED_AT = (
-        200, 300, 310, 314, LEAST_EXTENT_AN_ACCEPTANCE_DISCRIMINATES_AT, 500, 1000, 2000,
+        200, 300, 310, 314, 315, 500, 1000, 2000,
         2500, 3000, 4000, 5000, 6000, 7000, 7500, 7685,
         LEAST_EXTENT_A_REFUSAL_DISCRIMINATES_AT, 8000, 10000, 20000,
     )
     assert LEAST_EXTENT_A_REFUSAL_DISCRIMINATES_AT in WINDOWED_AT
-    assert LEAST_EXTENT_AN_ACCEPTANCE_DISCRIMINATES_AT in WINDOWED_AT
+    # ⚠ 314 and 315 are kept as literals. They were the accepting bound and are no longer a
+    #   bound at all, but the published table was measured on this grid and a reader must be
+    #   able to reproduce it. ⛔ The accepting side is measured over the SPECIMENS below, on
+    #   its own grid, because no grid ending at 20 000 can see a clearance at 320 000.
+
+    # ⛔⛔⛔ THE GRID THE ACCEPTING SIDE IS ACTUALLY MEASURED ON, and it has to reach the size
+    #    of a whole book: the largest extent at which a rendering of noise held here clears
+    #    this floor is 320 000 characters. ⚠ Coarse on purpose - it is asked of thirty-three
+    #    copies totalling some thirty million characters, and every point costs a pass over
+    #    all of them. The two points that matter are 320 000 and 321 000, because between
+    #    them the highest specimen stops clearing.
+    SPECIMENS_WINDOWED_AT = (
+        314, 315, 1000, 5000, 20000, 100000, 200000, 300000, 320000, 321000, 400000,
+    )
+    # ⛔ 314 IS ON THIS GRID ON PURPOSE. It is the number the accepting bound was read
+    #   off when one rendering of noise was held, and a grid that started at 315 would
+    #   report NOTHING for that copy - so the row that is supposed to show the old value
+    #   being reproduced would silently show a blank instead.
+    assert GREATEST_EXTENT_AT_WHICH_A_RENDERING_OF_NOISE_HAS_CLEARED in SPECIMENS_WINDOWED_AT
 
     recurrence_by_copy = [
         recurrence_of(copy)
@@ -2932,9 +2957,13 @@ def main() -> int:
                 "the_extent_a_refusal_discriminates_at": (
                     LEAST_EXTENT_A_REFUSAL_DISCRIMINATES_AT
                 ),
-                "the_extent_an_acceptance_discriminates_at": (
-                    LEAST_EXTENT_AN_ACCEPTANCE_DISCRIMINATES_AT
+                # ⛔ NOT "the extent an acceptance discriminates at" - there is none. What
+                #   this row can honestly carry is the largest extent at which a rendering of
+                #   noise has been measured to clear this floor anyway.
+                "the_greatest_extent_at_which_noise_has_cleared_this_floor": (
+                    GREATEST_EXTENT_AT_WHICH_A_RENDERING_OF_NOISE_HAS_CLEARED
                 ),
+                "and_that_was_314_when_one_such_rendering_was_held": 314,
                 # ⭐⭐⭐ EVERY WINDOW, AT EVERY OFFSET - the measurement both bounds rest on.
                 "by_extent": [
                     {
@@ -3029,13 +3058,18 @@ def main() -> int:
                     for extent in WINDOWED_AT
                     if extent >= LEAST_EXTENT_A_REFUSAL_DISCRIMINATES_AT
                 )
-                # ⛔ The accepting side: noise clears below its bound and never at or above it.
+                # ⛔⛔⛔ THE ACCEPTING SIDE, AND WHAT THIS CLAUSE USED TO ASSERT WAS TRUE
+                #    OF ONE COPY. It said: noise clears below 315 and never at or above it -
+                #    and that IS true of the library scan, which is why it held for a session.
+                #    It is false of the collection: a specimen held here clears this floor
+                #    over windows of 320 000 characters. ⭐ So the clause is kept for the
+                #    library scan, and labelled with the copy it is about.
                 and windowed[300][1]["windows_cleared"] > 0
                 and windowed[314][1]["windows_cleared"] > 0
                 and all(
                     windowed[extent][1]["windows_cleared"] == 0
                     for extent in WINDOWED_AT
-                    if extent >= LEAST_EXTENT_AN_ACCEPTANCE_DISCRIMINATES_AT
+                    if extent >= 315
                 )
                 # ⛔⛔ And the tiling must still disagree, or the finding has evaporated.
                 and phase_vs_window["blocks_the_tiling_refuses"] == 0
@@ -3057,9 +3091,10 @@ def main() -> int:
                 "moment the bound moved every test certifying `the instruments refuse the "
                 "copy of noise` was AGAIN certifying a refusal its SIZE had earned - the third "
                 "session running that this repository's own test bed was the subject. ✅ And "
-                "the accepting side is now armed at 314, its own measured bound, which is 24x "
-                "smaller than the refusing one and was never the six thousand it was left "
-                "unarmed for"
+                "the accepting side was armed at 314 - its own measured bound over the ONE "
+                "rendering of noise then held - and ⛔⛔⛔ THIRTY-TWO FURTHER SPECIMENS PUT "
+                "THAT NUMBER AT 320 000, so it has been DISARMED rather than raised. See the "
+                "control `the_accepting_side_measured_over_more_than_one_rendering_of_noise`"
             ),
         },
     ]
@@ -3115,13 +3150,15 @@ def main() -> int:
                     ),
                 },
                 "what_this_does_not_measure": (
-                    "⛔⛔⛔ THE ACCEPTING SIDE IS STILL FITTED TO ONE COPY AND NOTHING HELD "
-                    "OUT TOUCHES IT. Every body here is language, so every one of them speaks "
-                    "to the floor and to the refusing extent and NONE of them speaks to 314 - "
-                    "the bound that says a pass under it is free. ⚠ A second rendering of "
-                    "noise is the measurement that would, and this repository holds one "
-                    "rendering of noise. ⛔ Nor is any of these a copy in a third script, or "
-                    "a machine reading produced by a different reader"
+                    "⛔ THE ACCEPTING SIDE, because every body here is LANGUAGE. Each speaks "
+                    "to the floor and to the refusing extent, and none of them can speak to "
+                    "the question a pass depends on - how long a stretch of a rendering that "
+                    "is NOT language passes this floor anyway. ⭐ That gap was named here for "
+                    "a session and is now measured: see the control "
+                    "`the_accepting_side_measured_over_more_than_one_rendering_of_noise`, "
+                    "which holds out thirty-two further renderings of noise and moves the "
+                    "number from 314 to 320 000. ⛔ Nor is any of these a copy in a third "
+                    "script, or a machine reading produced by a different reader"
                 ),
             },
             # ⭐ BOTH DIRECTIONS. Every held-out body must clear the floor AND the rendering
@@ -3142,10 +3179,177 @@ def main() -> int:
                 "only at extents smaller than the fitted bound. ⛔ But the closest of them "
                 "stands at 4.8x the floor where the lowest FITTED copy stands at 6.8x, so a "
                 "margin read off the seven alone overstates the headroom by a third. ⛔⛔⛔ "
-                "AND THE ACCEPTING BOUND IS UNTOUCHED BY ANY OF THIS: every held-out body is "
-                "language, and the constant that says a pass under 315 characters is free was "
-                "fitted to the ONE rendering of noise this repository holds. That is the "
-                "weakest number in this file and nothing here strengthens it"
+                "AND THE ACCEPTING BOUND WAS UNTOUCHED BY ANY OF THIS - every held-out body "
+                "here is language, and the constant that said a pass under 315 characters is "
+                "free was fitted to the ONE rendering of noise this repository then held. "
+                "⭐ Thirty-two more renderings of noise have since been held out against it "
+                "and it did not survive them"
+            ),
+        },
+    ]
+
+    # ======================================================================================
+    # ⛔⛔⛔ THE ACCEPTING SIDE, HELD OUT AGAINST MORE THAN ONE RENDERING OF NOISE
+    # ======================================================================================
+    #
+    # ⭐⭐⭐ The bound armed last session was the supremum over ONE copy. Every body ever
+    #    held out against these constants was language, so nothing held out spoke to it. These
+    #    do: thirty-two machine readings from the same public collection the held copy came
+    #    from, every one of them refused by this repository's own guard with the cause `it is
+    #    a machine reading that returned noise`.
+    #
+    # ⛔ THE GUARD CERTIFIES THEM, NOT THIS GENERATOR. A copy is a specimen only if
+    #    `refuse_a_rendering_that_does_not_repeat` refuses it for its RENDERING. One refused
+    #    for its EXTENT is not certified noise, and two copies the draws returned were
+    #    excluded for exactly that - see `_NOISE_SPECIMENS` in `texts.py`.
+    specimens = [load(key, cache=args.cache) for key in NOISE_SPECIMEN_KEYS]
+    specimen_rows = []
+    for copy in [*specimens, library_scan]:
+        certified = None
+        try:
+            refuse_a_rendering_that_does_not_repeat(
+                copy, what_it_would_make_free="an attestation"
+            )
+        except TextualError as refusal:
+            said = str(refusal)
+            # ⛔ THE EXTENT BRANCH FIRST. The extent refusal's own text contains the sentence
+            #   "a machine reading that returned noise", NEGATED - so a check that looked for
+            #   the noise sentence first would read the denial as the verdict. ⚠ That is not
+            #   hypothetical: it is the mistake this measurement made on its first pass.
+            if "THE CAUSE IS THE EXTENT AND NOT THE RENDERING" in said:
+                certified = "refused_for_its_extent"
+            elif "It is a machine reading that returned noise" in said:
+                certified = "refused_as_a_rendering_of_noise"
+            else:
+                certified = "refused_for_another_reason"
+        measured = largest_extent_at_which_a_window_clears(
+            copy, grid=SPECIMENS_WINDOWED_AT
+        )
+        share = recurrence_of(copy)["share_that_recurs"]
+        specimen_rows.append(
+            {
+                "specimen": copy.key,
+                "characters": copy.searchable_characters,
+                "share_that_recurs": share,
+                "how_far_below_the_floor": (
+                    round(LEAST_RECURRENCE / share, 2) if share else None
+                ),
+                "this_repositorys_own_guard_says": certified,
+                "largest_extent_at_which_a_window_of_it_clears": (
+                    measured["largest_extent_at_which_a_window_clears"]
+                ),
+                "which_is_this_share_of_the_copy": (
+                    round(
+                        measured["largest_extent_at_which_a_window_clears"]
+                        / copy.searchable_characters,
+                        4,
+                    )
+                    if measured["largest_extent_at_which_a_window_clears"]
+                    else None
+                ),
+            }
+        )
+    specimen_rows.sort(
+        key=lambda row: row["largest_extent_at_which_a_window_of_it_clears"] or 0
+    )
+    highest_specimen = specimen_rows[-1]
+    the_copy_already_held = next(
+        row for row in specimen_rows if row["specimen"] == library_scan.key
+    )
+
+    controls += [
+        {
+            "finding": "control",
+            "control": (
+                "the_accepting_side_measured_over_more_than_one_rendering_of_noise"
+            ),
+            "measured": {
+                "how_they_were_drawn": (
+                    "⛔ TWO DECLARED DRAWS OVER THE SAME PUBLIC COLLECTION THE HELD COPY CAME "
+                    "FROM, and every copy either draw returned that this floor refuses is "
+                    "here. ⚠ The first draw took the head of the collection in ascending "
+                    "identifier order, and its SHAPE was its answer: identifiers are adjacent "
+                    "because items were uploaded together, so its seven copies were three "
+                    "works in three batches. ⭐ The second partitions instead - for each of "
+                    "the thirty-six characters an identifier can begin with, the item at "
+                    "three widely separated positions of that bucket. Both are published, "
+                    "because discarding the first after seeing its numbers would be selection"
+                ),
+                "the_grid_they_were_measured_on": list(SPECIMENS_WINDOWED_AT),
+                "specimens": len(specimen_rows),
+                "every_one_certified_by_this_repositorys_own_guard": all(
+                    row["this_repositorys_own_guard_says"]
+                    == "refused_as_a_rendering_of_noise"
+                    for row in specimen_rows
+                ),
+                "by_specimen": specimen_rows,
+                "the_copy_this_repository_already_held": {
+                    "specimen": the_copy_already_held["specimen"],
+                    "largest_extent_at_which_a_window_of_it_clears": (
+                        the_copy_already_held[
+                            "largest_extent_at_which_a_window_of_it_clears"
+                        ]
+                    ),
+                    "and_the_bound_read_off_it_was": 314,
+                },
+                "the_highest": highest_specimen,
+                "the_maximum_over_every_specimen_held": (
+                    GREATEST_EXTENT_AT_WHICH_A_RENDERING_OF_NOISE_HAS_CLEARED
+                ),
+                "how_much_the_number_moved": round(
+                    GREATEST_EXTENT_AT_WHICH_A_RENDERING_OF_NOISE_HAS_CLEARED / 315, 1
+                ),
+                "what_the_number_is_a_function_of": (
+                    "⭐⭐⭐ NOT THE FLOOR AND NOT THE EXTENT - the specimen's own distance "
+                    "below the floor. A copy sitting 1.03x under it has windows above it "
+                    "almost everywhere; a copy sitting 500x under it has them almost nowhere. "
+                    "⇒ the accepting side is bounded only by the size of the noisiest copy "
+                    "anyone happens to hold, so this maximum is a lower bound on itself"
+                ),
+                "why_the_guard_was_disarmed_rather_than_raised": (
+                    "⛔⛔⛔ ARMED AT 315 IT WAS WORSE THAN ABSENT: a caller reads what a guard "
+                    "passes as checked, so it certified the whole band from 315 to 320 000 - "
+                    "where every copy anyone would offer lives - on a number a thousand times "
+                    "too small. ⚠ And it cannot be raised: at 320 000 it refuses every fixture "
+                    "the suite is built on, and there is no honest smaller value. ⭐ The "
+                    "fifteenth session declined to arm this side saying it would refuse every "
+                    "fixture the suite is built from, and the sixteenth overturned that as "
+                    "having used the refusing side's number. The reason was right and the "
+                    "number it was argued with was wrong"
+                ),
+            },
+            # ⭐ BOTH DIRECTIONS AND THE CERTIFICATION. The specimens must be certified noise
+            #   by the guard, more than one of them must exist, the highest must exceed the
+            #   withdrawn bound by orders of magnitude, AND the copy already held must still
+            #   read 314 - without that last clause a change to the instrument that inflated
+            #   every number would pass as a finding.
+            "held": bool(
+                len(specimen_rows) >= 30
+                and all(
+                    row["this_repositorys_own_guard_says"]
+                    == "refused_as_a_rendering_of_noise"
+                    for row in specimen_rows
+                )
+                and the_copy_already_held[
+                    "largest_extent_at_which_a_window_of_it_clears"
+                ]
+                == 314
+                and highest_specimen["largest_extent_at_which_a_window_of_it_clears"]
+                == GREATEST_EXTENT_AT_WHICH_A_RENDERING_OF_NOISE_HAS_CLEARED
+                and highest_specimen["largest_extent_at_which_a_window_of_it_clears"]
+                > 1000 * 315
+                and highest_specimen["which_is_this_share_of_the_copy"] > 0.9
+            ),
+            "meaning": (
+                "⭐⭐⭐ THE ACCEPTING BOUND WAS FITTED TO ONE COPY AND THE SECOND COPY MOVED "
+                "IT BY THREE ORDERS OF MAGNITUDE. Over the single rendering of noise this "
+                "repository held, the largest extent at which a window still CLEARS the floor "
+                "is 314, and that was published as the extent at which clearing this floor "
+                "says something about a copy. ⛔ Over thirty-three renderings of noise it is "
+                "320 000 - a specimen carrying no language at all clears this floor over "
+                "windows spanning 96.69 % of itself. ⇒ THE GUARD IS DISARMED ON THIS SIDE, "
+                "and every recurrence row now says in terms that no extent has been "
+                "established at which clearing this floor means anything"
             ),
         },
     ]

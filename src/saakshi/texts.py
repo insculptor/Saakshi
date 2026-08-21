@@ -590,6 +590,396 @@ SOURCES: dict[str, Source] = {
 
 
 # --------------------------------------------------------------------------------------
+# Specimens of a RENDERING, not copies of a work
+# --------------------------------------------------------------------------------------
+#
+# ⭐⭐⭐ **THE ACCEPTING SIDE OF `LEAST_RECURRENCE` WAS FITTED TO ONE COPY, AND ONE COPY IS
+#    NOT A MEASUREMENT OF IT.** Every body this repository had ever held out was language,
+#    so nothing held out spoke to the question *how long a stretch of a rendering that is
+#    NOT language can pass this floor anyway*. These copies answer it.
+#
+# ⛔ THEY ARE NOT HELD AS TEXTS. Nothing here resolves a locus in them, no claim is
+#    attributed to them and their extent is nothing. They are held because each one is an
+#    instance of the failure the floor exists to catch — a public archive's own machine
+#    reading of a scan, produced by a reader set to the wrong script, which returned
+#    characters and no words.
+#
+# ⭐ HOW THEY WERE DRAWN, DECLARED BEFORE THEY WERE READ. Two draws over the same public
+#    collection the held copy came from. The first took the head of the collection in
+#    ascending identifier order and is recorded here because it is the draw that found the
+#    defect — ⛔ and because its SHAPE was its answer: identifiers are adjacent when items
+#    were uploaded together, so its seven copies were three works in three batches. The
+#    second partitions instead: for each of the thirty-six characters an identifier can
+#    begin with, the item at three widely separated positions of that bucket.
+#
+# ⛔ EVERY COPY EITHER DRAW RETURNED THAT THE FLOOR REFUSES IS HERE. None was chosen after
+#    its numbers were seen, and the ones the floor refuses for their EXTENT rather than
+#    their rendering are named in the accounting below and excluded — a copy under
+#    `LEAST_EXTENT_A_REFUSAL_DISCRIMINATES_AT` is not certified noise, and treating one as
+#    a specimen would have put a 220-character photograph caption in the evidence.
+
+
+def _a_specimen_of_noise_extent(text: str) -> dict[str, Any]:
+    """⛔ NOTHING, and deliberately not measured.
+
+    ⭐ These copies are held as specimens of a RENDERING KIND. The extent of a copy is what
+    the copy establishes about the work it is a copy of, and this repository makes no claim
+    about any of these works — it has not read them, it does not cite them, and their
+    catalogue entries are the archive's word and not its own. ⚠ An extent function that
+    looked for boundary markers here would report zeroes over a rendering that cannot
+    express any marker, which is precisely the reassuring-zero failure the library scan in
+    this cache exists to demonstrate.
+    """
+    return {
+        "describes": (
+            "nothing. This copy is held as a specimen of a machine reading that returned "
+            "noise, not as a copy of the work its catalogue names"
+        ),
+        "divisions_looked_for": [],
+        "divisions_found": [],
+        "divisions_not_found": [],
+        "complete": False,
+        "established_from": (
+            "nothing in the copy. ⛔ No extent was measured, because nothing here reasons "
+            "about the work: the copy is evidence about a CONSTANT, and what is measured "
+            "over it is its recurrence and the extents at which windows of it clear the "
+            "floor"
+        ),
+        "beyond_this_extent_the_copy_establishes": (
+            "⛔ NOTHING WHATEVER ABOUT THE WORK. The archive's catalogue names a title and "
+            "this rendering cannot corroborate it: the reader was set to the wrong script "
+            "and returned characters that are not words. ⚠ What the copy does establish is "
+            "about the READING - that a machine reading of this size, carrying no language, "
+            "recurs as measured on its own row"
+        ),
+    }
+
+
+# 34 copies fell below the floor across the two draws.
+# 2 are refused for their EXTENT and are NOT certified noise:
+#   7-miniature-paintings-from-the-collection-of-puneet-jyotishi-jammu-residence-of-puneet-jyotishi - 220 characters
+#   l39kaaratattvam39-nihitam39-guhaayaam_950_x - 4932 characters
+# 32 are certified renderings of noise by this repository's own guard.
+
+_NOISE_SPECIMENS: tuple[tuple[str, str, str], ...] = (
+    (
+        '01wonhyowebcollectedworksofkoreanbuddhism_391_m',
+        'the head of the collection',
+        (
+            'https://archive.org/download/01wonhyowebcollectedworksofkoreanbuddhism_391'
+            '_m/01_Wonhyo_web%20-%20Collected%20Works%20of%20Korean%20Buddhism_djvu.txt'
+        ),
+    ),
+    (
+        '02.encycreligethics.v2.artbun.hastings.selbie.1910.1_202003_973_f',
+        'the head of the collection',
+        (
+            'https://archive.org/download/02.encycreligethics.v2.artbun.hastings.selbie'
+            '.1910.1_202003_973_f/02.EncycReligEthics.v2.Art-Bun.Hastings.Selbie.1910.%'
+            '5B1%5D_djvu.txt'
+        ),
+    ),
+    (
+        '02chinulwebcollectedworksofkoreanbuddhism_545_D',
+        'the head of the collection',
+        (
+            'https://archive.org/download/02chinulwebcollectedworksofkoreanbuddhism_545'
+            '_D/02_Chinul_web%20-%20Collected%20Works%20of%20Korean%20Buddhism_djvu.txt'
+        ),
+    ),
+    (
+        '04.encycreligethics.v4.condram.hastings.selbie.1910.1_202003_519_g',
+        'the head of the collection',
+        (
+            'https://archive.org/download/04.encycreligethics.v4.condram.hastings.selbi'
+            'e.1910.1_202003_519_g/04.EncycReligEthics.v4.Con-Dram.Hastings.Selbie.1910'
+            '.%5B1%5D_djvu.txt'
+        ),
+    ),
+    (
+        '04hwaomiwebcollectedworksofkoreanbuddhism_992_C',
+        'the head of the collection',
+        (
+            'https://archive.org/download/04hwaomiwebcollectedworksofkoreanbuddhism_992'
+            '_C/04_Hwaom_I_web%20-%20Collected%20Works%20of%20Korean%20Buddhism_djvu.tx'
+            't'
+        ),
+    ),
+    (
+        '06kssayingsoflalleshwari_202003_29_N',
+        'the head of the collection',
+        (
+            'https://archive.org/download/06kssayingsoflalleshwari_202003_29_N/06ksSayi'
+            'ngs%20of%20Lalleshwari_djvu.txt'
+        ),
+    ),
+    (
+        '07.encycreligethics.v7.hymlib.hastings.selbie.gray.1915.1_202003_461_w',
+        'the head of the collection',
+        (
+            'https://archive.org/download/07.encycreligethics.v7.hymlib.hastings.selbie'
+            '.gray.1915.1_202003_461_w/07.EncycReligEthics.v7.Hym-Lib.Hastings.Selbie.G'
+            'ray.1915.%5B1%5D_djvu.txt'
+        ),
+    ),
+    (
+        '10.encycreligethics.v10.picsac.hastings.selbie.gray.1918.1_202003_416_A',
+        "bucket '1', position 1",
+        (
+            'https://archive.org/download/10.encycreligethics.v10.picsac.hastings.selbi'
+            'e.gray.1918.1_202003_416_A/10.EncycReligEthics.v10.Pic-Sac.Hastings.Selbie'
+            '.Gray.1918.%5B1%5D_djvu.txt'
+        ),
+    ),
+    (
+        '20tarjumabhagavatgitarahasyalokmanyabalgangadhartilak_6',
+        "bucket '2', position 1",
+        (
+            'https://archive.org/download/20tarjumabhagavatgitarahasyalokmanyabalgangad'
+            'hartilak_6/20-Tarjuma%20Bhagavat%20Gita%20Rahasya%20-%20Lok%20Manya%20Bal%'
+            '20Gangadhar%20Tilak_djvu.txt'
+        ),
+    ),
+    (
+        '5000-years-of-kashmir-balraj-puri',
+        "bucket '5', position 1",
+        (
+            'https://archive.org/download/5000-years-of-kashmir-balraj-puri/5000%20Year'
+            's%20of%20Kashmir%20-%20Balraj%20Puri_djvu.txt'
+        ),
+    ),
+    (
+        '60yearsofchinesemisrulearguingculturalgenocideintibetmarybethmarkeyarticles_195_o',
+        "bucket '6', position 1",
+        (
+            'https://archive.org/download/60yearsofchinesemisrulearguingculturalgenocid'
+            'eintibetmarybethmarkeyarticles_195_o/60%20Years%20of%20Chinese%20Misrule%2'
+            '0Arguing%20Cultural%20Genocide%20in%20Tibet%20Mary%20Beth%20Markey%20%28Ar'
+            'ticles%29_djvu.txt'
+        ),
+    ),
+    (
+        '99999990320058mimansakaustubhashrikhanddev424pdevotionalsanskrit1933_202003_143_o',
+        "bucket '9', position 1",
+        (
+            'https://archive.org/download/99999990320058mimansakaustubhashrikhanddev424'
+            'pdevotionalsanskrit1933_202003_143_o/99999990320058%20-%20Mimansa%20kaustu'
+            'bha%2C%20Shri%20khand%20dev%2C%20424p%2C%20Devotional%2C%20sanskrit%20%281'
+            '933%29_djvu.txt'
+        ),
+    ),
+    (
+        'annalsofeastindiacompanyjohnbruce17071708vol2prited1810_567_N',
+        "bucket 'a', position 1000",
+        (
+            'https://archive.org/download/annalsofeastindiacompanyjohnbruce17071708vol2'
+            'prited1810_567_N/Annals%20of%20East%20India%20Company%20John%20Bruce%20170'
+            '7-1708%20Vol%202%20Prited%201810_djvu.txt'
+        ),
+    ),
+    (
+        'b.c.lawvolumepart1ms_900_N',
+        "bucket 'b', position 1",
+        (
+            'https://archive.org/download/b.c.lawvolumepart1ms_900_N/B.C.%20Law%20Volum'
+            'e%20Part%201%20%28MS%29_djvu.txt'
+        ),
+    ),
+    (
+        'biharthehomelandofbuddhism_675_O',
+        "bucket 'b', position 500",
+        (
+            'https://archive.org/download/biharthehomelandofbuddhism_675_O/Bihar%20the%'
+            '20Homeland%20of%20Buddhism_djvu.txt'
+        ),
+    ),
+    (
+        'bodhicaryavatarapanjikabodhicaryavataraofsantidevalouisdevalleepoussinasiaticsociety1902_375_L',
+        "bucket 'b', position 1000",
+        (
+            'https://archive.org/download/bodhicaryavatarapanjikabodhicaryavataraofsant'
+            'idevalouisdevalleepoussinasiaticsociety1902_375_L/Bodhicaryavatara%20Panji'
+            'ka%2C%20Bodhicaryavatara%20of%20Santideva%20Louis%20de%20Vallee%20Poussin%'
+            '20Asiatic%20Society%201902_djvu.txt'
+        ),
+    ),
+    (
+        'collectedworksofmahatmagandhivol23_838_H',
+        "bucket 'c', position 500",
+        (
+            'https://archive.org/download/collectedworksofmahatmagandhivol23_838_H/Coll'
+            'ected%20works%20of%20Mahatma%20Gandhi%20Vol%2023_djvu.txt'
+        ),
+    ),
+    (
+        'dictionaryofastrologybhansinj.n._738_',
+        "bucket 'd', position 500",
+        (
+            'https://archive.org/download/dictionaryofastrologybhansinj.n._738_/Diction'
+            'ary%20of%20Astrology%20%20Bhansin%20J.N.%20_djvu.txt'
+        ),
+    ),
+    (
+        'earliestcivilizationofsouthasiarisematuritydeclinelalb.b._837_d',
+        "bucket 'e', position 1",
+        (
+            'https://archive.org/download/earliestcivilizationofsouthasiarisematurityde'
+            'clinelalb.b._837_d/Earliest%20Civilization%20of%20South%20Asia%20Rise%20Ma'
+            'turity%20%26%20Decline%20Lal%20B.B._djvu.txt'
+        ),
+    ),
+    (
+        'k.b.pathakcommemorationvolumes.k.belvalkar_272_w',
+        "bucket 'k', position 1",
+        (
+            'https://archive.org/download/k.b.pathakcommemorationvolumes.k.belvalkar_27'
+            '2_w/K.B.%20Pathak%20Commemoration%20Volume%20-S.K.%20Belvalkar_djvu.txt'
+        ),
+    ),
+    (
+        'm.hiriyannacommemorationvolume_444_t',
+        "bucket 'm', position 1",
+        (
+            'https://archive.org/download/m.hiriyannacommemorationvolume_444_t/M.%20Hir'
+            'iyanna%20Commemoration%20Volume%20%20%20_djvu.txt'
+        ),
+    ),
+    (
+        'manusmritivol4part2_202003_726_p',
+        "bucket 'm', position 500",
+        (
+            'https://archive.org/download/manusmritivol4part2_202003_726_p/Manu%20Smrit'
+            'i%20Vol4%20Part2_djvu.txt'
+        ),
+    ),
+    (
+        'nacaratnamalikaandotherworksofsastrasarmannavyanyayamarip.i.thesis_202003_693_m',
+        "bucket 'n', position 1",
+        (
+            'https://archive.org/download/nacaratnamalikaandotherworksofsastrasarmannav'
+            'yanyayamarip.i.thesis_202003_693_m/Naca%20Ratna%20Malika%20and%20Other%20W'
+            'orks%20of%20Sastra%20Sarman%20Navya%20Nyaya%20Mari%20P.I.%20%28Thesis%29_d'
+            'jvu.txt'
+        ),
+    ),
+    (
+        'obscurereligiouscultsshashibhushandasgupta1946_202003_922_Y',
+        "bucket 'o', position 1",
+        (
+            'https://archive.org/download/obscurereligiouscultsshashibhushandasgupta194'
+            '6_202003_922_Y/Obscure%20Religious%20Cults%20Shashibhushan%20Dasgupta%2019'
+            '46_djvu.txt'
+        ),
+    ),
+    (
+        'paar-pare-urdu-novel-joginder-paul',
+        "bucket 'p', position 1",
+        (
+            'https://archive.org/download/paar-pare-urdu-novel-joginder-paul/Paar%20Par'
+            'e%20Urdu%20Novel%20-%20Joginder%20Paul_djvu.txt'
+        ),
+    ),
+    (
+        'qadeemshaariyaataskashirenhunddyutbykndharkashmirithepgdeptofkashmirikashmiruniversity',
+        "bucket 'q', position 1",
+        (
+            'https://archive.org/download/qadeemshaariyaataskashirenhunddyutbykndharkas'
+            'hmirithepgdeptofkashmirikashmiruniversity/Qadeem%20Shaariyaatas%20Kashiren'
+            '%20hund%20Dyut%20by%20K%20N%20Dhar%20Kashmiri%20-%20The%20PG%20Dept%20of%2'
+            '0Kashmiri%20Kashmir%20University_djvu.txt'
+        ),
+    ),
+    (
+        'r.g.bhandarkarcommemorationvolume_745_r',
+        "bucket 'r', position 1",
+        (
+            'https://archive.org/download/r.g.bhandarkarcommemorationvolume_745_r/R.%20'
+            'G.%20Bhandarkar%20Commemoration%20Volume%20%20%20_djvu.txt'
+        ),
+    ),
+    (
+        'replytolettersofabbeduboisbyjameshough1824_202003_367_e',
+        "bucket 'r', position 500",
+        (
+            'https://archive.org/download/replytolettersofabbeduboisbyjameshough1824_20'
+            '2003_367_e/Reply%20to%20letters%20of%20Abbe%20Dubois%20By%20James%20Hough%'
+            '201824_djvu.txt'
+        ),
+    ),
+    (
+        'scienceandtheindiantraditionwheneinsteinmettagoredavidgoslingl.routledge_28_n',
+        "bucket 's', position 1000",
+        (
+            'https://archive.org/download/scienceandtheindiantraditionwheneinsteinmetta'
+            'goredavidgoslingl.routledge_28_n/Science%20and%20the%20Indian%20Tradition%'
+            '20When%20Einstein%20Met%20Tagore%20David%20Gosling%20L.%20Routledge_djvu.t'
+            'xt'
+        ),
+    ),
+    (
+        'the-mudra-rakshasa-nataka-katha-of-mahadeva-ed.-dr-v.-raghavan-series-no.-1-than',
+        "bucket 't', position 500",
+        (
+            'https://archive.org/download/the-mudra-rakshasa-nataka-katha-of-mahadeva-e'
+            'd.-dr-v.-raghavan-series-no.-1-than/The%20Mudra%20Rakshasa%20Nataka%20Kath'
+            'a%20of%20Mahadeva%20Ed.%20Dr%20V.%20Raghavan%20%20Series%20No.%201%20-%20T'
+            'hanjavur%20Sarasvati%20Mahal%20Series_djvu.txt'
+        ),
+    ),
+    (
+        'TheTheoryOfTheSamdhisAndTheSamdhyangasInNatyaShastraT.G.Mainkar',
+        "bucket 't', position 1000",
+        (
+            'https://archive.org/download/TheTheoryOfTheSamdhisAndTheSamdhyangasInNatya'
+            'ShastraT.G.Mainkar/The%20Theory%20Of%20The%20Samdhis%20And%20The%20Samdhya'
+            'ngas%20in%20Natya%20Shastra%20-%20T.G.%20Mainkar_djvu.txt'
+        ),
+    ),
+    (
+        'wafatnamah-anhazrat-kashmiri-ghulam-mohd-noor-mohd',
+        "bucket 'w', position 1",
+        (
+            'https://archive.org/download/wafatnamah-anhazrat-kashmiri-ghulam-mohd-noor'
+            '-mohd/Wafatnamah%20Anhazrat%20Kashmiri%20-%20Ghulam%20Mohd%20Noor%20Mohd_d'
+            'jvu.txt'
+        ),
+    ),
+)
+
+
+#: ⭐ Built by a loop rather than written out: every specimen carries the same identity,
+#: the same extent and the same reader, and thirty-two hand-written copies of one sentence
+#: would be thirty-two places for it to drift.
+for _identifier, _drawn, _address in _NOISE_SPECIMENS:
+    _key = "noise_specimen_" + "".join(
+        character if character.isalnum() else "_" for character in _identifier.lower()
+    )
+    SOURCES[_key] = Source(
+        key=_key,
+        identity=(
+            f"a public archive's own machine reading of a scan it distributes as "
+            f"{_identifier!r}. ⛔ HELD AS A SPECIMEN OF THE READING, NOT AS A COPY OF THE "
+            "WORK: this repository has not read the work, cites nothing from it and takes "
+            "no position on what the archive's catalogue calls it. What is measured over "
+            "it is that it carries characters and not words, and how long a window of it "
+            f"clears the recurrence floor anyway. ⚠ Drawn from {_drawn}"
+        ),
+        language="und",
+        address=_address,
+        filename=f"specimens/{_identifier}.txt",
+        rendering_kind="optical_character_recognition",
+        render=_plain_text,
+        extent=_a_specimen_of_noise_extent,
+    )
+
+#: The specimen keys, in the order the table declares them. ⚠ Read by the generator, which
+#: re-measures every one of them rather than quoting a table.
+NOISE_SPECIMEN_KEYS: tuple[str, ...] = tuple(
+    key for key in SOURCES if key.startswith("noise_specimen_")
+)
+
+
+# --------------------------------------------------------------------------------------
 # Acquiring, and loading what was acquired
 # --------------------------------------------------------------------------------------
 
@@ -608,6 +998,9 @@ def acquire(key: str, *, cache: Path = CACHE, today: str) -> dict[str, Any]:
     source = SOURCES[key]
     cache.mkdir(parents=True, exist_ok=True)
     copy = cache / source.filename
+    # ⚠ A source may file itself in a subdirectory of the cache - the noise specimens do -
+    #   and the record is written beside the copy, so both need the directory to exist.
+    copy.parent.mkdir(parents=True, exist_ok=True)
     retrieval = retrieve(source.address, cache=copy)
     record = {
         "address": source.address,
