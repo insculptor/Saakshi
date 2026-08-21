@@ -46,11 +46,14 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 from saakshi.fixture import Header, describe_reserved_names, write_jsonl  # noqa: E402
 from saakshi.provenance import generator_for, today  # noqa: E402
 from saakshi.texts import (
-    COPIES_THAT_CLEARED_KEYS,  # noqa: E402
+    ABSTAINED_FROM_CERTIFYING,  # noqa: E402
+    COPIES_THAT_CLEARED_KEYS,
     COPIES_THIS_FLOOR_REFUSES_KEYS,
     CACHE,
     DEVANAGARI,
+    READINGS_IN_A_SCRIPT_THE_WORK_CANNOT_BE_PRINTED_IN,
     acquire,
+    certification_of,
     load,
     passage_fidelity,
     script_presence,
@@ -82,10 +85,15 @@ from saakshi.textual import (  # noqa: E402
     collect_occurrences,
     digest,
     GREATEST_EXTENT_AT_WHICH_A_WINDOW_OF_A_REFUSED_COPY_HAS_CLEARED,
+    GREATEST_SHARE_A_WRONG_SCRIPT_READING_REACHES,
+    LEAST_COPIES_THIS_FLOOR_MISCLASSIFIES_AT_ANY_VALUE,
     LEAST_EXTENT_A_REFUSAL_DISCRIMINATES_AT,
     LEAST_RECURRENCE,
+    LEAST_SHARE_A_COPY_CARRYING_ITS_OWN_LANGUAGE_REACHES,
     RECURRENCE_MEASURED_AT,
     discrimination_of_resolving_once,
+    how_a_per_language_floor_would_be_fitted,
+    least_error_a_single_value_can_reach,
     normalise,
     blocks_this_floor_refuses,
     every_window_of,
@@ -2596,6 +2604,9 @@ def main() -> int:
     #: little of the reading is the cut-off's - ⭐ the same discipline every grid in this
     #: file travels under.
     CARRYING_A_LANGUAGE_ACROSS = (0.25, 0.5, 0.75)
+    # ⛔ The criterion a copy is CERTIFIED a reading at - the tightest of the three
+    #   above, chosen before either certified set was scored and published on the row.
+    CARRIES_ITS_OWN_LANGUAGE_ACROSS = 0.75
     # ⛔ 314 IS ON THIS GRID ON PURPOSE. It is the number the accepting bound was read
     #   off when one rendering of noise was held, and a grid that started at 315 would
     #   report NOTHING for that copy - so the row that is supposed to show the old value
@@ -3426,12 +3437,21 @@ def main() -> int:
                 }
             language_rows.append(row)
             del copy
-    # ⚠ Four copies held here, at both ends of the scale: two real books, one in each
-    #   script, and ⛔ the copy this floor was built to catch, which is on this scale too.
+    # ⚠ EVERY copy held here that renders to anything, at both ends of the scale: real
+    #   books in each script, three readings of one printing, and ⛔ the copy this floor was
+    #   built to catch, which is on this scale too.
+    # ⛔⛔ IT WAS FOUR FOR A SESSION, AND FOUR WAS AN ARBITRARY SUBSET OF WHAT THIS
+    #   REPOSITORY HOLDS. A census that leaves out copies it holds reports a range that is
+    #   narrower than the evidence, and nothing on the row says which were left out.
     for copy, what in (
         (second, "a real book, held, printed and read in Devanagari"),
         (load(BPHS_SANTHANAM, cache=args.cache), "a real book, held, in English"),
         (fifth, "a real book, held, in English - a printing of the work this file is about"),
+        (edition, "a real book, held, in English - the copy every locus here resolves in"),
+        *(
+            (reading, "a real book, held, in English - one of three readings of the third edition")
+            for reading in third_edition_readings
+        ),
         (library_scan, "the machine reading of an English book set to an Indic script"),
     ):
         row = {
@@ -3657,6 +3677,281 @@ def main() -> int:
             ),
         },
     ]
+
+
+    # ----------------------------------------------------------------------------------
+    # ⛔⛔⛔ THE FLOOR ERRS IN BOTH DIRECTIONS, AND NEITHER NAMED REPAIR CAN BE MADE
+    # ----------------------------------------------------------------------------------
+    #
+    # ⭐⭐⭐ Last session established that this floor REFUSES whole real books and left two
+    #    repairs named and unmeasured: a per-language value, or a different statistic. Both
+    #    are measured here, and both are refused.
+    #
+    # ⛔ The evidence needed a second certified set, and it needed one certified WITHOUT
+    #    consulting a word list, or the measurement would be scoring the language instrument
+    #    against itself. `READINGS_IN_A_SCRIPT_THE_WORK_CANNOT_BE_PRINTED_IN` is certified by
+    #    a PRESENCE of the wrong script - the rendering carries, at essentially all of its
+    #    letters, a script the catalogued work cannot be printed in.
+    certified_rows = []
+    for row in language_rows:
+        carries = {
+            language: (row[language]["share_of_its_blocks_carrying_one"] or 0.0)
+            for language in sorted(COMMONEST_WORDS)
+        }
+        certified = certification_of(row["copy"])
+        if certified == "not_certified" and any(
+            share >= CARRIES_ITS_OWN_LANGUAGE_ACROSS for share in carries.values()
+        ):
+            # ⭐ A PRESENCE, and the only certification of a reading this repository accepts:
+            #   the commonest words of a language, declared before any copy was measured and
+            #   taken out of none of them, occurring across most of the copy.
+            certified = "a_reading"
+        certified_rows.append(
+            {
+                "copy": row["copy"],
+                "characters": row["characters"],
+                "share_that_recurs": row["share_that_recurs"],
+                "certified": certified,
+                "why": (
+                    READINGS_IN_A_SCRIPT_THE_WORK_CANNOT_BE_PRINTED_IN.get(row["copy"])
+                    or ABSTAINED_FROM_CERTIFYING.get(row["copy"])
+                    or (
+                        "carries the commonest words of a declared language across at least "
+                        f"{CARRIES_ITS_OWN_LANGUAGE_ACROSS:.0%} of its "
+                        f"{LANGUAGE_MEASURED_OVER_BLOCKS_OF[0]}-character blocks"
+                        if certified == "a_reading"
+                        else "neither channel speaks for this copy"
+                    )
+                ),
+                "carries": carries,
+            }
+        )
+
+    readings_certified = {
+        row["copy"]: row["share_that_recurs"]
+        for row in certified_rows
+        if row["certified"] == "a_reading"
+    }
+    wrong_script_certified = {
+        row["copy"]: row["share_that_recurs"]
+        for row in certified_rows
+        if row["certified"] == "a_wrong_script_reading"
+    }
+    separation = least_error_a_single_value_can_reach(
+        carrying_their_own_language=readings_certified,
+        read_in_a_script_the_work_cannot_be_printed_in=wrong_script_certified,
+    )
+    per_language = {
+        f"routed_at_{int(criterion * 100)}_per_cent_of_the_copy": (
+            how_a_per_language_floor_would_be_fitted(
+                by_copy=certified_rows, criterion=criterion
+            )
+        )
+        for criterion in CARRYING_A_LANGUAGE_ACROSS
+    }
+    accepted_wrong_script = sorted(
+        (row for row in certified_rows if row["certified"] == "a_wrong_script_reading"
+         and row["share_that_recurs"] >= LEAST_RECURRENCE),
+        key=lambda row: -row["share_that_recurs"],
+    )
+    refused_readings = sorted(
+        (row for row in certified_rows if row["certified"] == "a_reading"
+         and row["share_that_recurs"] < LEAST_RECURRENCE),
+        key=lambda row: row["share_that_recurs"],
+    )
+
+    controls += [
+        {
+            "finding": "control",
+            "control": "whether_any_value_of_this_floor_separates_a_reading_from_a_wrong_script_reading",
+            "measured": {
+                "how_a_wrong_script_reading_is_certified": (
+                    "⭐⭐⭐ BY A PRESENCE OF THE WRONG SCRIPT, NEVER BY AN ABSENCE OF THE "
+                    "RIGHT WORDS. The rendering carries, at essentially every one of its "
+                    "letters, a script the catalogued work cannot be printed in - an "
+                    "English encyclopaedia of 1910 rendered entirely in Devanagari, a "
+                    "Kannada Bhagavata rendered in Devanagari. That establishes the reader "
+                    "was set to a script the printing does not use. ⛔ No word list is "
+                    "consulted, which is what keeps this from scoring the language "
+                    "instrument against itself"
+                ),
+                "how_a_reading_is_certified": (
+                    "by the other presence: the commonest words of a declared language, "
+                    "fixed before any copy was measured and taken out of none of them, "
+                    "occurring across at least "
+                    f"{CARRIES_ITS_OWN_LANGUAGE_ACROSS:.0%} of the copy's "
+                    f"{LANGUAGE_MEASURED_OVER_BLOCKS_OF[0]}-character blocks"
+                ),
+                "both_counts_are_lower_bounds": (
+                    "⛔ AN ABSENCE ESTABLISHES NOTHING, ON EITHER SIDE. Copies whose "
+                    "catalogued work is itself multilingual are abstained from rather than "
+                    "certified wrong-script, and copies in languages no list here declares "
+                    "are abstained from rather than counted as readings. Every abstention "
+                    "is named in `ABSTAINED_FROM_CERTIFYING` with its reason"
+                ),
+                "copies": len(certified_rows),
+                "certified_readings": len(readings_certified),
+                "certified_wrong_script_readings": len(wrong_script_certified),
+                "abstained": len(certified_rows)
+                - len(readings_certified)
+                - len(wrong_script_certified),
+                "the_separation": separation,
+                "wrong_script_readings_this_floor_ACCEPTS": accepted_wrong_script,
+                "readings_this_floor_REFUSES": refused_readings,
+                "by_copy": certified_rows,
+            },
+            # ⛔⛔ A CONTROL THAT CANNOT COME OUT RIGHT BY ACCIDENT, IN BOTH DIRECTIONS.
+            #   Both certified sets must be non-empty, or the crossing is a claim about
+            #   nothing. The floor must be measured to err in BOTH directions, because a
+            #   census that found errors in only one would look exactly like the one-sided
+            #   evidence this session exists to replace. And the published value must be
+            #   measured to sit at the minimum, or "no value repairs it" is unearned.
+            "held": bool(
+                len(readings_certified) >= 20
+                and len(wrong_script_certified) >= 20
+                and separation["any_value_separates_them"] is False
+                and accepted_wrong_script
+                and refused_readings
+                and separation["the_published_value_is_already_least"] is True
+                and separation["least_copies_any_value_misclassifies"]
+                == LEAST_COPIES_THIS_FLOOR_MISCLASSIFIES_AT_ANY_VALUE
+                and separation["the_lowest_real_book"]["share"]
+                == LEAST_SHARE_A_COPY_CARRYING_ITS_OWN_LANGUAGE_REACHES
+                and separation["the_highest_wrong_script_reading"]["share"]
+                == GREATEST_SHARE_A_WRONG_SCRIPT_READING_REACHES
+                # ⭐ And the certification must not be doing the floor's work for it: the
+                #   wrong-script set has to straddle the floor rather than sit under it,
+                #   or the whole finding would be an artefact of which copies were certified.
+                and min(wrong_script_certified.values()) < LEAST_RECURRENCE
+                <= max(wrong_script_certified.values())
+            ),
+            "meaning": (
+                "⛔⛔⛔ NO VALUE OF THIS STATISTIC SEPARATES A READING FROM A READING IN A "
+                "SCRIPT THE WORK CANNOT BE PRINTED IN. The lowest copy carrying its own "
+                f"language sits at {separation['the_lowest_real_book']['share']} and the "
+                "highest wrong-script reading at "
+                f"{separation['the_highest_wrong_script_reading']['share']} - crossed, and "
+                "the published floor sits between them. ⭐⭐⭐ Moving it trades a refused "
+                "book for an accepted rendering of noise ONE FOR ONE: the least any value "
+                f"misclassifies is {separation['least_copies_any_value_misclassifies']}, "
+                "which is exactly what the published value already misclassifies. ⛔ To "
+                "refuse every wrong-script reading it must stand at "
+                f"{separation['the_least_value_that_refuses_every_wrong_script_reading']} "
+                f"and refuse {separation['what_that_value_costs']} of the "
+                f"{len(readings_certified)} certified readings"
+            ),
+        },
+        {
+            "finding": "control",
+            "control": "whether_a_per_language_floor_can_be_fitted_at_all",
+            "measured": {
+                "what_a_per_language_floor_needs": (
+                    "⛔ A ROUTING RULE. The only language instrument this repository has is "
+                    "`COMMONEST_WORDS`, and its absence establishes nothing - so the rule "
+                    "that decides which floor a copy is judged by is the one instrument that "
+                    "cannot decide a copy is NOT a language"
+                ),
+                "by_criterion": per_language,
+            },
+            # ⛔⛔ BOTH DIRECTIONS AGAIN. At the two tighter criteria no bucket may hold both
+            #   sides, and every wrong-script reading must land where no language is
+            #   declared. ⭐ And the loosest criterion is the control on that: one wrong-
+            #   script reading DOES land in a language bucket there, so the finding is not
+            #   an artefact of a criterion chosen to produce it - and the value fitted in
+            #   that bucket still fails to separate.
+            "held": bool(
+                per_language["routed_at_75_per_cent_of_the_copy"][
+                    "buckets_holding_both_sides"
+                ]
+                == []
+                and per_language["routed_at_50_per_cent_of_the_copy"][
+                    "buckets_holding_both_sides"
+                ]
+                == []
+                and per_language["routed_at_25_per_cent_of_the_copy"][
+                    "buckets_holding_both_sides"
+                ]
+                == ["sanskrit_or_hindi"]
+                and all(
+                    routed["buckets_where_a_value_would_separate"] == []
+                    for routed in per_language.values()
+                )
+                and all(
+                    routed["the_bucket_holding_the_wrong_script_readings_holds_no_reading"]
+                    is (criterion != "routed_at_25_per_cent_of_the_copy")
+                    for criterion, routed in per_language.items()
+                )
+            ),
+            "meaning": (
+                "⛔⛔⛔ A PER-LANGUAGE FLOOR CANNOT BE FITTED, AND THE REASON IS THE ROUTING "
+                "RATHER THAN THE ARITHMETIC. At a half and at three quarters of the copy NO "
+                "bucket holds both sides: every certified wrong-script reading answers to no "
+                "word list and lands where no language is declared, beside no certified "
+                "reading at all - so a floor fitted in a language bucket is fitted with "
+                "nothing below it, which is this floor's own original defect one bucket at a "
+                "time. ⭐⭐⭐ And at a quarter, where one wrong-script reading DOES land in "
+                "the Sanskrit bucket, a value fitted there still does not separate: it sits "
+                "INSIDE the readings' range, not below it. ⚠ Routing the undeclared bucket "
+                "to a refusal is not available either - the copies there that are not "
+                "certified wrong-script include legible Bengali, Tamil, Urdu and Kashmiri, "
+                "which would be refused for a fact about the word list"
+            ),
+        },
+    ]
+
+    rows.append(
+        {
+            "finding": "correction",
+            "rule": "this_floor_is_wrong_only_in_the_direction_of_refusing_real_books",
+            "what_was_published": (
+                "last session's finding and every repair named in it: that this floor "
+                "REFUSES whole real books, that what it separates is LANGUAGES, and that the "
+                "repair is therefore a per-language value or a different statistic. ⚠ Every "
+                "sentence of that is measured and none of it is withdrawn"
+            ),
+            "what_refutes_it": (
+                "⛔⛔⛔ IT ACCEPTS READINGS IN A SCRIPT THE WORK CANNOT BE PRINTED IN, AND "
+                "ONE OF THEM IS THE LARGEST COPY THIS REPOSITORY HOLDS. Three of the "
+                "twenty-five copies it accepts are certified wrong-script readings: a "
+                "Kannada Bhagavata read in Devanagari at 0.011922, an English conference "
+                "proceedings at 0.013917, and the Routledge Encyclopedia of Philosophy in "
+                "ten volumes - 39 129 518 characters of Devanagari produced over an English "
+                "work - at 0.030511, three times this floor. ⚠ Nothing could have found this "
+                "until the accepted side was held: the census that drew those copies "
+                "measured them, printed them to a log and deleted them, and the session that "
+                "recovered them asked what language they carry and not whether any of them "
+                "is noise"
+            ),
+            "what_is_published_now": (
+                "the floor unchanged in value, and BOTH its directions withdrawn in terms. "
+                "⛔ Neither named repair survived measurement: no value of this statistic "
+                "separates the two certified sets, the published value already sits at the "
+                "least any value misclassifies, and a per-language floor cannot be fitted "
+                "because the routing puts the two sides in different buckets. ⭐ Every row "
+                "`recurrence_of` returns now carries "
+                "`the_greatest_share_a_wrong_script_reading_reaches` and says that a high "
+                "share here is NOT ESTABLISHED, at any extent or any value"
+            ),
+            "how_the_error_was_made": (
+                "⭐⭐⭐ EVERY STATISTIC OF A COPY'S OWN REPETITION IS MEASURING THE PRINTING, "
+                "NOT THE READER. A machine reading is a deterministic function of the "
+                "printing, so a word the printing repeats produces the SAME garbage string "
+                "every time it is met, and the printing's own recurrence survives into the "
+                "noise intact. ⇒ The axis is wrong, not the value on it - which is why nine "
+                "statistics were offered and every one of them scored a wrong-script reading "
+                "as high as or higher than a real book, four last session and five more this "
+                "one. What separates the two is a PRESENCE of something outside the copy, "
+                "and this floor consults nothing outside the copy"
+            ),
+            "what_would_have_caught_it": (
+                "⛔ nothing, and the reason is the same one as last session's, one step "
+                "further on. The evidence was one-sided by construction; the side that was "
+                "recovered was then asked ONE question. ⭐ A recovered set is not the same "
+                "thing as a measured one, and the question that had never been put to it was "
+                "the one it was recovered to answer"
+            ),
+        }
+    )
 
     rows.append(
         {

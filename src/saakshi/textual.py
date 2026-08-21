@@ -648,6 +648,41 @@ RECURRENCE_MEASURED_AT = 12
 #: those words carries the language, and a copy that does not may still be legible — a
 #: Devanagari astrology dictionary refused here scores 21.1 because a dictionary is headwords
 #: and glosses. So the count of refused real books is a **lower bound**.
+#:
+#: ⛔⛔⛔ **AND IT ERRS IN THE OTHER DIRECTION TOO, WHICH WAS UNMEASURABLE UNTIL THE COPIES
+#: IT ACCEPTS WERE HELD.** Three of the twenty-five copies it accepts are certified readings
+#: in a script their catalogued work cannot be printed in — a **Kannada** work read in
+#: Devanagari at 0.011922, an English conference proceedings at 0.013917, and the Routledge
+#: *Encyclopedia of Philosophy* in ten volumes at **0.030511**, three times this floor, over
+#: 39 129 518 characters. See `GREATEST_SHARE_A_WRONG_SCRIPT_READING_REACHES`.
+#:
+#: ⛔⛔⛔ **SO NO VALUE OF THIS STATISTIC SEPARATES THE TWO, AND THE TWO NAMED REPAIRS ARE
+#: BOTH MEASURED AND BOTH REFUSED.** The lowest copy carrying its own language sits at
+#: 0.006873 and the highest wrong-script reading at 0.030511 — crossed, by 4.4×:
+#:
+#: * **A PER-LANGUAGE VALUE.** Routed by `COMMONEST_WORDS` — the only language instrument
+#:   here — at each of the three criteria that census published: at a half and at three
+#:   quarters **no bucket holds both sides at all**, because every one of the 21 wrong-script
+#:   readings answers to no word list and lands where no language is declared, beside 0
+#:   certified readings. At a quarter exactly one bucket holds both, and a value fitted in it
+#:   **does not separate**: the Sanskrit readings run 0.006873–0.089183 and the wrong-script
+#:   reading sits at 0.009675, inside them. ⇒ ⭐⭐⭐ *the routing sorts the two sides into
+#:   different buckets, so a per-language floor is fitted with nothing below it — this
+#:   floor's original defect, one bucket at a time.*
+#: * **A DIFFERENT STATISTIC.** Eight were measured and a ninth was degenerate; every one
+#:   scored a wrong-script reading as high as or higher than a real book. See
+#:   `STATISTICS_MEASURED_AGAINST_THIS_FLOOR`.
+#:
+#: ⭐⭐⭐ **THE REASON IS THAT THE AXIS IS WRONG.** A machine reading is a deterministic
+#: function of the printing, so a word the printing repeats produces the same garbage string
+#: every time it is met and the printing's own recurrence survives into the noise intact.
+#: **Repetition measures the morphology of what was printed, not whether the reader could
+#: read it.** ⇒ What separates a reading from a wrong-script reading is a PRESENCE of
+#: something outside the copy, and this floor consults nothing outside the copy.
+#:
+#: ⚠ ⛔ **WHAT IS NOT PUBLISHED IS A REPAIRED VALUE.** None was fitted, so none is held out;
+#: the refusal keeps its measurement and every row it travels on now says, in both
+#: directions, what it does not establish.
 LEAST_RECURRENCE = 0.01
 
 #: The least **extent** at which a copy's failure to clear `LEAST_RECURRENCE` says anything
@@ -758,6 +793,122 @@ LEAST_EXTENT_A_REFUSAL_DISCRIMINATES_AT = 7686
 GREATEST_EXTENT_AT_WHICH_A_WINDOW_OF_A_REFUSED_COPY_HAS_CLEARED = 320000
 
 
+#: The greatest share **a reading in a script the work cannot be printed in** reaches, over
+#: every such reading this repository holds.
+#:
+#: ⛔⛔⛔ **THE FLOOR ACCEPTS IT, AND IT IS THREE TIMES THE FLOOR.** The copy is the
+#: Routledge *Encyclopedia of Philosophy* in ten volumes — ISBN 0415073103, an English work
+#: — read by a machine set to an Indic script: **39 129 518** normalised characters of
+#: Devanagari carrying not one English word. `LEAST_RECURRENCE` passes it.
+#:
+#: ⚠ Certified by a **presence, never by an absence**: the rendering carries, at essentially
+#: all of its letters, a script the catalogued work cannot be printed in. That establishes
+#: the reader was set to a script the printing does not use. ⛔ It is not certified by the
+#: copy failing to answer to a word list, which would establish nothing.
+#:
+#: ⛔⛔⛔ **AND UNTIL THIS SESSION THIS FLOOR WAS ONLY EVER KNOWN TO ERR IN ONE DIRECTION.**
+#: The twenty-five copies it ACCEPTS were measured and deleted by the census that drew them,
+#: recovered only in the session before this one, and then asked one question — *what
+#: language do you carry* — and not the other. Three of them are readings in a script their
+#: work cannot be printed in, and this floor passes all three: 0.011922 (a **Kannada** work
+#: read in Devanagari), 0.013917 (an English conference proceedings), and this one.
+GREATEST_SHARE_A_WRONG_SCRIPT_READING_REACHES = 0.030511
+
+#: The least share reached by a copy carrying the commonest words of its own language across
+#: **at least three quarters** of its thousand-character blocks.
+#:
+#: ⚠ The criterion travels with the number for the reason every criterion in this file does.
+#: The copy is `99999990320058mimansakaustubha…devotionalsanskrit1933`, a Sanskrit
+#: commentary of 1933 read in Devanagari, carrying declared Sanskrit across **79 %** of
+#: itself — and this floor **refuses** it.
+LEAST_SHARE_A_COPY_CARRYING_ITS_OWN_LANGUAGE_REACHES = 0.006873
+
+#: ⛔⛔⛔ **THE TWO NUMBERS ABOVE CROSS, SO NO VALUE OF THIS STATISTIC SEPARATES THE TWO
+#: SETS — AND THIS IS THE SMALLEST NUMBER OF COPIES ANY VALUE OF IT MISCLASSIFIES.**
+#:
+#: Measured by asking every value the two sets take, over 26 copies certified to carry their
+#: own language and 21 certified to be read in a script their work cannot be printed in:
+#:
+#: | value | real books refused | wrong-script readings accepted | total |
+#: |---|---|---|---|
+#: | 0.005765 | 0 | 7 | 7 |
+#: | **0.006873** | **0** | **5** | **5** |
+#: | 0.008640 | 1 | 4 | 5 |
+#: | **0.01** ← published, and not a value either set takes | **2** | **3** | **5** |
+#: | 0.016443 | 4 | 1 | 5 |
+#: | 0.023635 | 5 | 1 | 6 |
+#: | 0.030511 | 7 | 1 | 8 |
+#: | **0.033480** | ⛔ **7** | **0** | 7 |
+#: | 0.161061 | 25 | 0 | 25 |
+#:
+#: ⚠ Nine of the forty-seven points the curve has; the whole of it travels on the row
+#: `least_error_a_single_value_can_reach` returns, because a curve quoted at nine points
+#: reads as monotone and this one is not.
+#:
+#: ⭐⭐⭐ **MOVING THE FLOOR TRADES A REFUSED BOOK FOR AN ACCEPTED RENDERING OF NOISE, ONE
+#: FOR ONE, AND THE TOTAL NEVER FALLS BELOW FIVE.** `LEAST_RECURRENCE` already stands at
+#: that minimum, so ⛔ **the published value cannot be improved by moving it** — the two
+#: named repairs were a per-language value and a different statistic, and this is the
+#: measurement that says the first of them cannot be a better value of *this* statistic.
+#:
+#: ⛔⛔⛔ **AND TO REFUSE EVERY WRONG-SCRIPT READING IT MUST STAND AT 0.033480 AND REFUSE
+#: SEVEN OF THE TWENTY-SIX REAL BOOKS** — better than a quarter of them, and every one of
+#: the seven is a copy carrying declared Sanskrit across at least three quarters of itself.
+#:
+#: ⚠ **AND THE TOTAL IS NOT MONOTONE IN THE VALUE**, which is why the whole curve is
+#: published rather than a bound read off it: it reaches five at 0.006873, rises to six at
+#: 0.007367, falls back to five at 0.008640, rises to seven at 0.011922 and is five again at
+#: 0.016443. ⭐ *The smallest value at which the total stops falling* is not the minimum —
+#: the same rule put `LEAST_EXTENT_A_REFUSAL_DISCRIMINATES_AT` 1 686 characters wrong.
+LEAST_COPIES_THIS_FLOOR_MISCLASSIFIES_AT_ANY_VALUE = 5
+
+#: Every statistic offered as a replacement for `LEAST_RECURRENCE`, with the worst copy of
+#: each certified set under it. ⛔ **NONE OF THEM SEPARATES THE TWO SETS.**
+#:
+#: ⭐⭐⭐ **TWELVE INSTRUMENTS OF THIS CLASS HAVE NOW FAILED IN THE SAME DIRECTION.** Four
+#: were measured in the session before this one — token overlap 0.86 against 0.21,
+#: character-weighted 0.74 against 0.05, Devanagari well-formedness 0.95 against 0.96,
+#: unfiltered word rate 370.4 against 329.9. Eight more are below. Every one of them scores
+#: a reading in a script the work cannot be printed in **as high as or higher than a real
+#: book**.
+#:
+#: | statistic | least over the 26 real books | greatest over the 21 wrong-script readings |
+#: |---|---|---|
+#: | the floor as it stands, at 12 characters | 0.00687 | ⛔ **0.03051** |
+#: | share of distinct **words** that recur | 0.0763 | ⛔ **0.3697** |
+#: | share of distinct **two-word** shingles that recur | 0.0094 | ⛔ **0.1388** |
+#: | share of distinct **three-word** shingles that recur | 0.00078 | ⛔ **0.0444** |
+#: | mean word length | 3.45 | ⛔ **4.62** |
+#: | distinct words ÷ words (low is language) | 0.727 | ⛔ **0.0889** |
+#: | the floor at a **fixed extent** of 200 000 characters | 0.00497 | ⛔ **0.01248** |
+#: | the floor at **two of the copy's own words** of characters | 0.0011 | ⛔ **0.3726** |
+#:
+#: ⚠ The fixed-extent one is the nearest miss and it fails twice over: inverted by 2.5×, and
+#: it cannot be measured at all on 7 of the 26 real books, which are shorter than one window.
+#:
+#: ⛔ A ninth was offered and is **degenerate**: the copy against a shuffle of itself. A
+#: shuffle repeats nothing at twelve characters in **50 of the 51** copies long enough to
+#: test, so the ratio is unbounded for a wrong-script reading exactly as it is for a book.
+#:
+#: ⭐⭐⭐ **THE REASON IS ONE SENTENCE, AND IT IS ALREADY WRITTEN IN THIS FILE.** A machine
+#: reading is a **deterministic function of the printing**: a word the printing repeats
+#: produces the *same* garbage string every time it is met. So a wrong-script reader carries
+#: the printing's repetition across **intact**, and every statistic of a copy's own
+#: repetition is measuring the morphology of what was printed rather than whether the reader
+#: could read it. ⇒ **The axis is wrong, not the value on it.**
+STATISTICS_MEASURED_AGAINST_THIS_FLOOR = (
+    "share_of_distinct_12_character_fragments_that_recur",
+    "share_of_distinct_words_that_recur",
+    "share_of_distinct_two_word_shingles_that_recur",
+    "share_of_distinct_three_word_shingles_that_recur",
+    "mean_word_length",
+    "distinct_words_over_words",
+    "share_of_distinct_12_character_fragments_that_recur_at_a_fixed_extent",
+    "share_that_recurs_at_two_of_this_copy_s_own_words_of_characters",
+    "the_copy_against_a_shuffle_of_itself",
+)
+
+
 @lru_cache(maxsize=16)
 def _recurrence(body: str, length: int) -> tuple[int, int, int]:
     """`(distinct fragments, how many recur, the most frequent one's count)`.
@@ -808,13 +959,31 @@ def recurrence_of(edition: Edition, *, length: int = RECURRENCE_MEASURED_AT) -> 
         "this_copy_is_longer_than_that": (
             len(body) > GREATEST_EXTENT_AT_WHICH_A_WINDOW_OF_A_REFUSED_COPY_HAS_CLEARED
         ),
+        # ⛔⛔⛔ AND THE ACCEPTING SIDE NOW HAS A WHOLE COPY AGAINST IT, NOT A WINDOW.
+        #   For four sessions the strongest thing that could be said here was that a WINDOW
+        #   of a refused copy clears this floor. The twenty-five copies this floor ACCEPTS
+        #   were measured and deleted by the census that drew them and were recovered only
+        #   last session, and three of them are readings in a script their work cannot be
+        #   printed in - the largest 39 129 518 characters, clearing this floor by 3.05x.
+        "the_greatest_share_a_wrong_script_reading_reaches": (
+            GREATEST_SHARE_A_WRONG_SCRIPT_READING_REACHES
+        ),
+        "this_copy_repeats_more_than_that": (
+            (recurring / distinct if distinct else 0.0)
+            > GREATEST_SHARE_A_WRONG_SCRIPT_READING_REACHES
+        ),
         "a_high_share_here_is_about_the_copy": (
-            "⛔ NOT ESTABLISHED AT ANY EXTENT. A copy of 330 970 characters this floor "
-            "refuses clears it over windows of 320 000, and the extent at which such a copy "
-            "stops clearing tracks how close its own share sits to the floor rather than any "
-            "property of the floor. ⚠ So a copy longer than that number has not been shown "
-            "to be safe either - it has only been shown to be longer than the longest "
-            "counter-example held"
+            "⛔ NOT ESTABLISHED, AT ANY EXTENT OR ANY VALUE. Three copies this floor "
+            "ACCEPTS are certified readings in a script their work cannot be printed in, at "
+            "0.011922, 0.013917 and "
+            f"{GREATEST_SHARE_A_WRONG_SCRIPT_READING_REACHES} - the last of them an English "
+            "encyclopaedia of 39 129 518 characters read in Devanagari, which clears this "
+            "floor by more than three times. ⛔ And no value repairs it: over 26 copies "
+            "certified to carry their own language and 21 certified wrong-script, the least "
+            f"any value of this statistic misclassifies is "
+            f"{LEAST_COPIES_THIS_FLOOR_MISCLASSIFIES_AT_ANY_VALUE}, which is what the "
+            "published value already misclassifies. ⚠ A copy above the number on this row "
+            "has been shown only to repeat more than the noisiest reading held"
         ),
         # ⛔⛔⛔ AND THE LOW SIDE IS NOT ABOUT THE READING EITHER, WHICH THIS ROW SAID FOR
         #   THREE SESSIONS BY NAMING A CAUSE. Measured over sixty copies of one public
@@ -1288,6 +1457,228 @@ def language_a_copy_carries(
     }
 
 
+def least_error_a_single_value_can_reach(
+    *,
+    carrying_their_own_language: Mapping[str, float],
+    read_in_a_script_the_work_cannot_be_printed_in: Mapping[str, float],
+    published: float = LEAST_RECURRENCE,
+) -> dict[str, Any]:
+    """Whether **any** value of one statistic separates the two certified sets, and at what cost.
+
+    ⭐ Complete over the values the two sets take — every distinct one, never a grid. A
+    threshold's behaviour changes only at an observed value, so this is the whole curve and
+    not a sample of it, and no bound quoted from here needs a grid to travel with it.
+
+    ⛔ **BOTH SIDES ARE REQUIRED AND THE DISJOINTNESS IS ASSERTED, NOT ASSUMED.** A maximum
+    over an empty set is how `LEAST_EXTENT_AN_ACCEPTANCE_DISCRIMINATES_AT` came to be
+    published off one specimen; a copy in both sets would make the error counts meaningless
+    and nothing here would say so.
+
+    ⚠ *Refused* means `share < value`, which is the convention
+    `refuse_a_rendering_that_does_not_repeat` uses, so the counts describe that guard and not
+    a differently-signed one.
+    """
+    both = set(carrying_their_own_language) & set(
+        read_in_a_script_the_work_cannot_be_printed_in
+    )
+    if both:
+        raise TextualError(
+            "the two certified sets share "
+            f"{len(both)} copy or copies - {sorted(both)}. ⛔ A copy certified as a reading "
+            "and as a wrong-script reading at once makes every error count below a number "
+            "about nothing, and a scoring that did not check would report it as a result"
+        )
+    if not carrying_their_own_language or not read_in_a_script_the_work_cannot_be_printed_in:
+        raise TextualError(
+            "both certified sets are required and one is empty. ⛔ A separation measured "
+            "against nothing is the defect that put an accepting bound 1 016x wrong: a "
+            "maximum over a set with no members is not a maximum"
+        )
+    readings = dict(carrying_their_own_language)
+    wrong_script = dict(read_in_a_script_the_work_cannot_be_printed_in)
+    curve = []
+    for value in sorted(set(readings.values()) | set(wrong_script.values())):
+        refused = sorted(key for key, share in readings.items() if share < value)
+        accepted = sorted(key for key, share in wrong_script.items() if share >= value)
+        curve.append(
+            {
+                "value": value,
+                "real_books_refused": len(refused),
+                "wrong_script_readings_accepted": len(accepted),
+                "copies_misclassified": len(refused) + len(accepted),
+            }
+        )
+    best = min(curve, key=lambda point: point["copies_misclassified"])
+    at_published = {
+        "value": published,
+        "real_books_refused": sorted(
+            key for key, share in readings.items() if share < published
+        ),
+        "wrong_script_readings_accepted": sorted(
+            key for key, share in wrong_script.items() if share >= published
+        ),
+    }
+    at_published["copies_misclassified"] = len(
+        at_published["real_books_refused"]
+    ) + len(at_published["wrong_script_readings_accepted"])
+    least_reading = min(readings, key=lambda key: readings[key])
+    greatest_wrong = max(wrong_script, key=lambda key: wrong_script[key])
+    return {
+        "copies_carrying_their_own_language": len(readings),
+        "copies_read_in_a_script_the_work_cannot_be_printed_in": len(wrong_script),
+        "the_lowest_real_book": {
+            "copy": least_reading,
+            "share": readings[least_reading],
+        },
+        "the_highest_wrong_script_reading": {
+            "copy": greatest_wrong,
+            "share": wrong_script[greatest_wrong],
+        },
+        "any_value_separates_them": readings[least_reading] > wrong_script[greatest_wrong],
+        "least_copies_any_value_misclassifies": best["copies_misclassified"],
+        "the_value_that_reaches_it": best["value"],
+        "at_the_published_value": at_published,
+        "the_published_value_is_already_least": (
+            at_published["copies_misclassified"] == best["copies_misclassified"]
+        ),
+        "the_least_value_that_refuses_every_wrong_script_reading": next(
+            (
+                point["value"]
+                for point in curve
+                if point["wrong_script_readings_accepted"] == 0
+            ),
+            None,
+        ),
+        "what_that_value_costs": next(
+            (
+                point["real_books_refused"]
+                for point in curve
+                if point["wrong_script_readings_accepted"] == 0
+            ),
+            None,
+        ),
+        "the_whole_curve": curve,
+        "measured_over": (
+            "every distinct value the two sets take - complete, because a threshold's "
+            "behaviour changes only at an observed value"
+        ),
+        "how_to_read_this": (
+            "⛔ AS A FACT ABOUT THIS STATISTIC AND THESE COPIES. Both sets are LOWER BOUNDS: "
+            "a copy is certified as a reading only by a PRESENCE - the commonest words of a "
+            "language nobody took out of it - and as a wrong-script reading only by a "
+            "PRESENCE - a script the catalogued work cannot be printed in. ⚠ Every copy "
+            "neither channel speaks for is abstained from and counts against nothing"
+        ),
+    }
+
+
+def how_a_per_language_floor_would_be_fitted(
+    *,
+    by_copy: Sequence[Mapping[str, Any]],
+    criterion: float,
+    block: int = LANGUAGE_MEASURED_OVER_BLOCKS_OF[0],
+) -> dict[str, Any]:
+    """Sort the certified copies into the buckets a **per-language** floor would be fitted in.
+
+    ⭐⭐⭐ **THIS IS THE FIRST OF THE TWO NAMED REPAIRS, MEASURED RATHER THAN ARGUED.** A
+    per-language floor needs a routing rule, and the only language instrument this repository
+    has is `COMMONEST_WORDS`, whose **absence establishes nothing**. What the routing does
+    with the evidence is a measurement, and it is this one.
+
+    Each row carries `copy`, `share_that_recurs`, `certified` — one of `a_reading`,
+    `a_wrong_script_reading`, `not_certified` — and `carries`, a mapping from each declared
+    language to the share of the copy's blocks carrying one of its commonest words.
+
+    ⛔ `criterion` and `block` travel on the result. A bucket boundary quoted without them
+    reads as a property of the copies and is not one.
+    """
+    if not by_copy:
+        raise TextualError("no copies were offered to route")
+    languages = sorted(COMMONEST_WORDS)
+    buckets: dict[str, list[Mapping[str, Any]]] = {
+        **{language: [] for language in languages},
+        "no_declared_language": [],
+    }
+    for row in by_copy:
+        carries = row["carries"]
+        landed = "no_declared_language"
+        for language in languages:
+            if (carries.get(language) or 0) >= criterion:
+                landed = language
+                break
+        buckets[landed].append(row)
+
+    def _summarise(rows: Sequence[Mapping[str, Any]]) -> dict[str, Any]:
+        readings = [r for r in rows if r["certified"] == "a_reading"]
+        wrong = [r for r in rows if r["certified"] == "a_wrong_script_reading"]
+        return {
+            "copies": len(rows),
+            "certified_readings": len(readings),
+            "certified_wrong_script_readings": len(wrong),
+            "not_certified": len(rows) - len(readings) - len(wrong),
+            "readings_run": (
+                [
+                    min(r["share_that_recurs"] for r in readings),
+                    max(r["share_that_recurs"] for r in readings),
+                ]
+                if readings
+                else None
+            ),
+            "wrong_script_readings_run": (
+                [
+                    min(r["share_that_recurs"] for r in wrong),
+                    max(r["share_that_recurs"] for r in wrong),
+                ]
+                if wrong
+                else None
+            ),
+            # ⛔ A value can be fitted in a bucket only if the bucket holds BOTH sides. One
+            #   side alone is the original defect of this floor exactly - fitted where it is
+            #   loosest, applied where it is tightest - repeated one bucket at a time.
+            "a_value_can_be_fitted_here": bool(readings and wrong),
+            "and_it_would_separate_them": bool(
+                readings
+                and wrong
+                and min(r["share_that_recurs"] for r in readings)
+                > max(r["share_that_recurs"] for r in wrong)
+            ),
+        }
+
+    summary = {name: _summarise(rows) for name, rows in buckets.items()}
+    fittable = [name for name, cell in summary.items() if cell["a_value_can_be_fitted_here"]]
+    separating = [name for name in fittable if summary[name]["and_it_would_separate_them"]]
+    return {
+        "criterion": criterion,
+        "block": block,
+        "by_bucket": summary,
+        "buckets_holding_both_sides": fittable,
+        "buckets_where_a_value_would_separate": separating,
+        "every_wrong_script_reading_landed_in": sorted(
+            {
+                name
+                for name, rows in buckets.items()
+                if any(r["certified"] == "a_wrong_script_reading" for r in rows)
+            }
+        ),
+        "the_bucket_holding_the_wrong_script_readings_holds_no_reading": all(
+            summary[name]["certified_readings"] == 0
+            for name, rows in buckets.items()
+            if any(r["certified"] == "a_wrong_script_reading" for r in rows)
+        ),
+        "what_this_establishes": (
+            "⛔⛔⛔ A PER-LANGUAGE FLOOR IS SORTED BY THE ONE INSTRUMENT WHOSE ABSENCE "
+            "ESTABLISHES NOTHING, AND THE SORT PUTS THE TWO SIDES IN DIFFERENT BUCKETS. A "
+            "reading in a script the work cannot be printed in answers to no word list, so "
+            "it lands where no language is declared - and a floor fitted in a language "
+            "bucket is fitted with no copy below it, which is this floor's original defect "
+            "one bucket at a time. ⚠ Routing the undeclared bucket to a refusal is not "
+            "available either: the copies there that are NOT certified wrong-script include "
+            "legible Bengali, Tamil, Urdu and Kashmiri, refused for a fact about the word "
+            "list rather than about themselves"
+        ),
+    }
+
+
 def refuse_a_rendering_that_does_not_repeat(
     edition: Edition, *, what_it_would_make_free: str, length: int = RECURRENCE_MEASURED_AT
 ) -> dict[str, Any]:
@@ -1404,6 +1795,19 @@ def refuse_a_rendering_that_does_not_repeat(
     #    ⚠ What replaces the refusal is not silence: every row `recurrence_of` returns carries
     #    the 320 000 and says in terms that no extent has been established at which clearing
     #    this floor means anything.
+    #
+    # ⛔⛔⛔ **AND CLEARING THIS FLOOR IS NOW MEASURED TO ESTABLISH NOTHING AT ALL, WHICH IS
+    #    A STRONGER STATEMENT THAN THE ONE ABOVE AND WAS MADE ON EVIDENCE THAT DID NOT EXIST
+    #    WHEN THE ONE ABOVE WAS WRITTEN.** The paragraphs above reason from a WINDOW of a
+    #    refused copy. Three WHOLE copies this floor accepts are certified - by a presence of
+    #    a script their catalogued work cannot be printed in, never by a word count - to be
+    #    readings in the wrong script, and the largest is 39 129 518 characters of Devanagari
+    #    produced by a machine set to the wrong script over an English encyclopaedia. It
+    #    clears this floor by 3.05x. See `GREATEST_SHARE_A_WRONG_SCRIPT_READING_REACHES`.
+    #
+    # ⛔ So the return below is a MEASUREMENT and not a certificate, and the row it returns
+    #    says so on two fields. A caller reads what a guard passes as checked - that is the
+    #    reason the accepting side is not armed, and it is now the reason it must not be.
     return measured
 
 

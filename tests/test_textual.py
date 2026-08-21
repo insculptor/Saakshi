@@ -30,9 +30,13 @@ from saakshi.texts import DEVANAGARI, passage_fidelity, script_presence
 from saakshi.textual import (
     COMMONEST_WORDS,
     GREATEST_EXTENT_AT_WHICH_A_WINDOW_OF_A_REFUSED_COPY_HAS_CLEARED,
+    GREATEST_SHARE_A_WRONG_SCRIPT_READING_REACHES,
     LEAST_LENGTH_A_DECLARED_WORD_CARRIES,
+    LEAST_COPIES_THIS_FLOOR_MISCLASSIFIES_AT_ANY_VALUE,
     LEAST_EXTENT_A_REFUSAL_DISCRIMINATES_AT,
     LEAST_RECURRENCE,
+    LEAST_SHARE_A_COPY_CARRYING_ITS_OWN_LANGUAGE_REACHES,
+    STATISTICS_MEASURED_AGAINST_THIS_FLOOR,
     RECURRENCE_MEASURED_AT,
     REFUSAL_REASONS,
     SIGNS,
@@ -58,6 +62,8 @@ from saakshi.textual import (
     as_by_sign,
     collect_occurrences,
     digest,
+    how_a_per_language_floor_would_be_fitted,
+    least_error_a_single_value_can_reach,
     measured_extent,
     normalise,
     one_per_cent_grid,
@@ -2332,7 +2338,22 @@ def test_the_extent_a_refusal_discriminates_at_is_the_measured_one():
         GREATEST_EXTENT_AT_WHICH_A_WINDOW_OF_A_REFUSED_COPY_HAS_CLEARED
     )
     assert row["this_copy_is_longer_than_that"] is False
-    assert "NOT ESTABLISHED AT ANY EXTENT" in row["a_high_share_here_is_about_the_copy"]
+    # ⛔⛔⛔ THE WITHDRAWAL IS OWED IN TWO DIRECTIONS NOW, AND EACH IS PINNED BY ITS OWN
+    #    WORDS. It used to read "NOT ESTABLISHED AT ANY EXTENT", which withdrew only the
+    #    EXTENT claim; three whole copies this floor accepts are now certified wrong-script
+    #    readings, so what has to be withdrawn is the VALUE claim as well. ⭐ Asserting the
+    #    words owed rather than that some withdrawal is present: a guard test that accepts
+    #    any refusal is satisfied by a different guard than the one it was written for.
+    assert "NOT ESTABLISHED, AT ANY EXTENT OR ANY VALUE" in (
+        row["a_high_share_here_is_about_the_copy"]
+    )
+    assert "0.030511" in row["a_high_share_here_is_about_the_copy"]
+    assert str(LEAST_COPIES_THIS_FLOOR_MISCLASSIFIES_AT_ANY_VALUE) in (
+        row["a_high_share_here_is_about_the_copy"]
+    )
+    assert row["the_greatest_share_a_wrong_script_reading_reaches"] == (
+        GREATEST_SHARE_A_WRONG_SCRIPT_READING_REACHES
+    )
     # ⚠ The correction to the published sentence, present: a near-zero share means what it
     #   says ONLY above the extent. ⛔ Pinned by the qualification rather than by the number,
     #   which appears in the same sentence for a different reason.
@@ -2596,8 +2617,15 @@ def test_the_accepting_side_is_disarmed_and_the_reason_is_measured():
     # ⛔⛔ BUT PASSING IS NOT CERTIFYING, and the row it returns has to say so in its own
     #    words. This is the whole of what replaced the refusal.
     assert passed["this_copy_is_longer_than_that"] is False
-    assert "NOT ESTABLISHED AT ANY EXTENT" in passed["a_high_share_here_is_about_the_copy"]
+    assert "NOT ESTABLISHED, AT ANY EXTENT OR ANY VALUE" in (
+        passed["a_high_share_here_is_about_the_copy"]
+    )
     assert passed["the_greatest_extent_at_which_a_window_of_a_refused_copy_has_cleared"] == 320000
+    # ⛔ And the value side of the same withdrawal, on the row a PASS returns.
+    assert passed["the_greatest_share_a_wrong_script_reading_reaches"] == 0.030511
+    assert passed["this_copy_repeats_more_than_that"] is (
+        passed["share_that_recurs"] > 0.030511
+    )
 
     # ⛔⛔⛔ AND THE COST OF ARMING IT, MEASURED RATHER THAN ASSERTED. Every fixture this file
     #    builds an attestation or an absence on is orders of magnitude under the number, so an
@@ -3035,3 +3063,278 @@ def test_both_sides_of_the_draws_are_registered_and_the_accepted_side_is_not_cer
         assert "accepting is not a certificate" in source.identity
     drawn = " ".join(SOURCES[key].identity for key in COPIES_THAT_CLEARED_KEYS)
     assert "the head of the collection" in drawn and "bucket" in drawn
+
+
+# --------------------------------------------------------------------------------------
+# ⛔⛔⛔ The floor errs in BOTH directions, and neither named repair can be made
+# --------------------------------------------------------------------------------------
+
+
+def test_the_two_certified_sets_cross_so_no_value_of_this_floor_separates_them():
+    """⛔⛔⛔ THE MEASUREMENT THIS SESSION WAS FOR, PINNED AT BOTH ENDS.
+
+    The floor was known to refuse real books. It is now measured to ACCEPT readings in a
+    script their work cannot be printed in — three of them, the largest 39 129 518
+    characters — and the two ranges CROSS, so no value of this statistic separates them.
+
+    ⭐ Both numbers are pinned, and so is the direction of the crossing: a revert that put
+    either back where a one-sided fitting had it cannot pass as a re-measurement.
+    """
+    assert LEAST_SHARE_A_COPY_CARRYING_ITS_OWN_LANGUAGE_REACHES == 0.006873
+    assert GREATEST_SHARE_A_WRONG_SCRIPT_READING_REACHES == 0.030511
+    # ⛔ CROSSED, and by more than four times. This is the whole finding in one line.
+    assert (
+        GREATEST_SHARE_A_WRONG_SCRIPT_READING_REACHES
+        > LEAST_SHARE_A_COPY_CARRYING_ITS_OWN_LANGUAGE_REACHES
+    )
+    assert (
+        GREATEST_SHARE_A_WRONG_SCRIPT_READING_REACHES
+        / LEAST_SHARE_A_COPY_CARRYING_ITS_OWN_LANGUAGE_REACHES
+    ) > 4
+    # ⭐ And the published floor sits BETWEEN them, which is what makes it wrong both ways.
+    assert (
+        LEAST_SHARE_A_COPY_CARRYING_ITS_OWN_LANGUAGE_REACHES
+        < LEAST_RECURRENCE
+        < GREATEST_SHARE_A_WRONG_SCRIPT_READING_REACHES
+    )
+    assert LEAST_COPIES_THIS_FLOOR_MISCLASSIFIES_AT_ANY_VALUE == 5
+
+
+def test_the_least_error_curve_is_complete_and_the_published_value_is_already_least():
+    """⭐ The instrument, driven over the shape the real evidence has.
+
+    ⛔ The fixture reproduces the crossing rather than standing in for it: the lowest real
+    book sits BELOW the highest wrong-script reading, so no value separates, and the total
+    is NOT monotone in the value — which is why the whole curve travels rather than a bound
+    read off it.
+    """
+    readings = {"a": 0.006873, "b": 0.00864, "c": 0.0104, "d": 0.09}
+    wrong = {"x": 0.0002, "y": 0.011922, "z": 0.030511}
+    measured = least_error_a_single_value_can_reach(
+        carrying_their_own_language=readings,
+        read_in_a_script_the_work_cannot_be_printed_in=wrong,
+    )
+    assert measured["any_value_separates_them"] is False
+    assert measured["the_lowest_real_book"] == {"copy": "a", "share": 0.006873}
+    assert measured["the_highest_wrong_script_reading"] == {"copy": "z", "share": 0.030511}
+    # ⭐ COMPLETE over the values the two sets take — one point per distinct value, never a
+    #   grid. A threshold's behaviour changes only at an observed value.
+    assert len(measured["the_whole_curve"]) == len(set(readings.values()) | set(wrong.values()))
+    assert [point["value"] for point in measured["the_whole_curve"]] == sorted(
+        set(readings.values()) | set(wrong.values())
+    )
+    # ⛔⛔ AND NOT MONOTONE: it falls, rises and falls again, so *the smallest value at which
+    #   the total stops falling* is not the minimum. That rule put the refusing extent bound
+    #   1 686 characters wrong two sessions ago.
+    totals = [point["copies_misclassified"] for point in measured["the_whole_curve"]]
+    assert any(totals[i] < totals[i - 1] for i in range(1, len(totals)))
+    assert any(totals[i] > totals[i - 1] for i in range(1, len(totals)))
+    assert measured["least_copies_any_value_misclassifies"] == min(totals)
+    # ⭐ The cost of refusing every wrong-script reading, which is what an armed guard costs.
+    assert measured["the_least_value_that_refuses_every_wrong_script_reading"] == 0.09
+    assert measured["what_that_value_costs"] == 3
+
+
+def test_the_least_error_curve_refuses_a_copy_certified_on_both_sides():
+    """⛔ A copy in both sets makes every count below it a number about nothing.
+
+    ⭐ The words of the refusal are asserted, not merely that a refusal came back: this
+    module has six guard branches that all raise `TextualError`, and a test satisfied by any
+    of them reports coverage while its own branch sits dead.
+    """
+    with pytest.raises(TextualError) as raised:
+        least_error_a_single_value_can_reach(
+            carrying_their_own_language={"a": 0.02, "shared": 0.05},
+            read_in_a_script_the_work_cannot_be_printed_in={"shared": 0.01},
+        )
+    assert "the two certified sets share" in str(raised.value)
+    assert "shared" in str(raised.value)
+
+
+def test_the_least_error_curve_refuses_either_side_being_empty():
+    """⛔ A maximum over an empty set is how an accepting bound came to be published off one
+    specimen. ⭐ Two calls, each isolating ONE side, because a single empty-both call would
+    be satisfied by whichever check ran first.
+    """
+    with pytest.raises(TextualError) as no_readings:
+        least_error_a_single_value_can_reach(
+            carrying_their_own_language={},
+            read_in_a_script_the_work_cannot_be_printed_in={"x": 0.01},
+        )
+    assert "both certified sets are required" in str(no_readings.value)
+    with pytest.raises(TextualError) as no_wrong:
+        least_error_a_single_value_can_reach(
+            carrying_their_own_language={"a": 0.01},
+            read_in_a_script_the_work_cannot_be_printed_in={},
+        )
+    assert "both certified sets are required" in str(no_wrong.value)
+    # ⛔ And neither of those is the disjointness refusal, which shares the same exception
+    #   type — the two are owed different words and this pins that they are.
+    assert "the two certified sets share" not in str(no_readings.value)
+    assert "the two certified sets share" not in str(no_wrong.value)
+
+
+def test_a_per_language_floor_is_routed_into_buckets_that_hold_one_side_each():
+    """⛔⛔⛔ THE FIRST NAMED REPAIR, MEASURED. A per-language floor needs a routing rule, the
+    only routing rule available is `COMMONEST_WORDS`, and it puts the two sides in different
+    buckets — so a floor fitted in a language bucket is fitted with nothing below it, which
+    is this floor's original defect one bucket at a time.
+    """
+    rows = [
+        {
+            "copy": "an english book",
+            "share_that_recurs": 0.05,
+            "certified": "a_reading",
+            "carries": {"english": 0.99, "sanskrit_or_hindi": 0.0},
+        },
+        {
+            "copy": "a sanskrit book",
+            "share_that_recurs": 0.0069,
+            "certified": "a_reading",
+            "carries": {"english": 0.0, "sanskrit_or_hindi": 0.79},
+        },
+        {
+            "copy": "an english book read in devanagari",
+            "share_that_recurs": 0.0305,
+            "certified": "a_wrong_script_reading",
+            "carries": {"english": 0.0, "sanskrit_or_hindi": 0.01},
+        },
+        {
+            "copy": "a legible bengali book no list here can meet",
+            "share_that_recurs": 0.0328,
+            "certified": "not_certified",
+            "carries": {"english": 0.0, "sanskrit_or_hindi": 0.0},
+        },
+    ]
+    fitted = how_a_per_language_floor_would_be_fitted(by_copy=rows, criterion=0.75)
+    assert fitted["criterion"] == 0.75
+    # ⛔ NO bucket holds both sides, so there is nothing to fit anywhere.
+    assert fitted["buckets_holding_both_sides"] == []
+    assert fitted["buckets_where_a_value_would_separate"] == []
+    assert fitted["every_wrong_script_reading_landed_in"] == ["no_declared_language"]
+    assert fitted["the_bucket_holding_the_wrong_script_readings_holds_no_reading"] is True
+    assert fitted["by_bucket"]["english"]["certified_wrong_script_readings"] == 0
+    assert fitted["by_bucket"]["sanskrit_or_hindi"]["certified_wrong_script_readings"] == 0
+    assert fitted["by_bucket"]["no_declared_language"]["certified_readings"] == 0
+    # ⚠ And the undeclared bucket cannot simply be refused wholesale: a legible copy in a
+    #   language nobody declared is sitting in it, refused for a fact about the word list.
+    assert fitted["by_bucket"]["no_declared_language"]["not_certified"] == 1
+    assert "legible Bengali" in fitted["what_this_establishes"]
+
+
+def test_a_per_language_bucket_that_does_hold_both_sides_still_does_not_separate():
+    """⛔ The other branch of the same routing, isolated: at the loosest criterion the census
+    published, one wrong-script reading DOES land in a language bucket — and a value fitted
+    there does not separate, because it sits inside the readings' own range.
+
+    ⚠ This is the real shape: `TheTheoryOfTheSamdhis…` carries declared Sanskrit across
+    48.8 % of itself, because the wrong-script reader got its Sanskrit quotations right.
+    """
+    rows = [
+        {
+            "copy": "the lowest sanskrit book",
+            "share_that_recurs": 0.006873,
+            "certified": "a_reading",
+            "carries": {"english": 0.0, "sanskrit_or_hindi": 0.79},
+        },
+        {
+            "copy": "the highest sanskrit book",
+            "share_that_recurs": 0.089183,
+            "certified": "a_reading",
+            "carries": {"english": 0.0, "sanskrit_or_hindi": 1.0},
+        },
+        {
+            "copy": "an english monograph whose sanskrit quotations survived",
+            "share_that_recurs": 0.009675,
+            "certified": "a_wrong_script_reading",
+            "carries": {"english": 0.0, "sanskrit_or_hindi": 0.49},
+        },
+    ]
+    fitted = how_a_per_language_floor_would_be_fitted(by_copy=rows, criterion=0.25)
+    assert fitted["buckets_holding_both_sides"] == ["sanskrit_or_hindi"]
+    # ⛔⛔⛔ A VALUE CAN BE FITTED HERE AND IT STILL DOES NOT SEPARATE — the wrong-script
+    #    reading sits INSIDE the readings' range, not below it.
+    assert fitted["buckets_where_a_value_would_separate"] == []
+    cell = fitted["by_bucket"]["sanskrit_or_hindi"]
+    assert cell["a_value_can_be_fitted_here"] is True
+    assert cell["and_it_would_separate_them"] is False
+    assert cell["readings_run"][0] < cell["wrong_script_readings_run"][1]
+    # ⭐ And the same rows at a tighter criterion move it out again, which is why the
+    #   criterion travels on the row rather than being chosen once and forgotten.
+    tighter = how_a_per_language_floor_would_be_fitted(by_copy=rows, criterion=0.75)
+    assert tighter["buckets_holding_both_sides"] == []
+    assert tighter["every_wrong_script_reading_landed_in"] == ["no_declared_language"]
+
+
+def test_a_per_language_floor_refuses_an_empty_offering():
+    """⛔ Nothing to route is not an empty result, it is a refusal — owed its own words."""
+    with pytest.raises(TextualError) as raised:
+        how_a_per_language_floor_would_be_fitted(by_copy=[], criterion=0.75)
+    assert "no copies were offered to route" in str(raised.value)
+
+
+def test_every_statistic_offered_as_a_replacement_is_named():
+    """⭐ A count with no names is a silent cap on what a reader can check.
+
+    ⛔ Nine were offered and none of them separates the two sets; the nine are named so that
+    a reader can see which questions were asked, and a tenth that was never asked is not
+    hidden inside a total.
+    """
+    assert len(STATISTICS_MEASURED_AGAINST_THIS_FLOOR) == 9
+    assert len(set(STATISTICS_MEASURED_AGAINST_THIS_FLOOR)) == 9
+    # ⭐ The floor as it stands is one of the nine, so the list includes its own subject.
+    assert (
+        "share_of_distinct_12_character_fragments_that_recur"
+        in STATISTICS_MEASURED_AGAINST_THIS_FLOOR
+    )
+    # ⛔ The one that is degenerate rather than merely inverted is named too.
+    assert "the_copy_against_a_shuffle_of_itself" in STATISTICS_MEASURED_AGAINST_THIS_FLOOR
+
+
+def test_the_wrong_script_certification_is_a_declaration_over_copies_this_repository_holds():
+    """⛔ Certified by a PRESENCE of the wrong script, and never by a word count.
+
+    ⚠ Checks the registry, not the copies: they are third-party material under a git-ignored
+    cache, and a test that required them would fail on a fresh clone.
+    """
+    from saakshi.texts import (
+        ABSTAINED_FROM_CERTIFYING,
+        COPIES_THAT_CLEARED_KEYS,
+        READINGS_IN_A_SCRIPT_THE_WORK_CANNOT_BE_PRINTED_IN,
+        SOURCES,
+        certification_of,
+    )
+
+    assert len(READINGS_IN_A_SCRIPT_THE_WORK_CANNOT_BE_PRINTED_IN) == 21
+    assert len(ABSTAINED_FROM_CERTIFYING) == 13
+    # ⛔ Disjoint, and every key is a copy this repository actually registers.
+    assert not (
+        set(READINGS_IN_A_SCRIPT_THE_WORK_CANNOT_BE_PRINTED_IN)
+        & set(ABSTAINED_FROM_CERTIFYING)
+    )
+    for key in (
+        *READINGS_IN_A_SCRIPT_THE_WORK_CANNOT_BE_PRINTED_IN,
+        *ABSTAINED_FROM_CERTIFYING,
+    ):
+        assert key in SOURCES
+    # ⭐⭐⭐ AND THREE OF THEM ARE COPIES THIS FLOOR ACCEPTS. That is the new evidence: until
+    #    the accepted side was held, this floor could only ever be measured from below.
+    accepted = set(READINGS_IN_A_SCRIPT_THE_WORK_CANNOT_BE_PRINTED_IN) & set(
+        COPIES_THAT_CLEARED_KEYS
+    )
+    assert len(accepted) == 3
+    # ⛔ Each certification names the catalogued WORK, which is what makes the script wrong.
+    for key, reason in READINGS_IN_A_SCRIPT_THE_WORK_CANNOT_BE_PRINTED_IN.items():
+        assert any(word in reason for word in ("ENGLISH", "KANNADA"))
+    # ⛔ And the abstentions name why the certification is WITHHELD, one by one.
+    for key, reason in ABSTAINED_FROM_CERTIFYING.items():
+        assert reason.strip()
+    # ⭐ Three isolating inputs, one per answer, because a sorter tested on one input
+    #   reports full coverage while two of its three branches sit dead.
+    assert certification_of(next(iter(READINGS_IN_A_SCRIPT_THE_WORK_CANNOT_BE_PRINTED_IN))) == (
+        "a_wrong_script_reading"
+    )
+    assert certification_of(next(iter(ABSTAINED_FROM_CERTIFYING))) == "abstained"
+    assert certification_of("jaimini_sutras_rao") == "not_certified"
+    # ⛔ It consults no copy and no measurement: a key nothing is held for still answers.
+    assert certification_of("a key no source exists for") == "not_certified"

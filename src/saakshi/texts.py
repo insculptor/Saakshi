@@ -32,7 +32,7 @@ from __future__ import annotations
 import json
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Callable
+from typing import Any, Callable, Mapping
 
 from .acquisition import AcquisitionError, retrieve
 from .textual import Edition, Rendering, Witness, digest, measured_extent, normalise
@@ -1281,6 +1281,168 @@ for _identifier, _drawn, _address in _COPIES_THAT_CLEARED:
 COPIES_THAT_CLEARED_KEYS: tuple[str, ...] = tuple(
     key for key in SOURCES if key.startswith("cleared_copy_")
 )
+
+
+# --------------------------------------------------------------------------------------
+# Which of these copies is certified to be a reading in the WRONG SCRIPT
+# --------------------------------------------------------------------------------------
+#
+# ⭐⭐⭐ **A CERTIFICATION BY A PRESENCE, WHICH IS THE ONLY KIND THIS REPOSITORY ACCEPTS.**
+#    The rendering carries, at essentially every one of its letters, a script the catalogued
+#    work cannot be printed in. That is a presence of the WRONG script — it establishes that
+#    the reader was set to a script the printing does not use, so whatever it returned is not
+#    the words of the work. ⛔ It is NOT a certification by the copy failing to answer to a
+#    word list: an absence establishes nothing, and the copies below are certified without
+#    consulting `COMMONEST_WORDS` at all.
+#
+# ⛔⛔ **AND IT IS A LOWER BOUND, LIKE EVERY COUNT IN THIS REPOSITORY.** Where the catalogued
+#    work is itself multilingual — the commemoration and felicitation volumes, which print
+#    English articles and Sanskrit ones between the same covers — a Devanagari reading is not
+#    by itself wrong, so those copies are ABSTAINED FROM rather than certified, and they are
+#    named below with the abstention's reason. ⚠ Several of them are almost certainly
+#    wrong-script readings too, and none of them is counted as one.
+#
+# ⭐ WHY IT EXISTS. `LEAST_RECURRENCE` had only ever been measured against copies it REFUSES.
+#    A guard needs the other side: copies it ACCEPTS that it ought not to. Three of the
+#    twenty-five copies it accepts are certified here, the largest of them 39 129 518
+#    characters.
+
+#: The copy key -> what the catalogued work is, and therefore why this reading is in a script
+#: the work cannot be printed in. ⛔ Every entry names the work; none names a measurement.
+READINGS_IN_A_SCRIPT_THE_WORK_CANNOT_BE_PRINTED_IN: Mapping[str, str] = {
+    "jaimini_sutras_rao_library_scan": (
+        "B. Suryanarain Rao's ENGLISH translation of the Jaimini Sutras. ⭐ This "
+        "repository's own control, and the copy the wrong-alphabet finding was made on"
+    ),
+    "refused_copy_01wonhyowebcollectedworksofkoreanbuddhism_391_m": (
+        "'Collected Works of Korean Buddhism' volume 1, an ENGLISH-language series"
+    ),
+    "refused_copy_02_encycreligethics_v2_artbun_hastings_selbie_1910_1_202003_973_f": (
+        "Hastings' 'Encyclopaedia of Religion and Ethics' volume 2, ENGLISH, 1910"
+    ),
+    "refused_copy_02chinulwebcollectedworksofkoreanbuddhism_545_d": (
+        "'Collected Works of Korean Buddhism' volume 2, an ENGLISH-language series"
+    ),
+    "refused_copy_04_encycreligethics_v4_condram_hastings_selbie_1910_1_202003_519_g": (
+        "Hastings' 'Encyclopaedia of Religion and Ethics' volume 4, ENGLISH, 1910"
+    ),
+    "refused_copy_04hwaomiwebcollectedworksofkoreanbuddhism_992_c": (
+        "'Collected Works of Korean Buddhism' volume 4, an ENGLISH-language series"
+    ),
+    "refused_copy_07_encycreligethics_v7_hymlib_hastings_selbie_gray_1915_1_202003_461_w": (
+        "Hastings' 'Encyclopaedia of Religion and Ethics' volume 7, ENGLISH, 1915"
+    ),
+    "refused_copy_10_encycreligethics_v10_picsac_hastings_selbie_gray_1918_1_202003_416_a": (
+        "Hastings' 'Encyclopaedia of Religion and Ethics' volume 10, ENGLISH, 1918"
+    ),
+    "refused_copy_5000_years_of_kashmir_balraj_puri": (
+        "Balraj Puri, '5000 Years of Kashmir', ENGLISH, 1993"
+    ),
+    "refused_copy_60yearsofchinesemisrulearguingculturalgenocideintibetmarybethmarkeyarticles_195_o": (
+        "Mary Beth Markey, articles on Tibet, ENGLISH"
+    ),
+    "refused_copy_annalsofeastindiacompanyjohnbruce17071708vol2prited1810_567_n": (
+        "John Bruce, 'Annals of the Honorable East-India Company' volume 2, ENGLISH, "
+        "printed 1810"
+    ),
+    "refused_copy_biharthehomelandofbuddhism_675_o": (
+        "'Bihar, the Homeland of Buddhism', ENGLISH"
+    ),
+    "refused_copy_collectedworksofmahatmagandhivol23_838_h": (
+        "'The Collected Works of Mahatma Gandhi' volume 23, the ENGLISH edition"
+    ),
+    "refused_copy_earliestcivilizationofsouthasiarisematuritydeclinelalb_b__837_d": (
+        "B. B. Lal, 'The Earliest Civilization of South Asia', ENGLISH"
+    ),
+    "refused_copy_obscurereligiouscultsshashibhushandasgupta1946_202003_922_y": (
+        "Shashibhushan Dasgupta, 'Obscure Religious Cults', ENGLISH, 1946"
+    ),
+    "refused_copy_replytolettersofabbeduboisbyjameshough1824_202003_367_e": (
+        "James Hough, 'A Reply to the Letters of the Abbe Dubois', ENGLISH, 1824"
+    ),
+    "refused_copy_scienceandtheindiantraditionwheneinsteinmettagoredavidgoslingl_routledge_28_n": (
+        "David L. Gosling, 'Science and the Indian Tradition', Routledge, ENGLISH"
+    ),
+    "refused_copy_thetheoryofthesamdhisandthesamdhyangasinnatyashastrat_g_mainkar": (
+        "T. G. Mainkar, 'The Theory of the Samdhis and the Samdhyangas in Natyashastra', "
+        "an ENGLISH monograph of 1978. ⚠ It quotes the Natyashastra's Sanskrit, and the "
+        "wrong-script reader got those quotations RIGHT, which is why this copy carries "
+        "declared Sanskrit across 48.8 % of its thousand-character blocks"
+    ),
+    "cleared_copy_0415073103encofphilosophy10vs_202003_611_x": (
+        "ISBN 0415073103, the Routledge 'Encyclopedia of Philosophy' in ten volumes, "
+        "ENGLISH. ⛔ 39 129 518 normalised characters, the largest copy this repository "
+        "holds, and `LEAST_RECURRENCE` ACCEPTS it"
+    ),
+    "cleared_copy_00bhagavatainkannada1stskandha_202003_821_f": (
+        "'Bhagavata in Kannada, 1st Skandha' - a KANNADA work; the reading is Devanagari. "
+        "⛔ `LEAST_RECURRENCE` accepts it"
+    ),
+    "cleared_copy_iabu2012buddhasenlightenmentforthewellbeingofhumanity_62_z": (
+        "the IABU 2012 conference proceedings, ENGLISH. ⛔ `LEAST_RECURRENCE` accepts it"
+    ),
+}
+
+#: Copies a wrong-script reading is SUSPECTED of and **not certified**, with the reason the
+#: certification is withheld. ⛔ Named rather than counted: a count with no names is a silent
+#: cap on what a reader can check, and these are the copies that would most change the
+#: numbers if anyone could certify them.
+ABSTAINED_FROM_CERTIFYING: Mapping[str, str] = {
+    "refused_copy_b_c_lawvolumepart1ms_900_n": (
+        "a felicitation volume that prints English papers and Sanskrit ones together"
+    ),
+    "refused_copy_k_b_pathakcommemorationvolumes_k_belvalkar_272_w": (
+        "a commemoration volume, English and Sanskrit between the same covers"
+    ),
+    "refused_copy_m_hiriyannacommemorationvolume_444_t": (
+        "a commemoration volume, English and Sanskrit between the same covers"
+    ),
+    "refused_copy_r_g_bhandarkarcommemorationvolume_745_r": (
+        "a commemoration volume, English and Sanskrit between the same covers"
+    ),
+    "refused_copy_manusmritivol4part2_202003_726_p": (
+        "the language of this volume is not settled here"
+    ),
+    "refused_copy_06kssayingsoflalleshwari_202003_29_n": (
+        "Kashmiri, English and Devanagari together"
+    ),
+    "refused_copy_20tarjumabhagavatgitarahasyalokmanyabalgangadhartilak_6": (
+        "a translation; the language it was translated INTO is not settled here"
+    ),
+    "refused_copy_the_mudra_rakshasa_nataka_katha_of_mahadeva_ed__dr_v__raghavan_series_no__1_than": (
+        "a Sanskrit work read in Devanagari - the script is not wrong"
+    ),
+    "refused_copy_nacaratnamalikaandotherworksofsastrasarmannavyanyayamarip_i_thesis_202003_693_m": (
+        "a Sanskrit work read in Devanagari - the script is not wrong"
+    ),
+    "refused_copy_dictionaryofastrologybhansinj_n__738_": (
+        "a Devanagari dictionary read in Devanagari - the script is not wrong"
+    ),
+    "refused_copy_paar_pare_urdu_novel_joginder_paul": (
+        "an Urdu novel read in the Arabic script - the script is not wrong"
+    ),
+    "refused_copy_wafatnamah_anhazrat_kashmiri_ghulam_mohd_noor_mohd": (
+        "Kashmiri read in the Arabic script - the script is not wrong"
+    ),
+    "refused_copy_qadeemshaariyaataskashirenhunddyutbykndharkashmirithepgdeptofkashmirikashmiruniversity": (
+        "Kashmiri read in the Arabic script - the script is not wrong"
+    ),
+}
+
+
+def certification_of(key: str) -> str:
+    """`a_wrong_script_reading`, `abstained` or `not_certified`, for one copy key.
+
+    ⛔ **`not_certified` and `abstained` are different answers and the difference is the
+    point.** `abstained` names a copy this repository looked at and DECLINED to certify;
+    `not_certified` is every other copy, including every one certified as a READING by a
+    presence of its own language, which is a measurement and not a declaration.
+    """
+    if key in READINGS_IN_A_SCRIPT_THE_WORK_CANNOT_BE_PRINTED_IN:
+        return "a_wrong_script_reading"
+    if key in ABSTAINED_FROM_CERTIFYING:
+        return "abstained"
+    return "not_certified"
 
 
 # --------------------------------------------------------------------------------------
