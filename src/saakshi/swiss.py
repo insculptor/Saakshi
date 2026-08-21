@@ -12,7 +12,7 @@ zeros that means only that the comparison did not happen.
 ephemeris that did not produce it.** Every recorded value carries an assertion, and the
 assertion names how it was obtained.
 
-⛔ **Two kinds of assertion, and the difference is not cosmetic.**
+⛔ **Three kinds of assertion, and the differences are not cosmetic.**
 
 * ``reported`` — the entry point returns a flag saying which ephemeris answered, and it was
   the one asked for. This is the only direct evidence available.
@@ -20,9 +20,15 @@ assertion names how it was obtained.
   separate call that does, taken at both ends of the interval the non-reporting call may
   read. ⚠ A proxy is weaker than a report and is recorded as such on every row that uses
   one. It is *bounded*, not *sound*: see :func:`assert_window`.
+* ``none`` — ⛔ **a refusal, not a weaker proxy.** A proxy asserts that a *request* was
+  honoured; where the entry point takes no ephemeris argument there is no request to
+  honour, and the honest field says so. Such a call consults an ephemeris all the same:
+  see :func:`offset_attribution`, where the value moved by more than a hundredth of a
+  second with nothing changed but a path handed to an unrelated call.
 
 ⚠ **Which entry points report is a measured fact, not a documented one** — see
-:data:`ENTRY_POINTS`. One of them returns a flag that merely echoes the request.
+:data:`ENTRY_POINTS`. One of them returns a flag that merely echoes the request; two return
+a bare float with no flag, no code and no error channel at all.
 
 ⛔ **Recorder, never explainer.** This module records what the library returned and under
 which flags. It contains no account of how any ephemeris is evaluated.
@@ -179,6 +185,23 @@ def assert_window(
 # --------------------------------------------------------------------------------------
 
 
+#: The three assertions a recorder can make about where a value came from, weakest last.
+#:
+#: ⛔ **`none` is not a tidier spelling of `proxy_window`.** A proxy asserts that a *request*
+#: was honoured over the interval the silent call may read. Where nothing was requested — an
+#: entry point that takes no ephemeris argument at all — there is no request to honour and
+#: the proxy has nothing to say. ⚠ Such a call still consults an ephemeris; it simply cannot
+#: be asked which, so the honest field is a refusal and not a weaker claim.
+ASSERTIONS: tuple[str, ...] = ("reported", "proxy_window", "none")
+
+#: What a proxy costs, in the words `assert_window` already writes onto every row that uses
+#: one. ⚠ Kept as one string so the caveat cannot drift row by row into something softer.
+_WINDOW_CAVEAT = (
+    "⚠ bounded, not sound: it establishes that the requested ephemeris covered the whole "
+    "window, ⛔ not that the silent call read only inside it"
+)
+
+
 @dataclass(frozen=True)
 class EntryPoint:
     """One library entry point, and whether it reports the ephemeris that answered."""
@@ -188,61 +211,202 @@ class EntryPoint:
     reports_source: bool
     returns: str
     evidence: str
+    #: ⭐ What the entry point returns a value **of**. Recorded because the proxy that
+    #: stands in for a missing report is a call about a *position*, and two of these
+    #: entry points do not return positions — see `assertion_caveat`.
+    quantity: str
+    #: ⛔ **Declared, never derived.** It was derived once — `reported` if the entry point
+    #: reports and `proxy_window` otherwise — and that rule is wrong in both directions
+    #: for the time-offset entry points below: one has a proxy that is about a different
+    #: quantity, and the other has no proxy at all.
+    assertion_available: str
+    #: Why the available assertion is less than it looks, or empty where it is not.
+    assertion_caveat: str = ""
+
+
+class EntryPointDeclarationError(Exception):
+    """A row of the audit table declares an assertion its own other fields deny."""
+
+
+class SurveyRefusal(Exception):
+    """A survey declines to publish a verdict its own subject cannot support.
+
+    ⛔ Distinct from :class:`EphemerisSubstitution`, which says a value came from the
+    wrong place. This says the *measurement* was not one -- the grid it ran on did not
+    carry the property being surveyed, so its silence is a fact about the grid.
+    """
 
 
 #: ⭐ **The audit that makes the rest of R3 possible.** Every row of this table was
 #: established by calling the entry point under conditions where the requested ephemeris was
 #: known to be unavailable, and reading what came back.
 #:
-#: ⚠ Two of these take an ephemeris flag and return no source at all, and one returns a
-#: source that is not a source — it is the request, handed back. A rule that says only
-#: "assert the returned flag" is satisfied by that third one and learns nothing.
+#: ⚠ Four of these take an ephemeris flag and return no source at all, one returns a source
+#: that is not a source — it is the request, handed back — and one takes no flag and answers
+#: anyway. A rule that says only "assert the returned flag" is satisfied by the echoing one
+#: and learns nothing, and is not even applicable to the last.
 ENTRY_POINTS: tuple[EntryPoint, ...] = (
     EntryPoint(
         name="calc_ut",
         accepts_flag=True,
         reports_source=True,
         returns="(values, returned_flag)",
+        quantity="a position",
         evidence=(
             "with no data-file path set, a data-file request returned the analytical "
             "source bit; with the path set and an in-coverage date it returned the "
             "data-file bit; with the path set and an out-of-coverage date it returned the "
             "analytical bit again"
         ),
+        assertion_available="reported",
     ),
     EntryPoint(
         name="get_ayanamsa_ex_ut",
         accepts_flag=True,
         reports_source=False,
         returns="(returned_flag, value)",
+        quantity="an ayanamsha",
         evidence=(
             "⛔ the returned flag ECHOES the request. With no data-file path set at all — "
             "where calc_ut reports the analytical source — this entry point still returned "
             "the data-file bit it was handed. A flag that cannot report a substitution is "
             "not evidence of its absence"
         ),
+        assertion_available="proxy_window",
+        assertion_caveat=_WINDOW_CAVEAT,
     ),
     EntryPoint(
         name="houses_ex",
         accepts_flag=True,
         reports_source=False,
         returns="(cusps, ascmc)",
+        quantity="house cusps",
         evidence="no flag is returned; the value carries no statement about its source",
+        assertion_available="proxy_window",
+        assertion_caveat=_WINDOW_CAVEAT,
     ),
     EntryPoint(
         name="rise_trans",
         accepts_flag=True,
         reports_source=False,
         returns="(return_code, times)",
+        quantity="rise and set times",
         evidence=(
             "the integer returned is a success/failure code, not an ephemeris flag: it was "
             "0 both where the requested ephemeris answered and where it was substituted"
+        ),
+        assertion_available="proxy_window",
+        assertion_caveat=_WINDOW_CAVEAT + (
+            " ⭐ Of the silent entry points this is the one whose proxy is taken on the same "
+            "body it was asked about"
+        ),
+    ),
+    # ------------------------------------------------------------------------------
+    # ⛔ The two the survey was extended to, and the pair the survey REFUSES to attribute.
+    # ------------------------------------------------------------------------------
+    EntryPoint(
+        name="deltat_ex",
+        accepts_flag=True,
+        reports_source=False,
+        returns="a bare float — no flag, no code, no error channel",
+        quantity="the offset from civil to dynamical time",
+        evidence=(
+            "⛔ THE FLAG IS TAKEN AS A DECLARATION, NOT AS A REQUEST THAT CAN FAIL. Handed "
+            "the JPL flag with no JPL file on the machine, this entry point computed on the "
+            "JPL tidal constant and returned a number — while calc_ut, handed the SAME flag "
+            "in the SAME session state, reported that the data files had answered instead. "
+            "⚠ And handed the data-file flag with the data files removed, it moved silently "
+            "to the library's default constant rather than to the analytical ephemeris's, "
+            "which is the one calc_ut then reported as the answering source. ⛔ The binding "
+            "documents that a call before any path is set 'will raise'; measured, it "
+            "returns a value"
+        ),
+        assertion_available="proxy_window",
+        assertion_caveat=(
+            "⛔ THE PROXY IS ABOUT A DIFFERENT QUANTITY AND THE TWO WERE MEASURED COMING "
+            "APART. calc_ut reports which ephemeris supplied a POSITION; this entry point "
+            "returns a time offset computed from a tidal-acceleration constant, and the "
+            "constant in force was measured disagreeing with the reported source under one "
+            "unchanged flag. ⇒ the proxy bounds the window and establishes nothing about "
+            "this value's basis, so no ephemeris_basis is written for it"
+        ),
+    ),
+    EntryPoint(
+        name="deltat",
+        accepts_flag=False,
+        reports_source=False,
+        returns="a bare float — no flag, no code, no error channel",
+        quantity="the offset from civil to dynamical time",
+        evidence=(
+            "⛔ IT TAKES NO EPHEMERIS ARGUMENT AND HAS AN EPHEMERIS ANYWAY. The same instant "
+            "returned two different numbers — differing by more than a hundredth of a "
+            "second — with nothing changed but a directory path handed to an unrelated "
+            "call. It silently equalled the data-file answer where the files were present "
+            "and the default answer where they were not, and said so neither time. ⚠ The "
+            "binding's own documentation calls this 'an uncertain guess of what ephemeris "
+            "is being used'"
+        ),
+        assertion_available="none",
+        assertion_caveat=(
+            "⛔ NOT A WEAKER CLAIM — NO CLAIM. Nothing was requested, so there is no request "
+            "for a proxy to find honoured. The value's basis is whatever process-global "
+            "state a prior unrelated call happened to leave behind"
         ),
     ),
 )
 
 #: The entry points whose own return value is sufficient evidence of source.
 REPORTING = frozenset(e.name for e in ENTRY_POINTS if e.reports_source)
+
+#: ⛔ **The entry points for which no source may be written down at all.** A row recording a
+#: value from one of these carries the refusal itself where a lesser repository would carry
+#: a plausible name.
+REFUSES_ATTRIBUTION = frozenset(
+    e.name for e in ENTRY_POINTS if e.assertion_available == "none"
+)
+
+
+def _check_declaration(e: EntryPoint) -> None:
+    """Refuse a row whose declared assertion its own other fields deny.
+
+    ⛔ The derivation this replaces was a rule with no exceptions and therefore no way to
+    be wrong out loud. Making the field explicit puts the burden back on the editor, so the
+    invariants that *are* universal are enforced here instead of assumed.
+    """
+    if e.assertion_available not in ASSERTIONS:
+        raise EntryPointDeclarationError(
+            f"{e.name}: assertion_available={e.assertion_available!r} is not one of "
+            f"{list(ASSERTIONS)}"
+        )
+    if e.reports_source and e.assertion_available != "reported":
+        raise EntryPointDeclarationError(
+            f"{e.name}: it reports its own source, so the assertion available for it is "
+            f"'reported' and not {e.assertion_available!r}"
+        )
+    if not e.reports_source and e.assertion_available == "reported":
+        raise EntryPointDeclarationError(
+            f"{e.name}: it returns no report, so 'reported' is not available for it"
+        )
+    if e.accepts_flag and e.assertion_available == "none":
+        raise EntryPointDeclarationError(
+            f"{e.name}: it takes an ephemeris flag, so a request exists and a proxy can be "
+            "asked whether it was honoured. 'none' is for entry points with no request"
+        )
+    if not e.accepts_flag and e.assertion_available != "none":
+        raise EntryPointDeclarationError(
+            f"{e.name}: it takes no ephemeris flag, so there is no request for a proxy to "
+            f"find honoured; {e.assertion_available!r} would assert about nothing"
+        )
+    if e.assertion_available != "reported" and not e.assertion_caveat:
+        raise EntryPointDeclarationError(
+            f"{e.name}: every assertion weaker than a report costs the reader something, "
+            "and an uncaveated one reads as free"
+        )
+
+
+for _entry in ENTRY_POINTS:
+    _check_declaration(_entry)
+del _entry
 
 
 def entry_point_records() -> list[dict[str, Any]]:
@@ -251,11 +415,13 @@ def entry_point_records() -> list[dict[str, Any]]:
         {
             "finding": "flag_reporting",
             "entry_point": e.name,
+            "quantity_returned": e.quantity,
             "accepts_ephemeris_flag": e.accepts_flag,
             "reports_answering_ephemeris": e.reports_source,
             "returns": e.returns,
             "evidence": e.evidence,
-            "assertion_available": "reported" if e.reports_source else "proxy_window",
+            "assertion_available": e.assertion_available,
+            "assertion_caveat": e.assertion_caveat,
         }
         for e in ENTRY_POINTS
     ]
@@ -580,6 +746,339 @@ def state_dependence(
                 "⛔ the same instant, the same body, the same flags, three different "
                 "sessions of one process. The ephemeris that answers is not a function of "
                 "the call's arguments"
+            ),
+        }
+    )
+    return rows
+
+
+# --------------------------------------------------------------------------------------
+# ⛔ The time offset: an entry point that cannot be asked, surveyed live
+# --------------------------------------------------------------------------------------
+
+#: The library's own tidal-acceleration vocabulary, read out of the library rather than
+#: typed here. ⭐ **The whole finding below is a statement about this table**, so the table
+#: has to be the library's; a hand-copied one could be made to say anything.
+TIDAL_CONSTANTS: dict[str, float] = {
+    name: float(getattr(swe, name)) for name in dir(swe) if name.startswith("TIDAL_")
+}
+
+#: The three entries of that table that name an ephemeris *source* rather than a data set.
+#: ⛔ Two of them hold the same number, which is the reason the survey below refuses.
+TIDAL_BY_SOURCE: dict[str, float] = {
+    "moshier": TIDAL_CONSTANTS["TIDAL_MOSEPH"],
+    "swiss_file": TIDAL_CONSTANTS["TIDAL_SWIEPH"],
+    "jpl_file": TIDAL_CONSTANTS["TIDAL_JPLEPH"],
+}
+
+
+def bits_of(value: float) -> str:
+    """The bit pattern of a double. ⛔ Deferred so there is one writer, never two."""
+    from .fixture import bits
+
+    return bits(value)
+
+
+def tidal_constant_names(value: float) -> list[str]:
+    """Every name the library gives to a tidal-acceleration value. Often more than one."""
+    return sorted(name for name, held in TIDAL_CONSTANTS.items() if held == value)
+
+
+def sources_named_by_constant(value: float) -> list[str]:
+    """The ephemeris sources a tidal constant could be the constant *of*, per the library.
+
+    ⭐ **The instrument that must be able to answer as well as refuse.** For the analytical
+    ephemeris's constant this returns one name; for the number two of the library's own
+    source constants share, it returns two; for the constant an actual data file puts in
+    force it returns none, because that number is not any source's named constant at all.
+    ⇒ a survey that only ever returned an empty list would be measuring nothing, and this
+    is checked in the same run rather than argued.
+    """
+    return sorted(name for name, held in TIDAL_BY_SOURCE.items() if held == value)
+
+
+def source_bits_in_return(returned: Any) -> dict[str, Any]:
+    """Read a return value for a source report **without knowing what produced it**.
+
+    ⛔ **This is the control on the reader, not on the library.** "No flag came back" and
+    "this harness does not look at flags" are the same observation from the outside, and
+    only one of them is a finding. So the same blind procedure is run over the return of an
+    entry point known to report, over the returns of the two that are the subject here, and
+    over one that returns an integer which is *not* a flag — and the three answers are
+    recorded together.
+    """
+    integers: list[int] = []
+
+    def walk(value: Any) -> None:
+        if isinstance(value, bool):
+            return
+        if isinstance(value, int):
+            integers.append(value)
+        elif isinstance(value, (tuple, list)):
+            for item in value:
+                walk(item)
+
+    walk(returned)
+    named = sorted({SOURCE_NAMES[i & SOURCE_MASK] for i in integers if (i & SOURCE_MASK) in SOURCE_NAMES})
+    return {
+        "integers_in_return": integers,
+        "named_sources_readable": named,
+        "carries_a_source": bool(named),
+    }
+
+
+def _harness_control(session: Session, jd: float) -> dict[str, Any]:
+    """One row: the blind reader, run over four returns whose answers are known to differ."""
+    session.reset()
+    calc = swe.calc_ut(jd, swe.SUN, swe.FLG_SWIEPH | swe.FLG_SPEED)
+    session.reset()
+    rise = swe.rise_trans(
+        jd, swe.SUN, swe.CALC_RISE | swe.BIT_DISC_CENTER,
+        (0.0, 0.0, 0.0), 0.0, 0.0, swe.FLG_SWIEPH,
+    )
+    session.reset()
+    ex = swe.deltat_ex(jd, swe.FLG_SWIEPH)
+    session.reset()
+    plain = swe.deltat(jd)
+    readings = {
+        "calc_ut": source_bits_in_return(calc),
+        "rise_trans": source_bits_in_return(rise),
+        "deltat_ex": source_bits_in_return(ex),
+        "deltat": source_bits_in_return(plain),
+    }
+    return {
+        "finding": "offset_attribution",
+        "row": "harness_control",
+        "purpose": (
+            "⭐ THE CONTROL SITS INSIDE THE MEASUREMENT. The same blind reader is run over "
+            "four returns before any conclusion is drawn from a silence"
+        ),
+        "readings": readings,
+        "reader_can_see_a_report_where_one_exists": readings["calc_ut"]["carries_a_source"],
+        "reader_is_not_fooled_by_an_integer_that_is_not_a_flag": (
+            not readings["rise_trans"]["carries_a_source"]
+            and bool(readings["rise_trans"]["integers_in_return"])
+        ),
+        "the_two_offset_entry_points_return_no_integer_at_all": (
+            not readings["deltat_ex"]["integers_in_return"]
+            and not readings["deltat"]["integers_in_return"]
+        ),
+        "meaning": (
+            "⛔ the offset entry points return a bare float. There is no flag to assert, no "
+            "code to check and no error channel to read — the binding drops the library's "
+            "own message buffer for these two"
+        ),
+    }
+
+
+def offset_attribution(
+    *,
+    epochs: Iterable[tuple[str, float]],
+    with_files: Session,
+    without_files: Session,
+) -> list[dict[str, Any]]:
+    """Survey what `deltat_ex` and `deltat` say about the ephemeris behind their answer.
+
+    ⛔ **The expected result is a refusal, and the refusal is the finding.** These two
+    entry points consult an ephemeris — measurably, in that their answers move with one —
+    and neither returns any statement of which. The only channel that carries anything
+    about the basis is the tidal-acceleration constant in force, and that constant was
+    measured to be **not an identifier**: the library's own names for the data-file source
+    and the JPL source hold the same number, and the number an actual data file puts in
+    force is not either of them. ⇒ no `ephemeris_basis` is written.
+
+    ⚠ **Two regimes, because an equality between two readings means nothing until a case
+    exists where they differ.** One session has the pinned data files; the other has none,
+    which is a state `verify_ephe_set` refuses for recording and which is constructed here
+    deliberately, as the condition being surveyed.
+
+    ⛔ **And two epochs, because the property under test is not present everywhere.** At a
+    modern instant all three flags return the same offset, so a survey run only there would
+    report no dependence and would have measured nothing. The epochs are checked for the
+    property before any verdict is read off them.
+    """
+    epochs = list(epochs)
+    rows: list[dict[str, Any]] = [_harness_control(with_files, epochs[0][1])]
+
+    regimes = (
+        ("data_files_present", with_files, True),
+        ("data_files_absent", without_files, False),
+    )
+    flags = (("moshier", swe.FLG_MOSEPH), ("swiss_file", swe.FLG_SWIEPH), ("jpl_file", swe.FLG_JPLEPH))
+    identifying = 0
+    disagreements = 0
+
+    for regime, session, files_present in regimes:
+        for epoch_id, jd in epochs:
+            readings: dict[str, float] = {}
+            for requested, flag in flags:
+                session.reset()
+                _, returned = swe.calc_ut(jd, swe.SUN, flag | swe.FLG_SPEED)
+                position_answered = source_name(returned)
+                session.reset()
+                offset = float(swe.deltat_ex(jd, flag))
+                constant = float(swe.get_tid_acc())
+                readings[requested] = offset
+                candidates = sources_named_by_constant(constant)
+                identifies = len(candidates) == 1
+                identifying += int(identifies)
+                agrees = identifies and candidates[0] == position_answered
+                disagreements += int(not agrees)
+                if agrees:
+                    verdict = (
+                        "the constant names one source and it is the one the position call "
+                        "reported. ⭐ The instrument can return agreement, which is what "
+                        "makes its refusals elsewhere worth reading"
+                    )
+                elif not candidates:
+                    verdict = (
+                        "⛔ THE CONSTANT NAMES NO SOURCE AT ALL. It is the value an actual "
+                        "data file puts in force, and that number is not the library's "
+                        "named constant for any of its three ephemeris sources"
+                    )
+                elif len(candidates) > 1:
+                    verdict = (
+                        "⛔ THE CONSTANT NAMES MORE THAN ONE SOURCE. Two of the library's "
+                        "own source constants hold this same number, so it cannot "
+                        "discriminate between them"
+                    )
+                else:
+                    verdict = (
+                        "⛔ THE CONSTANT NAMES A DIFFERENT SOURCE FROM THE ONE THE POSITION "
+                        "CALL REPORTED. One flag, one session, one instant — and the offset "
+                        "and the position do not rest on the same ephemeris"
+                    )
+                rows.append(
+                    {
+                        "finding": "offset_attribution",
+                        "row": "per_flag",
+                        "regime": regime,
+                        "data_files_present": files_present,
+                        "epoch_id": epoch_id,
+                        "jd_ut": jd,
+                        "jd_ut_bits": bits_of(jd),
+                        "utc": calendar_ut(jd),
+                        "entry_point": "deltat_ex",
+                        "ephemeris_requested": requested,
+                        "offset_days": offset,
+                        "offset_days_bits": bits_of(offset),
+                        "offset_seconds": offset * 86400.0,
+                        "tidal_constant_in_force": constant,
+                        "library_names_for_that_constant": tidal_constant_names(constant),
+                        "sources_that_constant_could_name": candidates,
+                        "constant_identifies_exactly_one_source": identifies,
+                        "position_call_under_the_same_flag_answered_by": position_answered,
+                        "constant_and_reported_source_agree": agrees,
+                        "agreement_verdict": verdict,
+                        "ephemeris_basis": (
+                            "⛔ REFUSED. This entry point returns no report, and the tidal "
+                            "constant behind its answer is not an identifier: see "
+                            "`sources_that_constant_could_name`. ⚠ The neighbouring field "
+                            "`position_call_under_the_same_flag_answered_by` is a fact "
+                            "about a POSITION and is recorded as evidence, ⛔ never as this "
+                            "value's basis"
+                        ),
+                    }
+                )
+
+            session.reset()
+            unflagged = float(swe.deltat(jd))
+            constant = float(swe.get_tid_acc())
+            spread = (max(readings.values()) - min(readings.values())) * 86400.0
+            rows.append(
+                {
+                    "finding": "offset_attribution",
+                    "row": "unflagged",
+                    "regime": regime,
+                    "data_files_present": files_present,
+                    "epoch_id": epoch_id,
+                    "jd_ut": jd,
+                    "jd_ut_bits": bits_of(jd),
+                    "utc": calendar_ut(jd),
+                    "entry_point": "deltat",
+                    "accepts_ephemeris_flag": False,
+                    "offset_days": unflagged,
+                    "offset_days_bits": bits_of(unflagged),
+                    "tidal_constant_in_force": constant,
+                    "library_names_for_that_constant": tidal_constant_names(constant),
+                    "equals_the_flagged_answer_for": sorted(
+                        k for k, v in readings.items() if v == unflagged
+                    ),
+                    "spread_across_the_three_flags_seconds": spread,
+                    "this_epoch_has_the_property_under_test": spread != 0.0,
+                    "ephemeris_basis": (
+                        "⛔ REFUSED, AND NOT FOR WANT OF A PROXY. Nothing was requested of "
+                        "this entry point, so there is no request a proxy could find "
+                        "honoured. It has an ephemeris anyway"
+                    ),
+                }
+            )
+
+    per_epoch: dict[str, dict[str, float]] = {}
+    for row in rows:
+        if row.get("row") == "unflagged":
+            per_epoch.setdefault(str(row["epoch_id"]), {})[str(row["regime"])] = float(
+                row["offset_days"]
+            )
+    moved = {
+        epoch_id: (values["data_files_present"] - values["data_files_absent"]) * 86400.0
+        for epoch_id, values in per_epoch.items()
+        if len(values) == 2
+    }
+    with_property = sorted(
+        {str(r["epoch_id"]) for r in rows if r.get("this_epoch_has_the_property_under_test")}
+    )
+    without_property = sorted(
+        {
+            str(r["epoch_id"])
+            for r in rows
+            if r.get("row") == "unflagged" and not r["this_epoch_has_the_property_under_test"]
+        }
+    )
+    # ⛔ THE FIXTURE MUST HAVE THE PROPERTY UNDER TEST. At a modern instant the three flags
+    #    return one number, so a run confined to such epochs would report "no dependence"
+    #    and would look exactly like a run that found none. That is a silent pass in the
+    #    direction of reassurance, so it is a refusal instead.
+    if not with_property:
+        raise SurveyRefusal(
+            "offset_attribution: not one epoch surveyed carries the property under test — "
+            "the flag changed nothing anywhere, so a verdict read off these rows would be "
+            "a statement about the grid and not about the entry point. Refusing to publish "
+            "it. ⚠ Include an epoch before the modern record, where the offset is "
+            "extrapolated from the tidal constant rather than tabulated."
+        )
+    if not without_property:
+        raise SurveyRefusal(
+            "offset_attribution: every epoch surveyed carries the property, so the survey "
+            "has no case in which it reports no dependence. Refusing: an instrument that "
+            "was never observed saying no has not been shown able to."
+        )
+    rows.append(
+        {
+            "finding": "offset_attribution",
+            "row": "verdict",
+            "entry_points_surveyed": ["deltat_ex", "deltat"],
+            "epochs_where_the_flag_changes_the_answer": with_property,
+            "epochs_where_it_does_not": without_property,
+            "both_lists_are_non_empty_and_the_survey_refuses_otherwise": True,
+            "unflagged_entry_point_moved_between_the_two_regimes_seconds": moved,
+            "combinations_where_the_constant_identifies_one_source": identifying,
+            "combinations_where_it_and_the_position_report_disagree": disagreements,
+            "documented_refusal_that_does_not_happen": (
+                "⛔ the binding documents that calling deltat_ex before any path has been "
+                "set 'will raise'. Measured: it returns a value, computed on the library's "
+                "default constant. A recorder relying on that refusal to notice that no "
+                "ephemeris was established gets a plausible number instead"
+            ),
+            "verdict": (
+                "⛔ NO EPHEMERIS BASIS CAN BE SUPPLIED HONESTLY FOR EITHER ENTRY POINT, AND "
+                "THAT IMPOSSIBILITY IS THIS ROW'S FINDING. Neither returns a report. The "
+                "one channel that carries anything — the tidal-acceleration constant in "
+                "force — names two different sources with one number and puts a third "
+                "number in force that names no source at all. ⭐ What stands in its place "
+                "for the flagged entry point is a proxy_window on a reporting call, "
+                "recorded as a bound on the window and ⛔ not as this value's source; for "
+                "the unflagged one nothing stands in its place, because nothing was asked"
             ),
         }
     )

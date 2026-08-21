@@ -10,11 +10,20 @@ attributed is recorded as a substitution in the header and is **not** written as
 so the two files can be compared without the comparison quietly becoming one ephemeris
 against itself.
 
-⚠ **Two of the four entry points sampled here return no source flag at all, and a third
-returns one that merely echoes the request.** Among them are the house cusps and the
-rise/set times -- which is to say the ascendant and the sunrise. Their source is asserted
-by proxy, from an entry point that does report, at both ends of the interval the call may
-read; the proxy is recorded on every row that relies on one.
+⚠ **Five of the six entry points sampled here return no usable source at all**: three
+return no flag, one returns a flag that merely echoes the request, and one takes no
+ephemeris argument in the first place. Among them are the house cusps and the rise/set
+times -- which is to say the ascendant and the sunrise. Their source is asserted by proxy,
+from an entry point that does report, at both ends of the interval the call may read; the
+proxy is recorded on every row that relies on one.
+
+⛔ **And for the time offset even that is refused.** `deltat_ex` and `deltat` consult an
+ephemeris -- their answers move with one, measurably -- and return a bare float. The only
+channel carrying anything about the basis is the tidal-acceleration constant in force, and
+the library's own names for it give one number to two different sources and give the number
+an actual data file puts in force to none of them. ⭐ So no `ephemeris_basis` is written for
+either, and **the impossibility is published as the finding** rather than papered over with
+a plausible name.
 
 ⛔ **Recorder, never explainer.** This script calls the library and writes down what it
 returned, under which flags, and with what evidence of source. It contains no account of
@@ -25,6 +34,7 @@ from __future__ import annotations
 
 import argparse
 import sys
+import tempfile
 from importlib.metadata import version as _distribution_version
 from pathlib import Path
 from typing import Any
@@ -52,6 +62,8 @@ from saakshi.swiss import (  # noqa: E402
     coverage_edges,
     entry_point_records,
     ephe_set_identity,
+    offset_attribution,
+    source_name,
     state_dependence,
     verify_ephe_set,
 )
@@ -794,6 +806,7 @@ def write_audit_fixture(
     edges: dict[str, Any],
     demonstration: list[dict[str, Any]],
     state_rows: list[dict[str, Any]],
+    offset_rows: list[dict[str, Any]],
     session: Session,
     out_dir: Path,
     script: Path,
@@ -817,6 +830,7 @@ def write_audit_fixture(
         }
     )
     rows.extend(state_rows)
+    rows.extend(offset_rows)
     rows.extend(demonstration)
 
     header = Header(
@@ -840,8 +854,10 @@ def write_audit_fixture(
             "which entry points of the ephemeris library report the ephemeris that actually "
             "answered a call, which merely echo the flag they were handed, and which return "
             "no statement of source at all; that the answering ephemeris depends on the "
-            "preceding call and not only on the call's own arguments; and what a comparison "
-            "reports when the substitution goes unchecked"
+            "preceding call and not only on the call's own arguments; that for the two "
+            "entry points returning the offset from civil to dynamical time NO source can "
+            "be stated at all, and why; and what a comparison reports when the substitution "
+            "goes unchecked"
         ),
         authority={
             "held_by": "the library itself, as observed",
@@ -856,7 +872,7 @@ def write_audit_fixture(
         row_schema={
             "finding": (
                 "flag_reporting | coverage_edge | state_dependence | "
-                "substitution_demonstration"
+                "offset_attribution | substitution_demonstration"
             ),
             "sweep": (
                 "for a state_dependence row: the order the same instants were visited in, "
@@ -879,6 +895,11 @@ def write_audit_fixture(
                 "reported agreement it had not measured"
             ),
             "entry_point": "the library function, for a flag_reporting row",
+            "quantity_returned": (
+                "⭐ what the entry point returns a value OF. Recorded because the proxy "
+                "that stands in for a missing report is a call about a POSITION, and not "
+                "every silent entry point returns one"
+            ),
             "accepts_ephemeris_flag": "whether the call takes an ephemeris flag at all",
             "reports_answering_ephemeris": (
                 "⭐ whether its return value distinguishes the ephemeris that answered from "
@@ -887,7 +908,57 @@ def write_audit_fixture(
             "returns": "the shape of its return value",
             "evidence": "what was observed, and under what conditions",
             "assertion_available": (
-                "the strongest source assertion a recorder can make for this entry point"
+                "reported | proxy_window | none -- the strongest source assertion a "
+                "recorder can make for this entry point. ⛔ `none` is not a weaker "
+                "proxy: it is the refusal owed where nothing was requested"
+            ),
+            "assertion_caveat": (
+                "⛔ what the available assertion does NOT establish. Empty only where "
+                "the entry point reports its own source"
+            ),
+            "row": (
+                "for an offset_attribution row: harness_control | per_flag | unflagged | "
+                "verdict"
+            ),
+            "regime": (
+                "data_files_present | data_files_absent -- ⚠ the second is a state "
+                "`verify_ephe_set` REFUSES for recording, constructed here deliberately "
+                "because it is the condition being surveyed"
+            ),
+            "tidal_constant_in_force": (
+                "⭐ the only channel that carries anything at all about what the time "
+                "offset was computed from. It is read AFTER the call, from the library"
+            ),
+            "library_names_for_that_constant": (
+                "every name the library itself gives that number, read out of the library "
+                "rather than typed here"
+            ),
+            "sources_that_constant_could_name": (
+                "⛔ THE REFUSAL, IN THE LIBRARY'S OWN VOCABULARY. Which of the three "
+                "ephemeris sources the constant could belong to. Two entries hold one "
+                "number, and the number an actual data file puts in force belongs to none "
+                "of them"
+            ),
+            "position_call_under_the_same_flag_answered_by": (
+                "⚠ EVIDENCE, NEVER A BASIS. What a reporting call answered under the "
+                "same flag in the same session state. It is a fact about a position"
+            ),
+            "agreement_verdict": (
+                "which of the three ways the constant fails to corroborate the reported "
+                "source, or that it corroborates it"
+            ),
+            "equals_the_flagged_answer_for": (
+                "⭐ for the unflagged entry point: which flagged answer it silently "
+                "turned out to be. A caller who never passed a flag has still chosen one"
+            ),
+            "this_epoch_has_the_property_under_test": (
+                "⛔ whether the ephemeris flag changes the offset AT THIS EPOCH. It "
+                "does not everywhere, and a survey confined to where it does not would "
+                "report no dependence and would look exactly like one that found none"
+            ),
+            "ephemeris_basis": (
+                "⛔ ALWAYS A REFUSAL ON THESE ROWS, and the refusal is the finding. No "
+                "honest value exists for this field for either offset entry point"
             ),
         },
         notes=[
@@ -906,6 +977,36 @@ def write_audit_fixture(
             "matters most -- outside the data files' coverage both requests are answered by "
             "the same substituted ephemeris, so the difference is identically zero and reads "
             "as perfect agreement.",
+            "⛔⛔ THE TIME OFFSET CANNOT BE ATTRIBUTED AT ALL, AND THAT IS THIS FILE'S "
+            "NEWEST FINDING RATHER THAN A GAP IN IT. `deltat_ex` and `deltat` return a bare "
+            "float -- no flag, no code, no error channel -- and their answers move with the "
+            "ephemeris anyway. The only channel carrying anything about the basis is the "
+            "tidal-acceleration constant in force, and it is not an identifier: the "
+            "library's own names give ONE number to both file-backed sources, and the "
+            "number an actual pinned data file puts in force is the named constant of no "
+            "source at all. ⭐ So `ephemeris_basis` is a refusal on every offset row, and "
+            "the proxy that stands in its place for the flagged entry point is recorded as "
+            "a bound on a window and ⛔ never as the value's source.",
+            "⛔ ONE FLAG, ONE SESSION, ONE INSTANT -- AND THE OFFSET AND THE POSITION DID "
+            "NOT REST ON THE SAME EPHEMERIS. With the data files removed, a data-file "
+            "request for a position was reported as answered by the analytical ephemeris "
+            "while the offset under that same flag was computed on the library's default "
+            "constant, which is not the analytical one. ⚠ So a proxy taken from a "
+            "reporting position call bounds the window and establishes nothing about what "
+            "the offset was computed from.",
+            "⛔ AND THE ONE ENTRY POINT HERE THAT TAKES NO EPHEMERIS ARGUMENT HAS AN "
+            "EPHEMERIS ANYWAY. `deltat` returned two different numbers for one instant with "
+            "nothing changed but a directory path handed to an unrelated call. ⭐ A caller "
+            "who never passed a flag has still chosen one, and this file records which.",
+            "⚠ The binding documents that calling `deltat_ex` before any path is set "
+            "'will raise'. Measured, it returns a value computed on the default constant. A "
+            "recorder relying on that documented refusal to notice that no ephemeris was "
+            "established gets a plausible number instead.",
+            "⭐ THE CONTROLS SIT INSIDE THE OFFSET SURVEY, because a silence and a deaf "
+            "reader are the same observation from outside. The same blind reader is run "
+            "over a return known to carry a flag, over one carrying an integer that is not "
+            "a flag, and over the two bare floats; the survey refuses a grid on which the "
+            "ephemeris flag changes nothing, AND refuses one on which it always does.",
             "⚠ Dated and versioned deliberately. This is an observation of one release "
             "through one binding, not a claim about the software in general.",
         ],
@@ -1014,6 +1115,60 @@ def substitution_demonstration(
     return out
 
 
+# --------------------------------------------------------------------------------------
+# ⛔ The time offset: the two entry points the survey did not reach
+# --------------------------------------------------------------------------------------
+
+#: The epochs the offset survey runs on, by calendar year. ⛔ **Both are load-bearing and
+#: for opposite reasons.** Before the modern record the offset is extrapolated from a
+#: tidal-acceleration constant, so the ephemeris flag moves it; at a tabulated instant all
+#: three flags return one number. A survey confined to the second kind would report no
+#: dependence and would be indistinguishable from one that looked and found none, so the
+#: grid carries a case of each and `offset_attribution` refuses a grid that does not.
+OFFSET_EPOCH_YEARS: tuple[int, ...] = (1900, 2000)
+
+
+def offset_survey(session: Session, ephe_path: Path) -> list[dict[str, Any]]:
+    """Survey `deltat_ex` and `deltat`, then put the library back and check that it went.
+
+    ⚠ **The second regime is a state this repository refuses to record in.**
+    `verify_ephe_set` rejects a directory with no data file precisely because every
+    data-file request would then be answered analytically without a word — which is the
+    condition being surveyed here, so it is constructed on purpose, held in a temporary
+    directory, and never named in the fixture.
+
+    ⛔ **The restoration is measured, not assumed.** Leaving the library pointed at an empty
+    directory would make every later call analytical and successful. The check is the tidal
+    constant and a reporting call, read back after the survey: both must be what they were.
+    """
+    before_constant = float(swe.get_tid_acc())
+    session.reset()
+    _, before_flag = swe.calc_ut(JD_J2000, swe.SUN, swe.FLG_SWIEPH | swe.FLG_SPEED)
+
+    epochs = [
+        (f"year_{year}", float(swe.julday(year, 1, 1, 0.0))) for year in OFFSET_EPOCH_YEARS
+    ]
+    with tempfile.TemporaryDirectory() as empty:
+        rows = offset_attribution(
+            epochs=epochs,
+            with_files=session,
+            without_files=Session(ephe_path=empty, sidereal_mode=session.sidereal_mode),
+        )
+
+    session.reset()
+    after_constant = float(swe.get_tid_acc())
+    _, after_flag = swe.calc_ut(JD_J2000, swe.SUN, swe.FLG_SWIEPH | swe.FLG_SPEED)
+    if after_constant != before_constant or after_flag != before_flag:
+        raise EphemerisSubstitution(
+            "offset_survey: the library did not come back. The tidal constant read "
+            f"{before_constant!r} before the survey and {after_constant!r} after it, and a "
+            f"data-file request was answered by {source_name(before_flag)} before and "
+            f"{source_name(after_flag)} after. ⛔ Every later measurement in this run would "
+            "have been taken against the wrong ephemeris, successfully and silently."
+        )
+    return rows
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument(
@@ -1099,6 +1254,28 @@ def main() -> int:
             f"worst {entry['max_abs_delta']!r}"
         )
 
+    # ⛔ The ordered prerequisite: the two entry points the survey did not reach.
+    #    Run LAST among the measurements, because the second regime it needs is one this
+    #    repository otherwise refuses -- a directory with no data file in it -- and nothing
+    #    after this point may be measured in that state. ⭐ The real session is restored
+    #    and the restoration is CHECKED rather than assumed.
+    offset_rows = offset_survey(session, args.ephe_path)
+    verdict = next(row for row in offset_rows if row["row"] == "verdict")
+    print(
+        "offset attribution: "
+        f"{verdict['combinations_where_the_constant_identifies_one_source']} of "
+        f"{sum(1 for r in offset_rows if r['row'] == 'per_flag')} flag/regime "
+        "combinations let the tidal constant name one source; "
+        f"{verdict['combinations_where_it_and_the_position_report_disagree']} disagree "
+        "with the reporting call"
+    )
+    for epoch_id, moved in sorted(
+        verdict["unflagged_entry_point_moved_between_the_two_regimes_seconds"].items()
+    ):
+        print(
+            f"    deltat (no flag) at {epoch_id}: moved {moved!r} s between the two regimes"
+        )
+
     demonstration = substitution_demonstration(epochs, session)
     unchecked_zeros = sum(
         1
@@ -1130,6 +1307,7 @@ def main() -> int:
         edges=edges,
         demonstration=demonstration,
         state_rows=state_rows,
+        offset_rows=offset_rows,
         session=session,
         out_dir=args.out,
         script=script,

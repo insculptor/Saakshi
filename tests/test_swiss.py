@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import importlib.util
 import sys
+from dataclasses import replace
 from pathlib import Path
 
 import pytest
@@ -35,17 +36,28 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
 from saakshi.kernels import KernelIdentityError  # noqa: E402
 from saakshi.swiss import (  # noqa: E402
+    ASSERTIONS,
     ENTRY_POINTS,
     MODES,
+    REFUSES_ATTRIBUTION,
     REPORTING,
     SOURCE_MASK,
+    TIDAL_BY_SOURCE,
+    TIDAL_CONSTANTS,
+    EntryPointDeclarationError,
     EphemerisSubstitution,
     Session,
+    SurveyRefusal,
+    _check_declaration,
     assert_reported,
     assert_window,
     coverage_edges,
     entry_point_records,
+    offset_attribution,
+    source_bits_in_return,
     source_name,
+    sources_named_by_constant,
+    tidal_constant_names,
     verify_ephe_set,
 )
 
@@ -177,11 +189,229 @@ def test_the_audit_records_that_most_entry_points_cannot_be_asked():
     assert echo.accepts_flag and not echo.reports_source
 
 
+def test_the_audit_reaches_the_two_time_offset_entry_points():
+    """⛔ The prerequisite this survey was extended for: `deltat` and `deltat_ex` are in it."""
+    names = [e.name for e in ENTRY_POINTS]
+    assert "deltat_ex" in names and "deltat" in names
+    # ⭐ The one entry point in the whole audit that takes no ephemeris argument at all.
+    no_flag = [e.name for e in ENTRY_POINTS if not e.accepts_flag]
+    assert no_flag == ["deltat"]
+
+
+def test_the_offset_entry_points_are_refused_a_source_rather_than_given_a_plausible_one():
+    """⛔ The impossibility IS the finding. `none` is a refusal, not a weaker proxy."""
+    assert REFUSES_ATTRIBUTION == {"deltat"}
+    rows = {row["entry_point"]: row for row in entry_point_records()}
+    assert rows["deltat"]["assertion_available"] == "none"
+    # ⚠ The flagged one keeps its proxy -- and the proxy is caveated as being about a
+    #   different quantity, which is the whole reason it does not become a basis.
+    assert rows["deltat_ex"]["assertion_available"] == "proxy_window"
+    assert "DIFFERENT QUANTITY" in rows["deltat_ex"]["assertion_caveat"]
+    assert rows["deltat_ex"]["quantity_returned"] != rows["calc_ut"]["quantity_returned"]
+
+
+def test_the_rule_the_table_used_to_derive_this_field_from_is_shown_misreporting_it():
+    """⛔⛔ A DERIVED FIELD WITH NO EXCEPTIONS HAS NO WAY TO BE WRONG OUT LOUD.
+
+    The audit derived `assertion_available` as *reported if it reports, proxy_window
+    otherwise*. That rule is run here over the current table to show what it now says: it
+    hands `deltat` a proxy over a request that was never made. ⭐ The old rule is kept in
+    the test rather than in the code for exactly the reason the string-matched branch
+    sorter was — a rule that is wrong is worth pinning as wrong.
+    """
+    def old_rule(row: dict) -> str:
+        return "reported" if row["reports_answering_ephemeris"] else "proxy_window"
+
+    misreported = [
+        row["entry_point"]
+        for row in entry_point_records()
+        if old_rule(row) != row["assertion_available"]
+    ]
+    assert misreported == ["deltat"]
+
+
 def test_every_audited_entry_point_states_the_assertion_available_for_it():
     for row in entry_point_records():
-        expected = "reported" if row["reports_answering_ephemeris"] else "proxy_window"
-        assert row["assertion_available"] == expected
+        assert row["assertion_available"] in ASSERTIONS
         assert row["evidence"]
+        # ⛔ Every assertion weaker than a report costs the reader something and says so.
+        if row["assertion_available"] == "reported":
+            assert row["assertion_caveat"] == ""
+        else:
+            assert row["assertion_caveat"]
+
+
+@pytest.mark.parametrize(
+    "field, value, why",
+    [
+        ("assertion_available", "hearsay", "not one of the three"),
+        ("assertion_available", "reported", "it returns no report"),
+        ("accepts_flag", True, "a flag makes a request, so 'none' is not owed"),
+        ("assertion_caveat", "", "an uncaveated weak assertion reads as free"),
+    ],
+)
+def test_the_declaration_guard_refuses_each_way_it_can_be_lied_to(field, value, why):
+    """⭐⭐⭐ DISARM THE GUARD YOU JUST WROTE. Four ways in, four refusals."""
+    base = next(e for e in ENTRY_POINTS if e.name == "deltat")
+    bad = replace(base, **{field: value})
+    with pytest.raises(EntryPointDeclarationError):
+        _check_declaration(bad)
+
+
+def test_the_declaration_guard_refuses_a_flagless_entry_point_that_claims_a_proxy():
+    """⛔ The fifth direction: a proxy asserts a request was honoured, and none was made."""
+    base = next(e for e in ENTRY_POINTS if e.name == "deltat")
+    with pytest.raises(EntryPointDeclarationError) as excinfo:
+        _check_declaration(replace(base, assertion_available="proxy_window"))
+    assert "no request" in str(excinfo.value)
+
+
+def test_the_declaration_guard_passes_every_row_actually_declared():
+    """⚠ A guard that refused everything would pass the six tests above and be useless."""
+    for entry in ENTRY_POINTS:
+        _check_declaration(entry)
+
+
+# --------------------------------------------------------------------------------------
+# ⛔ The refusal's own instrument: a tidal constant is not an identifier
+# --------------------------------------------------------------------------------------
+
+
+def test_the_tidal_constant_cannot_name_the_ephemeris_and_the_instrument_says_so_both_ways():
+    """⭐⭐⭐ THE MEASUREMENT THAT MAKES THE REFUSAL A FINDING RATHER THAN A SHRUG.
+
+    The only channel carrying anything about what an offset was computed from is the tidal
+    acceleration in force. Read in the library's own vocabulary it answers three different
+    ways, and an instrument that could only ever return the empty list would be measuring
+    nothing — so all three are pinned together.
+    """
+    # ⭐ It CAN name one: the analytical ephemeris's constant is its alone among the three.
+    assert sources_named_by_constant(TIDAL_CONSTANTS["TIDAL_MOSEPH"]) == ["moshier"]
+    # ⛔ It names TWO for the number the library gives both file-backed sources.
+    assert TIDAL_CONSTANTS["TIDAL_SWIEPH"] == TIDAL_CONSTANTS["TIDAL_JPLEPH"]
+    assert sources_named_by_constant(TIDAL_CONSTANTS["TIDAL_SWIEPH"]) == [
+        "jpl_file",
+        "swiss_file",
+    ]
+    # ⛔ And it names NONE for the constant an actual pinned data file puts in force.
+    assert sources_named_by_constant(TIDAL_CONSTANTS["TIDAL_DE441"]) == []
+    assert tidal_constant_names(TIDAL_CONSTANTS["TIDAL_DE441"]) == ["TIDAL_DE441"]
+
+
+def test_the_tidal_table_is_the_librarys_own_and_not_a_copy():
+    """⛔ A hand-copied table could be made to say anything; this one is read from swe."""
+    assert TIDAL_CONSTANTS["TIDAL_MOSEPH"] == swe.TIDAL_MOSEPH
+    assert set(TIDAL_BY_SOURCE) == {"moshier", "swiss_file", "jpl_file"}
+
+
+# --------------------------------------------------------------------------------------
+# ⛔ The control on the READER: a silence is only a finding if the reader can hear
+# --------------------------------------------------------------------------------------
+
+
+def test_the_blind_reader_finds_a_flag_where_one_exists_and_none_where_none_does():
+    """⭐⭐⭐ 'No flag came back' and 'this harness does not look at flags' are the same
+    observation from the outside, and only one of them is a finding."""
+    # A calc_ut-shaped return: values, then a flag carrying the data-file source bit.
+    reporting = ((1.0, 2.0, 3.0), swe.FLG_SWIEPH | swe.FLG_SPEED)
+    assert source_bits_in_return(reporting)["named_sources_readable"] == ["swiss_file"]
+    assert source_bits_in_return(reporting)["carries_a_source"] is True
+    # A rise_trans-shaped return: an integer that is a return CODE, not a flag.
+    not_a_flag = (0, (2451545.0, 0.0))
+    reading = source_bits_in_return(not_a_flag)
+    assert reading["integers_in_return"] == [0]
+    assert reading["carries_a_source"] is False
+    # ⛔ The offset entry points: a bare float. Nothing to read at all.
+    assert source_bits_in_return(0.000738755787037037)["integers_in_return"] == []
+    # ⚠ A bool is an int in this language and would have masked to a source bit.
+    assert source_bits_in_return((True, False))["integers_in_return"] == []
+
+
+# --------------------------------------------------------------------------------------
+# ⛔ The survey refuses a grid that cannot answer the question it was run to answer
+# --------------------------------------------------------------------------------------
+
+
+@pytest.fixture()
+def two_empty_regimes(tmp_path):
+    """Two sessions over directories with no data file.
+
+    ⚠ The regimes collapse into one here, which is fine: these tests are about the survey's
+    refusals, and those are read off the epoch grid rather than off the data files. ⛔ The
+    library's global state is put back afterwards so no later test inherits this one's.
+    """
+    left = Session(ephe_path=str(tmp_path / "a"), sidereal_mode=swe.SIDM_LAHIRI)
+    right = Session(ephe_path=str(tmp_path / "b"), sidereal_mode=swe.SIDM_LAHIRI)
+    (tmp_path / "a").mkdir()
+    (tmp_path / "b").mkdir()
+    yield left, right
+    swe.close()
+
+
+def _year(year: int) -> tuple[str, float]:
+    return (f"year_{year}", float(swe.julday(year, 1, 1, 0.0)))
+
+
+def test_a_grid_where_the_flag_changes_nothing_is_refused_rather_than_reported_as_no_effect(
+    two_empty_regimes,
+):
+    """⛔⛔ A FIXTURE SIZED TO THE ANSWER FAILS SILENTLY IN THE DIRECTION THAT LOOKS LIKE
+    SUCCESS. At a tabulated instant all three flags return one number, so a survey confined
+    to such epochs would report no dependence and would look exactly like one that found
+    none."""
+    left, right = two_empty_regimes
+    with pytest.raises(SurveyRefusal) as excinfo:
+        offset_attribution(
+            epochs=[_year(2000), _year(2100)], with_files=left, without_files=right
+        )
+    assert "property under test" in str(excinfo.value)
+
+
+def test_a_grid_where_the_flag_always_matters_is_refused_too(two_empty_regimes):
+    """⚠ The other direction, and it is the one a hurried author would leave out: an
+    instrument never observed saying *no* has not been shown able to."""
+    left, right = two_empty_regimes
+    with pytest.raises(SurveyRefusal) as excinfo:
+        offset_attribution(
+            epochs=[_year(1900), _year(1901)], with_files=left, without_files=right
+        )
+    assert "no case in which it reports no dependence" in str(excinfo.value)
+
+
+def test_the_survey_publishes_a_refusal_for_every_offset_value_it_records(two_empty_regimes):
+    """⛔ Not one row of this survey carries a source. Every one carries why it cannot."""
+    left, right = two_empty_regimes
+    rows = offset_attribution(
+        epochs=[_year(1900), _year(2000)], with_files=left, without_files=right
+    )
+    valued = [r for r in rows if r["row"] in ("per_flag", "unflagged")]
+    assert valued
+    for row in valued:
+        assert row["ephemeris_basis"].startswith("⛔ REFUSED")
+    control = next(r for r in rows if r["row"] == "harness_control")
+    assert control["reader_can_see_a_report_where_one_exists"] is True
+    assert control["reader_is_not_fooled_by_an_integer_that_is_not_a_flag"] is True
+    assert control["the_two_offset_entry_points_return_no_integer_at_all"] is True
+    verdict = next(r for r in rows if r["row"] == "verdict")
+    assert verdict["epochs_where_the_flag_changes_the_answer"] == ["year_1900"]
+    assert verdict["epochs_where_it_does_not"] == ["year_2000"]
+
+
+def test_the_unflagged_entry_point_is_recorded_as_having_chosen_a_flag_anyway(
+    two_empty_regimes,
+):
+    """⭐ A caller who never passed a flag has still chosen one, and the row says which."""
+    left, right = two_empty_regimes
+    rows = offset_attribution(
+        epochs=[_year(1900), _year(2000)], with_files=left, without_files=right
+    )
+    unflagged = [r for r in rows if r["row"] == "unflagged" and r["epoch_id"] == "year_1900"]
+    assert unflagged
+    for row in unflagged:
+        assert row["accepts_ephemeris_flag"] is False
+        # ⛔ It takes no ephemeris argument and its answer is one of the flagged answers.
+        assert row["equals_the_flagged_answer_for"]
+        assert row["this_epoch_has_the_property_under_test"] is True
 
 
 # --------------------------------------------------------------------------------------
