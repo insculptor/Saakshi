@@ -1740,7 +1740,7 @@ THE_LANGUAGE_A_LOCUS_DECLARES: Mapping[str, str] = {
 #: ⭐⭐⭐ **THE GREATEST FLANK A COPY CERTIFIED AS A READING HAS EVER NEEDED — a maximum over
 #: the certified set, and ⛔ therefore a LOWER BOUND ON ITSELF.**
 #:
-#: Measured over the 25 copies certified as readings by a presence of their own language:
+#: Measured over the 26 copies certified as readings by a presence of their own language:
 #: the smallest flank at which EVERY position of the copy carries a declared word within it
 #: runs from **163** (`gov_in_notification_2022_99`) to **8 828** (`ajitagamavolin_r_bhatt`).
 #: ⚠ The next specimen moves it, exactly as `LEAST_EXTENT_AN_ACCEPTANCE_DISCRIMINATES_AT`
@@ -1760,7 +1760,7 @@ GREATEST_FLANK_A_CERTIFIED_READING_HAS_NEEDED = 8828
 #: ⭐⭐⭐ **AND 8 828 < 16 642, SO THE TWO CERTIFIED SETS DO NOT CROSS.** Twelve instruments
 #: of this class have crossed; this is the thirteenth and the first that does not. The gap
 #: is 1.88×, and a value fitted inside it on ONE of the two draws — the `specimens` draw
-#: alone, band (5 129, 16 642), midpoint 10 885 — refuses **0** of the 23 held-out readings
+#: alone, band (5 129, 16 642), midpoint 10 885 — refuses **0** of the 24 held-out readings
 #: and accepts **0** of the 4 held-out wrong-script readings.
 #:
 #: ⛔ **THE FITTED VALUE IS NOT PUBLISHED AND NOT ARMED, BECAUSE ON THIS EVIDENCE IT IS THE
@@ -1775,7 +1775,7 @@ LEAST_FLANK_AT_WHICH_A_LOCAL_PRESENCE_IS_FREE_IN_A_RENDERING_OF_NOISE = 16642
 #: ⚠ How the two numbers above were measured, carried on every row that quotes them so that
 #: a reader never meets one without its provenance.
 HOW_THE_FLANK_BOUNDS_WERE_MEASURED = (
-    "over 46 certified copies - 25 certified as readings by a PRESENCE of the commonest "
+    "over 47 certified copies - 26 certified as readings by a PRESENCE of the commonest "
     "words of their own language across at least three quarters of their 1000-character "
     "blocks, and 21 certified as readings in a script their catalogued work cannot be "
     "printed in by a PRESENCE of that script, with no word list consulted. ⛔ Both counts "
@@ -2242,15 +2242,15 @@ def refuse_a_rendering_that_goes_too_far_without_its_declared_language(
     all: it is a distance to words the copy did not supply, fixed in `COMMONEST_WORDS` before
     any copy was measured.
 
-    Measured over both certified sets:
+    Measured over both certified sets, as the emitted fixture certifies them:
 
     | | copies | least | greatest |
     |---|---|---|---|
-    | certified readings | 25 | 163 | **8 828** |
+    | certified readings | 26 | 163 | **8 828** |
     | certified wrong-script readings | 21 | **16 642** | 306 984, ⭐ two never |
 
     ⇒ **the two sets do not cross**, by 1.88×, and a value fitted on the `specimens` draw
-    alone — band (5 129, 16 642), midpoint 10 885 — refuses **0** of the 23 held-out readings
+    alone — band (5 129, 16 642), midpoint 10 885 — refuses **0** of the 24 held-out readings
     and accepts **0** of the 4 held-out wrong-script readings. ⛔ That fitted value is not
     what is armed: see the cap's own note for why the unfitted bound is the one to arm.
 

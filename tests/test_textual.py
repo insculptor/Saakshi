@@ -3735,7 +3735,7 @@ def test_the_two_published_flank_bounds_do_not_cross_and_carry_their_provenance(
         < LEAST_FLANK_AT_WHICH_A_LOCAL_PRESENCE_IS_FREE_IN_A_RENDERING_OF_NOISE
     )
     assert "LOWER BOUNDS" in HOW_THE_FLANK_BOUNDS_WERE_MEASURED
-    assert "46 certified copies" in HOW_THE_FLANK_BOUNDS_WERE_MEASURED
+    assert "47 certified copies" in HOW_THE_FLANK_BOUNDS_WERE_MEASURED
     # ⚠ The grid the census is published on travels with the row, like every grid here.
     assert LOCAL_PRESENCE_MEASURED_AT_FLANKS == tuple(
         sorted(LOCAL_PRESENCE_MEASURED_AT_FLANKS)

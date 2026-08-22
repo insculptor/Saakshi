@@ -3833,7 +3833,15 @@ def main() -> int:
     )
     # ⚠ What the arm would refuse of the copies held here, NAMED — a count with no names is
     #   a silent cap on what a reader can check.
-    refused_by_the_local_presence = [
+    # ⛔⛔ SPLIT BY WHAT THE ANSWER MEANS, NEVER POOLED BY THE NUMBER. A copy the arm does
+    #   not pass is one of three different things, and reporting them in one list would put
+    #   the instrument working, the instrument's cost, and the instrument's silence under one
+    #   heading. ⚠ And the third is UNATTRIBUTABLE from the measurement alone: a copy that
+    #   declares no language and answers to no word list may be a wrong-script reading or a
+    #   legible book in a language `COMMONEST_WORDS` does not cover, and the flank is `None`
+    #   either way — only the CERTIFICATION, which is a declaration and not a measurement,
+    #   tells the two apart.
+    _beyond_the_arm = [
         {
             "copy": row["copy"],
             "certified": row["certified"],
@@ -3844,6 +3852,28 @@ def main() -> int:
         or row["least_flank_at_which_every_position_carries_a_declared_word"]
         >= LEAST_FLANK_AT_WHICH_A_LOCAL_PRESENCE_IS_FREE_IN_A_RENDERING_OF_NOISE
     ]
+    refused_by_the_local_presence = {
+        "certified_wrong_script_readings_it_refuses": [
+            row for row in _beyond_the_arm if row["certified"] == "a_wrong_script_reading"
+        ],
+        "copies_neither_channel_speaks_for_that_it_refuses": [
+            row for row in _beyond_the_arm if row["certified"] == "not_certified"
+        ],
+        "copies_abstained_from_certifying_that_it_refuses": [
+            row for row in _beyond_the_arm if row["certified"] == "abstained"
+        ],
+        "certified_readings_it_refuses": [
+            row for row in _beyond_the_arm if row["certified"] == "a_reading"
+        ],
+        "how_to_read_the_second_list": (
+            "⚠ THE COST, AND IT IS NAMED RATHER THAN COUNTED. Two of these carry a declared "
+            "word at NO flank because no list here covers their language - a Tamil copy and "
+            "a Bengali one, both legible - and one is a Sanskrit manuscript catalogue of "
+            "1871 whose long stretches of shelf marks carry no running prose. ⛔ A `None` in "
+            "this list is UNATTRIBUTABLE from the measurement: it is what a wrong-script "
+            "reading and a book in an undeclared language both produce"
+        ),
+    }
     accepted_wrong_script = sorted(
         (row for row in certified_rows if row["certified"] == "a_wrong_script_reading"
          and row["share_that_recurs"] >= LEAST_RECURRENCE),
@@ -4070,7 +4100,12 @@ def main() -> int:
             #   wrong-script side must contain copies this floor ACCEPTS, or the finding
             #   would be an artefact of which copies were certified.
             "held": bool(
-                local_presence["the_two_sets_do_not_cross"] is True
+                # ⛔ AND THE INSTRUMENT MUST NOT REFUSE A SINGLE COPY IT CERTIFIED AS A
+                #   READING. That list being empty is the arm's whole claim to be free of
+                #   the defect it replaces, and a control that did not assert it would let
+                #   the arm drift onto the readings one specimen at a time.
+                refused_by_the_local_presence["certified_readings_it_refuses"] == []
+                and local_presence["the_two_sets_do_not_cross"] is True
                 and local_presence["copies_carrying_their_own_language"] >= 20
                 and local_presence[
                     "copies_read_in_a_script_the_work_cannot_be_printed_in"
