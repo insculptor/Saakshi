@@ -1679,6 +1679,629 @@ def how_a_per_language_floor_would_be_fitted(
     }
 
 
+
+# --------------------------------------------------------------------------------------
+# A LOCAL presence — the passage a locus resolves in, rather than the copy it sits in
+# --------------------------------------------------------------------------------------
+#
+# ⛔⛔⛔ **WHY A LOCAL ONE, WHEN THE GLOBAL FLOOR IS MEASURED UNREPAIRABLE.**
+#    `refuse_a_rendering_that_does_not_repeat` gates an attestation by a property of the
+#    WHOLE copy, and every statistic of that shape has failed the same way: twelve of them
+#    now score a certified rendering of noise as high as or higher than a real book, because
+#    a machine reading is a deterministic function of the printing, so the printing's
+#    morphology survives into the noise intact.
+#
+#    ⭐⭐⭐ **AND A COPY CAN CARRY ITS DECLARED LANGUAGE ACROSS FOUR FIFTHS OF ITSELF AND BE
+#    GARBAGE AT THE PASSAGE A LOCUS RESOLVES IN.** A share taken over a copy says nothing
+#    about one place in it. What an attestation rests on is one passage, so that is what
+#    this asks about.
+#
+# ⭐ REQUIRED, NOT REFUSED, and the polarity is the whole design. The only instrument that
+#    has ever worked here is a PRESENCE of something the copy did not supply — the commonest
+#    words of a language, fixed in `COMMONEST_WORDS` before any copy was measured. A reader
+#    can destroy the evidence of a presence but cannot manufacture it. So this asks for that
+#    presence AT THE PASSAGE, and where it is absent the answer is *I cannot attest here* —
+#    ⛔ never *this copy is noise*, which is the diagnosis the 18th session withdrew.
+
+#: ⛔⛔⛔ **THE FRAGMENT'S OWN CHARACTERS ARE EXCLUDED FROM THE PASSAGE, AND THAT IS NOT A
+#: DETAIL.** A declared word inside the quotation was supplied by the CITATION, not by the
+#: copy — the same defect `COMMONEST_WORDS` is declared out-of-corpus to avoid, one scale
+#: down. A window that contained the fragment would let a locus carry its own evidence, and
+#: the longer the quotation the freer the presence would be.
+FLANK_EXCLUDES_THE_FRAGMENT = True
+
+#: The flanks the census below is published on. ⚠ Travelling with the row for the reason
+#: every grid in this file does: a share quoted without the flank it was taken over reads as
+#: a property of the copy and is not one — the same copy carries a declared word within 50
+#: characters of a quarter of its positions and within 2 500 of every one of them.
+LOCAL_PRESENCE_MEASURED_AT_FLANKS = (25, 50, 100, 250, 500, 1000, 2500, 5000, 10000, 25000)
+
+#: What word list a locus's **declared** language calls for.
+#:
+#: ⭐⭐⭐ **THIS IS WHY A LOCAL PRESENCE ESCAPES THE ROUTING THAT DEFEATED A PER-LANGUAGE
+#: FLOOR.** `how_a_per_language_floor_would_be_fitted` fails because the only router
+#: available is the word list itself, so every wrong-script reading answers to no list and
+#: lands in a bucket with no copy below it. Here nothing is routed off the copy: a `Locus`
+#: DECLARES its language, and the declaration is made outside the copy by whoever wrote the
+#: citation. ⇒ the instrument asks *does this passage carry the language this citation says
+#: it is in*, and the copy has no vote in the question.
+#:
+#: ⛔ A language with no list is an ABSTENTION and not a refusal, and the two must not be
+#: spelled the same. Bengali, Tamil, Urdu and Kashmiri copies held here carry a declared
+#: word at no flank whatever — measured, all four at 0.0 — and that is a fact about this
+#: list, not about those copies.
+THE_LANGUAGE_A_LOCUS_DECLARES: Mapping[str, str] = {
+    "en": "english",
+    "eng": "english",
+    "hi": "sanskrit_or_hindi",
+    "sa": "sanskrit_or_hindi",
+}
+
+#: ⭐⭐⭐ **THE GREATEST FLANK A COPY CERTIFIED AS A READING HAS EVER NEEDED — a maximum over
+#: the certified set, and ⛔ therefore a LOWER BOUND ON ITSELF.**
+#:
+#: Measured over the 25 copies certified as readings by a presence of their own language:
+#: the smallest flank at which EVERY position of the copy carries a declared word within it
+#: runs from **163** (`gov_in_notification_2022_99`) to **8 828** (`ajitagamavolin_r_bhatt`).
+#: ⚠ The next specimen moves it, exactly as `LEAST_EXTENT_AN_ACCEPTANCE_DISCRIMINATES_AT`
+#: moved 1 016× when the set it was a maximum over grew from one member to thirty-three.
+GREATEST_FLANK_A_CERTIFIED_READING_HAS_NEEDED = 8828
+
+#: ⛔⛔⛔ **THE FLANK AT WHICH A LOCAL PRESENCE BECOMES FREE IN A CERTIFIED RENDERING OF
+#: NOISE, AND THE ONE BOUND THIS INSTRUMENT IS ARMED WITH.**
+#:
+#: Measured over the 21 copies certified — by a presence of a script their catalogued work
+#: cannot be printed in, with no word list consulted — to be readings in the wrong script:
+#: the smallest flank at which every position of such a copy carries a declared word runs
+#: from **16 642** (`scienceandtheindiantradition…`, 53 290 characters) to **306 984**, and
+#: ⭐ two of them never reach it at any flank at all. At or above 16 642, a presence in the
+#: flanks of a locus is obtainable in a rendering that carries none of the work's words.
+#:
+#: ⭐⭐⭐ **AND 8 828 < 16 642, SO THE TWO CERTIFIED SETS DO NOT CROSS.** Twelve instruments
+#: of this class have crossed; this is the thirteenth and the first that does not. The gap
+#: is 1.88×, and a value fitted inside it on ONE of the two draws — the `specimens` draw
+#: alone, band (5 129, 16 642), midpoint 10 885 — refuses **0** of the 23 held-out readings
+#: and accepts **0** of the 4 held-out wrong-script readings.
+#:
+#: ⛔ **THE FITTED VALUE IS NOT PUBLISHED AND NOT ARMED, BECAUSE ON THIS EVIDENCE IT IS THE
+#: SAME GUARD.** No copy certified either way falls between 8 828 and 10 885, so arming the
+#: fitted midpoint would classify all 46 certified copies exactly as the measured bound
+#: does, while being a number fitted to them. ⚠ The two differ on exactly ONE of the 65
+#: copies held here — `pli_kerala_rare_14973` at 15 968 — and it is a copy NEITHER channel
+#: speaks for. ⇒ *given two guards that agree on all the evidence, the one that is not
+#: fitted to the evidence is the one to arm.*
+LEAST_FLANK_AT_WHICH_A_LOCAL_PRESENCE_IS_FREE_IN_A_RENDERING_OF_NOISE = 16642
+
+#: ⚠ How the two numbers above were measured, carried on every row that quotes them so that
+#: a reader never meets one without its provenance.
+HOW_THE_FLANK_BOUNDS_WERE_MEASURED = (
+    "over 46 certified copies - 25 certified as readings by a PRESENCE of the commonest "
+    "words of their own language across at least three quarters of their 1000-character "
+    "blocks, and 21 certified as readings in a script their catalogued work cannot be "
+    "printed in by a PRESENCE of that script, with no word list consulted. ⛔ Both counts "
+    "are LOWER BOUNDS: 13 further copies are abstained from and named, and two declared "
+    "languages are all there are. ⚠ The statistic is the smallest flank at which EVERY "
+    "position of the copy carries a declared word within it, so it is a worst case over the "
+    "copy and is moved by one long stretch of index, table or plate"
+)
+
+
+def word_list_a_locus_calls_for(language: str) -> str | None:
+    """The declared list for a locus's language, or `None` — ⛔ which is an ABSTENTION.
+
+    ⭐ `None` says *this instrument cannot speak here*, and a caller that spells it the same
+    way as an absence has turned a fact about a word list into a verdict about a copy.
+    """
+    return THE_LANGUAGE_A_LOCUS_DECLARES.get(language)
+
+
+def the_passage_a_locus_resolves_in(
+    edition: Edition, fragment: str, *, flank: int
+) -> dict[str, Any]:
+    """The `flank` characters each side of `fragment`, ⛔ the fragment itself excluded.
+
+    ⛔ **The fragment must resolve exactly once**, for the reason `resolve` gives: a passage
+    taken around the first of two hits is a passage around whichever the copy happens to
+    print first, and a table of contents restates the words of the chapter it points at.
+    """
+    if flank <= 0:
+        raise TextualError(
+            f"a flank of {flank} characters reads nothing either side of the fragment. ⛔ A "
+            "presence measured over no text is not a presence"
+        )
+    resolution = resolve(edition, fragment)
+    if not resolution.resolved:
+        raise TextualError(
+            f"{edition.key}: the fragment occurs {resolution.occurrences} time(s), so there "
+            "is no one passage it resolves in. ⛔ A local presence is measured around a "
+            "located citation or not at all"
+        )
+    body = edition.normalised
+    quoted = normalise(fragment)
+    start = body.index(quoted)
+    end = start + len(quoted)
+    before = body[max(0, start - flank) : start]
+    after = body[end : end + flank]
+    return {
+        "flank": flank,
+        "characters_before": len(before),
+        "characters_after": len(after),
+        "characters_read": len(before) + len(after),
+        "the_fragment_is_excluded": FLANK_EXCLUDES_THE_FRAGMENT,
+        "why_the_fragment_is_excluded": (
+            "⛔ A DECLARED WORD INSIDE THE QUOTATION WAS SUPPLIED BY THE CITATION AND NOT BY "
+            "THE COPY. Including it would let a locus carry its own evidence, and the longer "
+            "the quotation the freer the presence would be - the same defect that makes a "
+            "word list harvested from a corpus resolve in that corpus for free"
+        ),
+        "passage": before + "\n" + after,
+    }
+
+
+def declared_words_the_passage_carries(
+    edition: Edition, fragment: str, *, language: str, flank: int
+) -> dict[str, Any]:
+    """Which commonest words of `language` occur in the flanks of a located fragment.
+
+    ⭐ Complete over the flanks' words — every one of them, never a sample. ⛔ A count of
+    zero is an ABSENCE and establishes nothing about the copy; see `how_to_read_this`.
+    """
+    terms = frozenset(declared_words_of(language))
+    passage = the_passage_a_locus_resolves_in(edition, fragment, flank=flank)
+    counts = Counter(word for word in words_of(passage["passage"]) if word in terms)
+    return {
+        "edition": edition.key,
+        "language": language,
+        "flank": flank,
+        "characters_read": passage["characters_read"],
+        "declared_words_that_occur": len(counts),
+        "occurrences": sum(counts.values()),
+        "carries_the_declared_language": bool(counts),
+        "which_ones": dict(sorted(counts.items(), key=lambda pair: -pair[1])),
+        "how_to_read_this": (
+            "⭐ A PRESENCE ESTABLISHES AND AN ABSENCE DOES NOT. Words nobody took out of "
+            "this copy occur in the passage this citation resolves in, which is what an "
+            "attestation here rests on. ⛔ Zero of them says only that this instrument "
+            "cannot attest at this place - never that the copy is a machine reading that "
+            "returned noise, which is a diagnosis this repository has withdrawn"
+        ),
+    }
+
+
+def least_flank_at_which_a_passage_carries_a_declared_word(
+    edition: Edition,
+    fragment: str,
+    *,
+    language: str,
+    cap: int = LEAST_FLANK_AT_WHICH_A_LOCAL_PRESENCE_IS_FREE_IN_A_RENDERING_OF_NOISE,
+) -> int | None:
+    """The smallest flank at which the passage carries one — ⛔ `None` at or above `cap`.
+
+    ⭐⭐⭐ **A NUMBER, NOT A VERDICT, AND THAT IS WHY IT NEEDS NO FITTED THRESHOLD.** How far
+    a reader must look from a citation before meeting a word of the language it declares is
+    a measurement of the passage. The two published bounds say how to read it and neither
+    was fitted to it: below `GREATEST_FLANK_A_CERTIFIED_READING_HAS_NEEDED` it is inside the
+    range every certified reading's *worst* position falls in, and at `cap` a presence is
+    free in a certified rendering of noise, so nothing at or above it is reported.
+    """
+    if cap <= 0:
+        raise TextualError("a cap of zero or less admits no flank at all")
+    terms = frozenset(declared_words_of(language))
+    low, high = 1, cap - 1
+    if not (
+        terms
+        & set(
+            words_of(
+                the_passage_a_locus_resolves_in(edition, fragment, flank=high)["passage"]
+            )
+        )
+    ):
+        return None
+    while low < high:
+        middle = (low + high) // 2
+        passage = the_passage_a_locus_resolves_in(edition, fragment, flank=middle)
+        if terms & set(words_of(passage["passage"])):
+            high = middle
+        else:
+            low = middle + 1
+    return low
+
+
+def require_the_passage_to_carry_the_language_the_locus_declares(
+    locus: Locus,
+    *,
+    cap: int = LEAST_FLANK_AT_WHICH_A_LOCAL_PRESENCE_IS_FREE_IN_A_RENDERING_OF_NOISE,
+) -> dict[str, Any]:
+    """⛔ The candidate successor to a refusing instrument: a **required LOCAL presence**.
+
+    Three outcomes, and ⭐ they are three because collapsing them to two is the defect:
+
+    * **attested** — the passage carries words of the language the locus declares, and the
+      row says how far from the citation the nearest one was;
+    * **cannot_attest** — no declared word within `cap` characters either side. ⛔ This is
+      an ABSTENTION, not a diagnosis: it says this instrument has no positive evidence here,
+      and says in terms that nothing follows about the copy.
+    * **cannot_measure** — the locus declares a language no list here covers. ⚠ Measured and
+      not hypothetical: Bengali, Tamil, Urdu and Kashmiri copies held here carry a declared
+      word at NO flank, which is a fact about `COMMONEST_WORDS` and not about them.
+
+    ⛔⛔ **THE CAP IS THE ONLY BOUND AND IT IS NOT FITTED.** See
+    `LEAST_FLANK_AT_WHICH_A_LOCAL_PRESENCE_IS_FREE_IN_A_RENDERING_OF_NOISE`: it is a minimum
+    over the certified set of noise, of the same shape as every accepting bound here, and
+    ⛔ a lower bound on itself.
+
+    ⛔⛔⛔ **AND THE NUMBER THIS RETURNS IS NOT A VERDICT AND MUST NOT BE THRESHOLDED — IT IS
+    MEASURED NOT TO SEPARATE.** Over 200 positions swept arithmetically through each copy:
+    the certified readings put **47.5 %–100 %** of their positions within 196 characters of a
+    declared word, and the certified wrong-script readings put **0 %–32.5 %** — so the COPIES
+    separate. But the per-position values overlap outright: a certified reading of 1933
+    reaches **1 633** at its worst position and a Bibliotheca Indica commentary **4 626**,
+    while a certified rendering of noise reaches **41** at its tenth percentile. ⇒ *a locus
+    needing five hundred characters could have come from either*, and a value cutting between
+    them would trade a refused citation for an accepted one exactly as `LEAST_RECURRENCE`
+    does. ⭐ What separates is `refuse_a_rendering_that_goes_too_far_without_its_declared_language`,
+    which asks the same question of the copy's WORST position rather than of this one.
+    """
+    declared = locus.language or locus.edition.language
+    language = word_list_a_locus_calls_for(declared)
+    common = {
+        "locus": locus.locus,
+        "edition": locus.edition.key,
+        "declared_language": declared,
+        "cap": cap,
+        "the_two_bounds": {
+            "greatest_flank_a_certified_reading_has_needed": (
+                GREATEST_FLANK_A_CERTIFIED_READING_HAS_NEEDED
+            ),
+            "least_flank_at_which_a_presence_is_free_in_a_rendering_of_noise": cap,
+            "how_they_were_measured": HOW_THE_FLANK_BOUNDS_WERE_MEASURED,
+        },
+    }
+    if language is None:
+        return {
+            **common,
+            "outcome": "cannot_measure",
+            "word_list": None,
+            "what_this_establishes": (
+                "⛔ NOTHING ABOUT THIS COPY OR THIS PASSAGE. No list of commonest words is "
+                f"declared for {declared!r}, so the instrument has no question to ask here. "
+                "⚠ THIS IS AN ABSTENTION AND NOT A REFUSAL, and the difference is the whole "
+                "of it: copies in Bengali, Tamil, Urdu and Kashmiri held here carry a "
+                "declared word at no flank whatever, and every one of them is legible"
+            ),
+        }
+    least = least_flank_at_which_a_passage_carries_a_declared_word(
+        locus.edition, locus.fragment, language=language, cap=cap
+    )
+    if least is None:
+        return {
+            **common,
+            "outcome": "cannot_attest",
+            "word_list": language,
+            "what_this_establishes": (
+                "⛔ THAT THIS INSTRUMENT HAS NO POSITIVE EVIDENCE AT THIS PLACE, AND NOTHING "
+                f"ELSE. Not one of the commonest words of {language} occurs within {cap} "
+                "characters either side of the quoted fragment. ⭐ A presence establishes "
+                "and an ABSENCE DOES NOT: this says nothing about whether the copy is a "
+                "machine reading that returned noise, nothing about whether the passage is "
+                "legible, and nothing about whether the citation is right. It says only "
+                "that an attestation resting on it would rest on nothing this instrument "
+                "can see. ⚠ Quoting a longer passage does not help - the fragment's own "
+                "characters are excluded on purpose"
+            ),
+        }
+    return {
+        **common,
+        "outcome": "attested",
+        "word_list": language,
+        "least_flank_at_which_the_passage_carries_a_declared_word": least,
+        "inside_the_range_every_certified_reading_falls_in": (
+            least <= GREATEST_FLANK_A_CERTIFIED_READING_HAS_NEEDED
+        ),
+        "this_number_does_not_separate_a_reading_from_a_rendering_of_noise": (
+            "⛔⛔⛔ AND IT MUST NOT BE THRESHOLDED. Swept over 200 positions of each copy, a "
+            "certified reading of 1933 reaches 1 633 at its worst position and a certified "
+            "rendering of noise reaches 41 at its tenth percentile: the per-position ranges "
+            "OVERLAP. ⭐ The copies separate and the positions do not, because a citation "
+            "sits at one place and almost never at the copy's worst one. Ask "
+            "`refuse_a_rendering_that_goes_too_far_without_its_declared_language` of the "
+            "copy; read this number as a measurement of this passage and nothing more"
+        ),
+        "what_this_establishes": (
+            f"⭐ THAT WORDS NOBODY TOOK OUT OF THIS COPY OCCUR WITHIN {least} CHARACTERS OF "
+            "THIS CITATION. The words are fixed in COMMONEST_WORDS before any copy was "
+            "measured and are taken out of none of them, so a passage that answers to them "
+            "is answering to something it did not supply. ⛔ It does NOT establish that the "
+            "passage says what the citation says it says, nor that the copy is a good "
+            "reading anywhere else in itself"
+        ),
+    }
+
+
+def least_flank_at_which_every_position_carries_a_declared_word(
+    edition: Edition, *, language: str, cap: int
+) -> int | None:
+    """The copy's **worst** position: the smallest flank at which they all carry one.
+
+    ⭐ Complete over every position of the copy, and exact — the covered set is the union of
+    one interval per occurrence, so no position is sampled and none is assumed.
+
+    ⛔ A worst case, which is what makes it comparable across copies of very different sizes
+    and ⚠ also what makes it movable by a single long stretch of index or plate.
+    """
+    terms = frozenset(declared_words_of(language))
+    body = edition.normalised
+    length = len(body)
+    if not length:
+        return None
+    found = _positions_of(body, terms)
+    if not found:
+        return None
+
+    def covered(flank: int) -> int:
+        intervals = []
+        for start, end in found:
+            low = max(0, end - flank)
+            high = min(length - 1, start + flank)
+            if low <= high:
+                intervals.append((low, high))
+        if not intervals:
+            return 0
+        total = 0
+        current_low, current_high = intervals[0]
+        for low, high in intervals[1:]:
+            if low <= current_high + 1:
+                current_high = max(current_high, high)
+            else:
+                total += current_high - current_low + 1
+                current_low, current_high = low, high
+        return total + current_high - current_low + 1
+
+    if covered(cap) < length:
+        return None
+    low, high = 0, cap
+    while low < high:
+        middle = (low + high) // 2
+        if covered(middle) >= length:
+            high = middle
+        else:
+            low = middle + 1
+    return low
+
+
+def _positions_of(body: str, terms: frozenset[str]) -> list[tuple[int, int]]:
+    """Every occurrence of a declared term, with its span. ⛔ Cut exactly as `words_of` cuts.
+
+    ⚠ Written out rather than reusing `words_of` because the positions are the point, and
+    ⛔ `script_of` CANNOT be used to cut words at all: it asks `isalpha`, and a Devanagari
+    vowel sign is a combining mark, so cutting on it read a mean word length of 1.36 for a
+    real book that reads 4.23.
+    """
+    found: list[tuple[int, int]] = []
+    current: list[str] = []
+    start = 0
+    for index, character in enumerate(body):
+        if character.isalpha() or unicodedata.category(character) in _WORD_MARKS:
+            if not current:
+                start = index
+            current.append(character)
+            continue
+        if current:
+            if "".join(current) in terms:
+                found.append((start, index))
+            current = []
+    if current and "".join(current) in terms:
+        found.append((start, len(body)))
+    return found
+
+
+def whether_a_local_presence_separates(
+    *,
+    carrying_their_own_language: Mapping[str, int | None],
+    read_in_a_script_the_work_cannot_be_printed_in: Mapping[str, int | None],
+) -> dict[str, Any]:
+    """Score the LOCAL presence against **both** certified sets — ⛔ the noise control is in.
+
+    ⭐⭐⭐ **THE KNOWN-NOISE CONTROL SITS INSIDE THE MEASUREMENT FROM THE FIRST RUN, WHICH IS
+    THE ONLY REASON TWELVE EARLIER INSTRUMENTS WERE CAUGHT.** Every one of them scored a
+    certified rendering of noise as high as or higher than a real book, and each was found
+    because it was never measured on one side alone.
+
+    Each value is the smallest flank at which every position of that copy carries a declared
+    word, or `None` where no flank does. ⛔ `None` on the **wrong-script** side is the
+    instrument working — that copy never carries one — while `None` on the reading side
+    would be a copy in a language no list covers, so the two are counted apart and named.
+    """
+    both = set(carrying_their_own_language) & set(
+        read_in_a_script_the_work_cannot_be_printed_in
+    )
+    if both:
+        raise TextualError(
+            f"the two certified sets share {len(both)} copy or copies - {sorted(both)}. ⛔ A "
+            "copy certified as a reading and as a wrong-script reading at once makes every "
+            "count below a number about nothing"
+        )
+    if not carrying_their_own_language or not read_in_a_script_the_work_cannot_be_printed_in:
+        raise TextualError(
+            "both certified sets are required and one is empty. ⛔ A separation measured "
+            "against nothing is the defect that put an accepting bound 1 016x wrong"
+        )
+    readings = {
+        key: value
+        for key, value in carrying_their_own_language.items()
+        if value is not None
+    }
+    silent_readings = sorted(
+        key for key, value in carrying_their_own_language.items() if value is None
+    )
+    wrong = {
+        key: value
+        for key, value in read_in_a_script_the_work_cannot_be_printed_in.items()
+        if value is not None
+    }
+    never_wrong = sorted(
+        key
+        for key, value in read_in_a_script_the_work_cannot_be_printed_in.items()
+        if value is None
+    )
+    greatest_reading = max(readings, key=lambda key: readings[key]) if readings else None
+    least_wrong = min(wrong, key=lambda key: wrong[key]) if wrong else None
+    separates = bool(
+        readings and wrong and readings[greatest_reading] < wrong[least_wrong]
+    )
+    return {
+        "copies_carrying_their_own_language": len(carrying_their_own_language),
+        "copies_read_in_a_script_the_work_cannot_be_printed_in": len(
+            read_in_a_script_the_work_cannot_be_printed_in
+        ),
+        "the_greatest_flank_a_reading_needs": (
+            {"copy": greatest_reading, "flank": readings[greatest_reading]}
+            if greatest_reading
+            else None
+        ),
+        "the_least_flank_a_wrong_script_reading_needs": (
+            {"copy": least_wrong, "flank": wrong[least_wrong]} if least_wrong else None
+        ),
+        "the_two_sets_do_not_cross": separates,
+        "how_far_apart": (
+            round(wrong[least_wrong] / readings[greatest_reading], 4)
+            if separates
+            else None
+        ),
+        "wrong_script_readings_that_carry_a_declared_word_at_no_flank": never_wrong,
+        "readings_that_carry_a_declared_word_at_no_flank": silent_readings,
+        "why_those_two_lists_are_counted_apart": (
+            "⭐ ON THE WRONG-SCRIPT SIDE IT IS THE INSTRUMENT WORKING - a rendering carrying "
+            "none of a declared language never answers at any flank. ⛔ On the reading side "
+            "it would be a copy in a language no list here covers, which is a fact about "
+            "COMMONEST_WORDS and about nothing else, so it is named rather than counted "
+            "against the instrument"
+        ),
+        "how_to_read_this": (
+            "⛔ AS A FACT ABOUT THIS STATISTIC AND THESE COPIES, both of whose sets are "
+            "LOWER BOUNDS. ⚠ And the positive side is PARTLY CIRCULAR and says so: a copy "
+            "is certified a reading by carrying a declared word across three quarters of "
+            "its 1000-character blocks, which at a flank near 500 is close to the statistic "
+            "being scored. The wrong-script side is NOT circular - it is certified by a "
+            "presence of the wrong SCRIPT with no word list consulted - and the copies held "
+            "by provenance are not circular either"
+        ),
+    }
+
+def refuse_a_rendering_that_goes_too_far_without_its_declared_language(
+    edition: Edition,
+    *,
+    language: str,
+    what_it_would_make_free: str,
+    cap: int = LEAST_FLANK_AT_WHICH_A_LOCAL_PRESENCE_IS_FREE_IN_A_RENDERING_OF_NOISE,
+) -> dict[str, Any]:
+    """⛔ Refuse a copy whose WORST place is further from its language than noise's is.
+
+    ⭐⭐⭐ **A REFUSING INSTRUMENT BUILT ENTIRELY OUT OF PRESENCES, WHICH THE TWENTIETH
+    SESSION CONCLUDED DOES NOT EXIST HERE.** Its conclusion was *an accepting instrument
+    exists here and a refusing one does not*, on the ground that the only thing that works is
+    a presence of something outside the copy and a presence cannot refuse. What it did not
+    consider is a presence measured at the copy's **worst position**: *how far must a reader
+    go from ANY point of this copy before meeting one of the commonest words of the language
+    it is claimed to be in.* Every observation feeding it is a presence; the statistic is a
+    maximum over them; and a maximum can be exceeded, so it refuses.
+
+    ⛔⛔ **WHY IT IS NOT THE THIRTEENTH FAILURE.** The twelve that failed are statistics of
+    the copy's own morphology — recurrence, shingles, word length, type-token — and a machine
+    reading is a deterministic function of the printing, so the printing's morphology
+    survives into the noise intact and every one of them scored a certified rendering of
+    noise as high as or higher than a real book. This one is not a statistic of the copy at
+    all: it is a distance to words the copy did not supply, fixed in `COMMONEST_WORDS` before
+    any copy was measured.
+
+    Measured over both certified sets:
+
+    | | copies | least | greatest |
+    |---|---|---|---|
+    | certified readings | 25 | 163 | **8 828** |
+    | certified wrong-script readings | 21 | **16 642** | 306 984, ⭐ two never |
+
+    ⇒ **the two sets do not cross**, by 1.88×, and a value fitted on the `specimens` draw
+    alone — band (5 129, 16 642), midpoint 10 885 — refuses **0** of the 23 held-out readings
+    and accepts **0** of the 4 held-out wrong-script readings. ⛔ That fitted value is not
+    what is armed: see the cap's own note for why the unfitted bound is the one to arm.
+
+    ⚠ **WHAT IT COSTS, MEASURED.** Of the copies held here it refuses the library scan
+    (47 146 — which is the copy the wrong-alphabet finding was made on, so this is the
+    instrument working), and it is SILENT over Bengali, Tamil, Urdu and Kashmiri copies that
+    are perfectly legible, because no list here covers them. ⛔ That silence is an
+    **abstention** — `word_list_a_locus_calls_for` returns `None` and no refusal is raised —
+    and it is a fact about `COMMONEST_WORDS`, never about those copies.
+
+    ⚠ It is a **worst case over the copy**, so one long stretch of index, table or plate
+    moves it; `cleared_copy_ajitagamavolin_r_bhatt` reaches 8 828 that way and is a real book
+    throughout. ⇒ the number returned is the finding, not the boolean.
+    """
+    list_name = word_list_a_locus_calls_for(language) or language
+    if list_name not in COMMONEST_WORDS:
+        # ⛔ AN ABSTENTION AND NOT A REFUSAL, and they must not be spelled the same: this
+        #    says the instrument has no question to ask, not that the copy failed one.
+        return {
+            "edition": edition.key,
+            "declared_language": language,
+            "outcome": "cannot_measure",
+            "word_list": None,
+            "cap": cap,
+            "what_this_establishes": (
+                "⛔ NOTHING ABOUT THIS COPY. No list of commonest words is declared for "
+                f"{language!r}. ⚠ Bengali, Tamil, Urdu and Kashmiri copies held here carry a "
+                "declared word at no flank whatever and every one of them is legible - a "
+                "fact about the word list and about nothing else"
+            ),
+        }
+    reached = least_flank_at_which_every_position_carries_a_declared_word(
+        edition, language=list_name, cap=cap
+    )
+    measured = {
+        "edition": edition.key,
+        "declared_language": language,
+        "word_list": list_name,
+        "cap": cap,
+        "least_flank_at_which_every_position_carries_a_declared_word": reached,
+        "greatest_flank_a_certified_reading_has_needed": (
+            GREATEST_FLANK_A_CERTIFIED_READING_HAS_NEEDED
+        ),
+        "how_the_bounds_were_measured": HOW_THE_FLANK_BOUNDS_WERE_MEASURED,
+    }
+    if reached is None:
+        raise TextualError(
+            f"{edition.key}: there is a place in this rendering from which not one of the "
+            f"commonest words of {list_name} occurs within {cap} characters either side, so "
+            f"{what_it_would_make_free} is free to obtain there - a passage quoted around it "
+            "carries no evidence that the copy is in the language the citation claims. ⛔⛔⛔ "
+            "THE CAUSE IS THE DISTANCE TO A DECLARED WORD AND NOT THE RECURRENCE: this "
+            "refusal names itself so that nothing downstream has to sort it from "
+            "`refuse_a_rendering_that_does_not_repeat` by its prose. ⚠ Measured over 46 "
+            f"certified copies, every one of the 25 certified as a reading reaches a declared "
+            f"word within {GREATEST_FLANK_A_CERTIFIED_READING_HAS_NEEDED} characters of every "
+            f"one of its positions, and the least any of the 21 certified as a reading in a "
+            f"script its work cannot be printed in needs is {cap}. ⛔ AND NOTHING HERE SAYS "
+            "THIS COPY IS A MACHINE READING THAT RETURNED NOISE - NO DIAGNOSIS IS MADE HERE AND "
+            "THAT IS THIS REFUSAL NAMING ITS OWN LIMIT. It says this instrument has no "
+            "positive evidence at one place in it, and an absence establishes nothing. "
+            "⚠ Ask `language_a_copy_carries` before believing anything about WHY"
+        )
+    return {
+        **measured,
+        "outcome": "accepted",
+        "inside_the_range_every_certified_reading_falls_in": (
+            reached <= GREATEST_FLANK_A_CERTIFIED_READING_HAS_NEEDED
+        ),
+        "what_this_establishes": (
+            "⭐ THAT FROM EVERY POSITION OF THIS COPY A READER MEETS A WORD THE COPY DID NOT "
+            f"SUPPLY WITHIN {reached} CHARACTERS. ⛔ It does not establish that any particular "
+            "passage says what a citation says it says, and it does not establish that a "
+            "locus in this copy is a good one: the per-POSITION value is measured NOT to "
+            "separate a reading from a rendering of noise, only the per-copy worst case is"
+        ),
+    }
+
+
 def refuse_a_rendering_that_does_not_repeat(
     edition: Edition, *, what_it_would_make_free: str, length: int = RECURRENCE_MEASURED_AT
 ) -> dict[str, Any]:

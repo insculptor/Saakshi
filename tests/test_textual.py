@@ -29,6 +29,19 @@ from saakshi.fixture import (
 from saakshi.texts import DEVANAGARI, passage_fidelity, script_presence
 from saakshi.textual import (
     COMMONEST_WORDS,
+    GREATEST_FLANK_A_CERTIFIED_READING_HAS_NEEDED,
+    HOW_THE_FLANK_BOUNDS_WERE_MEASURED,
+    LEAST_FLANK_AT_WHICH_A_LOCAL_PRESENCE_IS_FREE_IN_A_RENDERING_OF_NOISE,
+    LOCAL_PRESENCE_MEASURED_AT_FLANKS,
+    THE_LANGUAGE_A_LOCUS_DECLARES,
+    declared_words_the_passage_carries,
+    least_flank_at_which_a_passage_carries_a_declared_word,
+    least_flank_at_which_every_position_carries_a_declared_word,
+    refuse_a_rendering_that_goes_too_far_without_its_declared_language,
+    require_the_passage_to_carry_the_language_the_locus_declares,
+    the_passage_a_locus_resolves_in,
+    whether_a_local_presence_separates,
+    word_list_a_locus_calls_for,
     GREATEST_EXTENT_AT_WHICH_A_WINDOW_OF_A_REFUSED_COPY_HAS_CLEARED,
     GREATEST_SHARE_A_WRONG_SCRIPT_READING_REACHES,
     LEAST_LENGTH_A_DECLARED_WORD_CARRIES,
@@ -3370,3 +3383,370 @@ def test_the_wrong_script_certification_is_a_declaration_over_copies_this_reposi
     assert certification_of("jaimini_sutras_rao") == "not_certified"
     # ⛔ It consults no copy and no measurement: a key nothing is held for still answers.
     assert certification_of("a key no source exists for") == "not_certified"
+
+
+# ==========================================================================================
+# The LOCAL presence — the passage a locus resolves in, rather than the copy it sits in
+# ==========================================================================================
+#
+# ⛔⛔⛔ The floor is measured unrepairable and the twentieth session's question was what
+#    replaces a REFUSING instrument. These exercise the answer: a presence of words the copy
+#    did not supply, measured at the copy's WORST position rather than over the whole of it.
+#    ⭐ Every verdict field below is driven BOTH ways, and every branch is isolated by an
+#    input no other branch answers to — the twentieth session's escape was a field that was
+#    always True and the nineteenth's was a guard test satisfied by a different guard.
+
+#: A copy that carries English throughout, ⚠ with the declared words spread so that the
+#: WORST position is a measurable distance from one rather than an assumed zero.
+CARRIES_ENGLISH_THROUGHOUT = _copy(
+    (
+        "The rule is stated here and that is the whole of it. "
+        + "qqqq " * 40
+        + "This is the second passage and it says the same thing with other words. "
+        + "wwww " * 40
+        + "The third passage restates what the first two have said, from the beginning."
+    ),
+    key="carries_english_throughout",
+)
+
+#: ⛔ A copy in which one long stretch carries no declared word at all — the shape a rendering
+#: of noise has, and the shape one long index in a real book has too. ⚠ That ambiguity is
+#: the finding, not a defect in the fixture.
+#: ⚠ Every token in the stretch is distinct, which is the property a machine reading that
+#: returned noise has and the reason a fragment quoted out of one resolves exactly once.
+HAS_ONE_LONG_STRETCH_WITHOUT_IT = _copy(
+    "The rule is stated here at the beginning. "
+    + "".join(f"zqx{number:04d} " for number in range(400))
+    + " and that is all.",
+    key="has_one_long_stretch_without_it",
+)
+
+#: ⛔ A fragment out of the middle of that stretch. It resolves exactly ONCE — which is the
+#: whole danger the local presence exists to meet: in a rendering that repeats nothing, a
+#: citation quoted out of the noise locates one place and attests a rule nobody stated.
+A_FRAGMENT_OUT_OF_THE_STRETCH = "".join(f"zqx{number:04d} " for number in range(200, 210))
+
+
+def test_a_flank_of_zero_reads_nothing_and_is_refused():
+    """⛔ A presence measured over no text is not a presence."""
+    with pytest.raises(TextualError) as error:
+        the_passage_a_locus_resolves_in(edition(), CONTROL, flank=0)
+    assert "reads nothing" in str(error.value)
+
+
+def test_a_passage_is_taken_only_around_a_fragment_that_resolves_once():
+    """⛔ Two hits is two passages, and the first of them is whichever the copy prints first."""
+    twice = _copy(CONTROL + " ... " + CONTROL, key="prints_it_twice")
+    with pytest.raises(TextualError) as error:
+        the_passage_a_locus_resolves_in(twice, CONTROL, flank=50)
+    assert "occurs 2 time(s)" in str(error.value)
+    # ⭐ The positive control: the same fragment in a copy that prints it once.
+    assert the_passage_a_locus_resolves_in(edition(), CONTROL, flank=50)["flank"] == 50
+
+
+def test_the_fragment_is_excluded_from_its_own_passage():
+    """⛔⛔⛔ A DECLARED WORD INSIDE THE QUOTATION WAS SUPPLIED BY THE CITATION.
+
+    ⭐ The isolating input: a fragment that is ITSELF made of declared words, sitting in a
+    copy whose surroundings carry none. If the fragment counted, this would attest — and the
+    longer the quotation the freer the presence would be.
+    """
+    fragment = "the and that for with this are not from have"
+    copy = _copy("qqqq " * 30 + fragment + " wwww " * 30, key="the_words_are_in_the_quote")
+    passage = the_passage_a_locus_resolves_in(copy, fragment, flank=200)
+    assert fragment not in passage["passage"]
+    assert passage["the_fragment_is_excluded"] is True
+    carried = declared_words_the_passage_carries(
+        copy, fragment, language="english", flank=200
+    )
+    # ⛔ BOTH WAYS: nothing is carried here, and something is carried when the surroundings
+    #   are what supply it rather than the quotation.
+    assert carried["carries_the_declared_language"] is False
+    assert carried["occurrences"] == 0
+    supplied_by_the_copy = _copy(
+        "and that is the whole of it. " + fragment + " which was the rule from the first.",
+        key="the_words_are_around_the_quote",
+    )
+    other = declared_words_the_passage_carries(
+        supplied_by_the_copy, fragment, language="english", flank=200
+    )
+    assert other["carries_the_declared_language"] is True
+    assert other["occurrences"] > 0
+
+
+def test_the_least_flank_is_the_smallest_one_that_works_and_the_search_is_checked():
+    """⭐ The binary search is pinned against a linear one — ⛔ never against itself."""
+    copy = CARRIES_ENGLISH_THROUGHOUT
+    fragment = "This is the second passage"
+    least = least_flank_at_which_a_passage_carries_a_declared_word(
+        copy, fragment, language="english", cap=5000
+    )
+    assert least is not None
+    linear = next(
+        flank
+        for flank in range(1, 5000)
+        if declared_words_the_passage_carries(
+            copy, fragment, language="english", flank=flank
+        )["carries_the_declared_language"]
+    )
+    assert least == linear
+    # ⛔ And one below it must NOT carry — a smallest that is not smallest is not a bound.
+    assert not declared_words_the_passage_carries(
+        copy, fragment, language="english", flank=least - 1
+    )["carries_the_declared_language"]
+
+
+def test_a_language_with_no_declared_list_is_an_abstention_and_not_a_refusal():
+    """⛔⛔ AND THE TWO MUST NOT BE SPELLED THE SAME.
+
+    ⭐ The words each branch is owed are asserted, and no two branches are owed the same
+    ones — a guard test that accepts any refusal is satisfied by a different guard.
+    """
+    assert word_list_a_locus_calls_for("en") == "english"
+    assert word_list_a_locus_calls_for("hi") == "sanskrit_or_hindi"
+    assert word_list_a_locus_calls_for("sa") == "sanskrit_or_hindi"
+    # ⚠ `und` is what most copies in this repository's cache declare, and it is exactly the
+    #   case the instrument cannot speak for.
+    assert word_list_a_locus_calls_for("und") is None
+    assert word_list_a_locus_calls_for("bn") is None
+    silent = require_the_passage_to_carry_the_language_the_locus_declares(
+        Locus(
+            source_kind="translation",
+            edition=CARRIES_ENGLISH_THROUGHOUT,
+            locus="a place",
+            interpretation_status="restated",
+            fragment="This is the second passage",
+            language="bn",
+        )
+    )
+    assert silent["outcome"] == "cannot_measure"
+    assert "ABSTENTION AND NOT A REFUSAL" in silent["what_this_establishes"]
+    assert silent["word_list"] is None
+
+
+def test_the_three_outcomes_are_isolated_and_each_is_owed_its_own_words():
+    """⭐⭐⭐ Three inputs, three outcomes, and the words of each are pinned apart."""
+    attested = require_the_passage_to_carry_the_language_the_locus_declares(
+        Locus(
+            source_kind="translation",
+            edition=CARRIES_ENGLISH_THROUGHOUT,
+            locus="a place",
+            interpretation_status="restated",
+            fragment="This is the second passage",
+            language="en",
+        )
+    )
+    cannot = require_the_passage_to_carry_the_language_the_locus_declares(
+        Locus(
+            source_kind="translation",
+            edition=HAS_ONE_LONG_STRETCH_WITHOUT_IT,
+            locus="a place",
+            interpretation_status="restated",
+            fragment=A_FRAGMENT_OUT_OF_THE_STRETCH,
+            language="en",
+        ),
+        cap=200,
+    )
+    silent = require_the_passage_to_carry_the_language_the_locus_declares(
+        Locus(
+            source_kind="translation",
+            edition=CARRIES_ENGLISH_THROUGHOUT,
+            locus="a place",
+            interpretation_status="restated",
+            fragment="This is the second passage",
+            language="und",
+        )
+    )
+    assert [attested["outcome"], cannot["outcome"], silent["outcome"]] == [
+        "attested",
+        "cannot_attest",
+        "cannot_measure",
+    ]
+    # ⛔ The words owed, per branch, and no two branches owed the same ones.
+    assert "WITHIN" in attested["what_this_establishes"]
+    assert "NO POSITIVE EVIDENCE AT THIS PLACE" in cannot["what_this_establishes"]
+    assert "No list of commonest words is declared" in silent["what_this_establishes"]
+    owed = [row["what_this_establishes"] for row in (attested, cannot, silent)]
+    assert len(set(owed)) == 3
+    # ⭐ And the attested row carries the number, not a boolean — the number is the finding.
+    assert isinstance(
+        attested["least_flank_at_which_the_passage_carries_a_declared_word"], int
+    )
+    # ⛔⛔ AND IT SAYS ON THE ROW THAT THE NUMBER DOES NOT SEPARATE. The twentieth session's
+    #    escape was a field carrying a headline with nothing behind it.
+    assert "MUST NOT BE THRESHOLDED" in (
+        attested["this_number_does_not_separate_a_reading_from_a_rendering_of_noise"]
+    )
+
+
+def test_an_absence_at_a_locus_establishes_nothing_about_the_copy():
+    """⛔ The diagnosis withdrawn from the recurrence refusal must not reappear here."""
+    cannot = require_the_passage_to_carry_the_language_the_locus_declares(
+        Locus(
+            source_kind="translation",
+            edition=HAS_ONE_LONG_STRETCH_WITHOUT_IT,
+            locus="a place",
+            interpretation_status="restated",
+            fragment=A_FRAGMENT_OUT_OF_THE_STRETCH,
+            language="en",
+        ),
+        cap=200,
+    )
+    said = cannot["what_this_establishes"]
+    assert "machine reading that returned noise" in said
+    assert "nothing about whether the passage is" in said
+    # ⛔ It is stated as what the refusal does NOT say. A test asserting only that the words
+    #   are absent would pass on a row that said nothing at all.
+    assert "AND NOTHING" in said
+
+
+def test_the_copy_level_guard_refuses_a_long_stretch_and_accepts_a_book():
+    """⭐⭐⭐ A REFUSING INSTRUMENT BUILT ENTIRELY OUT OF PRESENCES."""
+    accepted = refuse_a_rendering_that_goes_too_far_without_its_declared_language(
+        CARRIES_ENGLISH_THROUGHOUT,
+        language="en",
+        what_it_would_make_free="an attestation",
+        cap=2000,
+    )
+    assert accepted["outcome"] == "accepted"
+    assert accepted["least_flank_at_which_every_position_carries_a_declared_word"] > 0
+    with pytest.raises(TextualError) as error:
+        refuse_a_rendering_that_goes_too_far_without_its_declared_language(
+            HAS_ONE_LONG_STRETCH_WITHOUT_IT,
+            language="en",
+            what_it_would_make_free="an attestation",
+            cap=200,
+        )
+    said = str(error.value)
+    # ⛔⛔ THE BRANCH NAMES ITSELF. A string-matched branch detector fails silently in
+    #    whichever direction the message last moved, so nothing downstream sorts on prose.
+    assert "THE CAUSE IS THE DISTANCE TO A DECLARED WORD AND NOT THE RECURRENCE" in said
+    # ⛔ And it does NOT say what the recurrence refusal says, in either of its branches.
+    assert "LITTLE IN THIS COPY REPEATS" not in said
+    assert "THE CAUSE IS THE EXTENT AND NOT THE RENDERING" not in said
+    # ⛔⛔⛔ THE WHOLE WITHDRAWAL, NOT A PREFIX OF IT. The sweep escaped once here: a disarm
+    #    that replaced everything AFTER these words with the diagnosis itself left the prefix
+    #    standing, and an assertion on the prefix passed. ⇒ the branch names its own limit and
+    #    the test is owed the marker, not the opening.
+    assert "NO DIAGNOSIS IS MADE HERE AND THAT IS THIS REFUSAL NAMING ITS OWN LIMIT" in said
+    assert "an absence establishes nothing" in said
+
+
+def test_the_copy_level_guard_abstains_where_no_word_list_is_declared():
+    """⚠ Silent over legible Bengali, Tamil, Urdu and Kashmiri — ⛔ and it says so."""
+    row = refuse_a_rendering_that_goes_too_far_without_its_declared_language(
+        HAS_ONE_LONG_STRETCH_WITHOUT_IT,
+        language="bn",
+        what_it_would_make_free="an attestation",
+        cap=200,
+    )
+    # ⭐ The isolating input: a copy the guard WOULD refuse under a language it has a list
+    #   for. So the abstention is reached by the language and not by the copy.
+    assert row["outcome"] == "cannot_measure"
+    assert "NOTHING ABOUT THIS COPY" in row["what_this_establishes"]
+    with pytest.raises(TextualError):
+        refuse_a_rendering_that_goes_too_far_without_its_declared_language(
+            HAS_ONE_LONG_STRETCH_WITHOUT_IT,
+            language="en",
+            what_it_would_make_free="an attestation",
+            cap=200,
+        )
+
+
+def test_the_worst_position_is_exact_and_is_checked_against_a_linear_search():
+    """⭐ Complete over every position, and pinned against a search that does not share code."""
+    copy = CARRIES_ENGLISH_THROUGHOUT
+    reached = least_flank_at_which_every_position_carries_a_declared_word(
+        copy, language="english", cap=5000
+    )
+    assert reached is not None
+    body = copy.normalised
+    terms = frozenset(declared_words_of("english"))
+
+    def every_position_carries(flank: int) -> bool:
+        # ⛔ A linear check over every position, written independently of the union-of-
+        #   intervals the module uses. Two implementations, one number.
+        for at in range(len(body)):
+            low = max(0, at - flank)
+            high = min(len(body), at + flank)
+            if not (terms & set(words_of(body[low:high]))):
+                return False
+        return True
+
+    assert every_position_carries(reached)
+    assert not every_position_carries(reached - 1)
+
+
+def test_the_separation_verdict_is_driven_both_ways_with_a_positive_control():
+    """⛔⛔⛔ A CONTROL THAT ASSERTS A FIELD IS TRUE IS SATISFIED BY A FIELD THAT IS ALWAYS TRUE.
+
+    ⭐ So the verdict is put to two sets that DO separate and two that do NOT, and the
+    instrument must say so both times. Every fixture that can only come out one way measures
+    nothing.
+    """
+    separates = whether_a_local_presence_separates(
+        carrying_their_own_language={"a": 163, "b": 8828},
+        read_in_a_script_the_work_cannot_be_printed_in={"c": 16642, "d": None},
+    )
+    assert separates["the_two_sets_do_not_cross"] is True
+    assert separates["how_far_apart"] == round(16642 / 8828, 4)
+    # ⛔ BOTH sides carry a `None` here on purpose. With only the wrong-script side empty of
+    #   one, merging the two lists is invisible - the sweep escaped exactly that way.
+    assert separates["wrong_script_readings_that_carry_a_declared_word_at_no_flank"] == ["d"]
+    assert separates["readings_that_carry_a_declared_word_at_no_flank"] == []
+    both_sides = whether_a_local_presence_separates(
+        carrying_their_own_language={"a": 163, "b": 8828, "tamil": None},
+        read_in_a_script_the_work_cannot_be_printed_in={"c": 16642, "d": None},
+    )
+    # ⭐ And the two are counted APART: on the wrong-script side a `None` is the instrument
+    #   working; on the reading side it is a fact about COMMONEST_WORDS and nothing else.
+    assert both_sides["wrong_script_readings_that_carry_a_declared_word_at_no_flank"] == ["d"]
+    assert both_sides["readings_that_carry_a_declared_word_at_no_flank"] == ["tamil"]
+    assert both_sides["the_two_sets_do_not_cross"] is True
+    crossed = whether_a_local_presence_separates(
+        carrying_their_own_language={"a": 163, "b": 30000},
+        read_in_a_script_the_work_cannot_be_printed_in={"c": 16642, "d": None},
+    )
+    assert crossed["the_two_sets_do_not_cross"] is False
+    assert crossed["how_far_apart"] is None
+
+
+def test_the_separation_refuses_a_copy_in_both_sets_and_an_empty_side():
+    """⛔ A maximum over an empty set is how an accepting bound came to be published off one
+    specimen, and a copy certified both ways makes every count a number about nothing."""
+    with pytest.raises(TextualError) as error:
+        whether_a_local_presence_separates(
+            carrying_their_own_language={"a": 163},
+            read_in_a_script_the_work_cannot_be_printed_in={"a": 16642},
+        )
+    assert "share 1 copy" in str(error.value)
+    with pytest.raises(TextualError) as error:
+        whether_a_local_presence_separates(
+            carrying_their_own_language={},
+            read_in_a_script_the_work_cannot_be_printed_in={"a": 16642},
+        )
+    assert "both certified sets are required" in str(error.value)
+
+
+def test_the_two_published_flank_bounds_do_not_cross_and_carry_their_provenance():
+    """⛔ A bound quoted without how it was measured reads as a property of the world."""
+    assert (
+        GREATEST_FLANK_A_CERTIFIED_READING_HAS_NEEDED
+        < LEAST_FLANK_AT_WHICH_A_LOCAL_PRESENCE_IS_FREE_IN_A_RENDERING_OF_NOISE
+    )
+    assert "LOWER BOUNDS" in HOW_THE_FLANK_BOUNDS_WERE_MEASURED
+    assert "46 certified copies" in HOW_THE_FLANK_BOUNDS_WERE_MEASURED
+    # ⚠ The grid the census is published on travels with the row, like every grid here.
+    assert LOCAL_PRESENCE_MEASURED_AT_FLANKS == tuple(
+        sorted(LOCAL_PRESENCE_MEASURED_AT_FLANKS)
+    )
+    assert GREATEST_FLANK_A_CERTIFIED_READING_HAS_NEEDED not in (
+        LOCAL_PRESENCE_MEASURED_AT_FLANKS
+    )
+
+
+def test_the_declared_word_lists_the_locus_map_names_are_all_declared():
+    """⛔ A map naming a list that does not exist routes a locus into a KeyError at emit time."""
+    for code, name in THE_LANGUAGE_A_LOCUS_DECLARES.items():
+        assert name in COMMONEST_WORDS, code
+        assert declared_words_of(name)
