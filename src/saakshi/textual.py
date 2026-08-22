@@ -2029,7 +2029,35 @@ def least_flank_at_which_every_position_carries_a_declared_word(
     ⛔ A worst case, which is what makes it comparable across copies of very different sizes
     and ⚠ also what makes it movable by a single long stretch of index or plate.
     """
-    terms = frozenset(declared_words_of(language))
+    return _least_flank_covering_every_position(
+        edition, terms=frozenset(declared_words_of(language)), cap=cap
+    )
+
+
+def least_flank_over_any_declared_language(
+    edition: Edition,
+    *,
+    cap: int = LEAST_FLANK_AT_WHICH_A_LOCAL_PRESENCE_IS_FREE_IN_A_RENDERING_OF_NOISE,
+) -> int | None:
+    """The same, over **every** declared list at once — ⛔ a union, not a minimum.
+
+    ⭐ The census below is published on this rather than on the per-language answers,
+    because a copy that prints an English apparatus around a Sanskrit text is covered at a
+    position by neither list alone and by the two together. ⚠ Taking the smallest of the
+    per-language numbers would report a copy as worse than it is, and would do it only for
+    the copies that carry two languages — which is a bias with a shape.
+    """
+    terms: set[str] = set()
+    for name in sorted(COMMONEST_WORDS):
+        terms.update(declared_words_of(name))
+    return _least_flank_covering_every_position(
+        edition, terms=frozenset(terms), cap=cap
+    )
+
+
+def _least_flank_covering_every_position(
+    edition: Edition, *, terms: frozenset[str], cap: int
+) -> int | None:
     body = edition.normalised
     length = len(body)
     if not length:

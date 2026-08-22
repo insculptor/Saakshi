@@ -85,7 +85,10 @@ from saakshi.textual import (  # noqa: E402
     collect_occurrences,
     digest,
     GREATEST_EXTENT_AT_WHICH_A_WINDOW_OF_A_REFUSED_COPY_HAS_CLEARED,
+    GREATEST_FLANK_A_CERTIFIED_READING_HAS_NEEDED,
     GREATEST_SHARE_A_WRONG_SCRIPT_READING_REACHES,
+    HOW_THE_FLANK_BOUNDS_WERE_MEASURED,
+    LEAST_FLANK_AT_WHICH_A_LOCAL_PRESENCE_IS_FREE_IN_A_RENDERING_OF_NOISE,
     LEAST_COPIES_THIS_FLOOR_MISCLASSIFIES_AT_ANY_VALUE,
     LEAST_EXTENT_A_REFUSAL_DISCRIMINATES_AT,
     LEAST_RECURRENCE,
@@ -94,6 +97,12 @@ from saakshi.textual import (  # noqa: E402
     discrimination_of_resolving_once,
     how_a_per_language_floor_would_be_fitted,
     least_error_a_single_value_can_reach,
+    least_flank_at_which_a_passage_carries_a_declared_word,
+    least_flank_over_any_declared_language,
+    refuse_a_rendering_that_goes_too_far_without_its_declared_language,
+    require_the_passage_to_carry_the_language_the_locus_declares,
+    whether_a_local_presence_separates,
+    word_list_a_locus_calls_for,
     normalise,
     blocks_this_floor_refuses,
     every_window_of,
@@ -2607,6 +2616,10 @@ def main() -> int:
     # ⛔ The criterion a copy is CERTIFIED a reading at - the tightest of the three
     #   above, chosen before either certified set was scored and published on the row.
     CARRIES_ITS_OWN_LANGUAGE_ACROSS = 0.75
+    # ⛔ The census is run to a cap far above either published bound so that the row
+    #   carries the copy's ACTUAL number rather than a `None` meaning 'more than the
+    #   arm'. ⚠ A census that reports the arm back to itself measures the arm.
+    _FLANK_CAP = 1_000_000
     # ⛔ 314 IS ON THIS GRID ON PURPOSE. It is the number the accepting bound was read
     #   off when one rendering of noise was held, and a grid that started at 315 would
     #   report NOTHING for that copy - so the row that is supposed to show the old value
@@ -3422,6 +3435,13 @@ def main() -> int:
                 "characters": copy.searchable_characters,
                 "share_that_recurs": recurrence_of(copy)["share_that_recurs"],
                 "this_floor": side,
+                # ⭐⭐⭐ THE LOCAL PRESENCE, ASKED OF THE COPY'S WORST POSITION. Computed in
+                #    the same pass as the language census because it loads the same copy,
+                #    and ⛔ over the UNION of the declared lists rather than the smallest of
+                #    them taken alone - see `least_flank_over_any_declared_language`.
+                "least_flank_at_which_every_position_carries_a_declared_word": (
+                    least_flank_over_any_declared_language(copy, cap=_FLANK_CAP)
+                ),
             }
             for language in sorted(COMMONEST_WORDS):
                 occurring = declared_words_that_occur(copy, language=language)
@@ -3463,6 +3483,9 @@ def main() -> int:
                 else "refuses it"
             ),
             "held_here_as": what,
+            "least_flank_at_which_every_position_carries_a_declared_word": (
+                least_flank_over_any_declared_language(copy, cap=_FLANK_CAP)
+            ),
         }
         for language in sorted(COMMONEST_WORDS):
             occurring = declared_words_that_occur(copy, language=language)
@@ -3724,6 +3747,9 @@ def main() -> int:
                     )
                 ),
                 "carries": carries,
+                "least_flank_at_which_every_position_carries_a_declared_word": row[
+                    "least_flank_at_which_every_position_carries_a_declared_word"
+                ],
             }
         )
 
@@ -3749,6 +3775,75 @@ def main() -> int:
         )
         for criterion in CARRYING_A_LANGUAGE_ACROSS
     }
+    # ⛔⛔ WHAT REQUIRING A LOCAL PRESENCE WOULD COST THE LOCI THIS FILE ACTUALLY EMITS.
+    #   Measured rather than asserted, and measured over EVERY locus rather than a sample:
+    #   a cost quoted from the loci that happen to pass is not a cost.
+    # ⭐ The rules resolve in the first copy and the corroborations in the second, each
+    #   under the language ITS OWN copy declares - so the routing is the citation's and not
+    #   the copy's, which is what a per-language floor could not manage.
+    locus_presence = []
+    for rule in RULES:
+        locus_presence.append(
+            require_the_passage_to_carry_the_language_the_locus_declares(
+                Locus(
+                    source_kind=rule["source_kind"],
+                    edition=edition,
+                    locus=rule["locus"],
+                    interpretation_status=rule["interpretation_status"],
+                    fragment=rule["fragment"],
+                )
+            )
+        )
+    for entry in CORROBORATION:
+        for fragment, label in [(entry["fragment"], entry["locus"])] + (
+            [(entry["second_fragment"], entry.get("second_locus", entry["locus"]))]
+            if entry.get("second_fragment")
+            else []
+        ):
+            locus_presence.append(
+                require_the_passage_to_carry_the_language_the_locus_declares(
+                    Locus(
+                        source_kind="commentary",
+                        edition=second,
+                        locus=label,
+                        interpretation_status="restated",
+                        fragment=fragment,
+                    )
+                )
+            )
+    greatest_flank_a_locus_here_needs = max(
+        row.get("least_flank_at_which_the_passage_carries_a_declared_word") or 0
+        for row in locus_presence
+    )
+
+    # ⛔ The local presence, scored against BOTH certified sets in the same pass — the
+    #   known-noise control sits inside the measurement rather than beside it, which is the
+    #   only reason twelve earlier instruments were caught.
+    local_presence = whether_a_local_presence_separates(
+        carrying_their_own_language={
+            row["copy"]: row["least_flank_at_which_every_position_carries_a_declared_word"]
+            for row in certified_rows
+            if row["certified"] == "a_reading"
+        },
+        read_in_a_script_the_work_cannot_be_printed_in={
+            row["copy"]: row["least_flank_at_which_every_position_carries_a_declared_word"]
+            for row in certified_rows
+            if row["certified"] == "a_wrong_script_reading"
+        },
+    )
+    # ⚠ What the arm would refuse of the copies held here, NAMED — a count with no names is
+    #   a silent cap on what a reader can check.
+    refused_by_the_local_presence = [
+        {
+            "copy": row["copy"],
+            "certified": row["certified"],
+            "flank": row["least_flank_at_which_every_position_carries_a_declared_word"],
+        }
+        for row in sorted(certified_rows, key=lambda entry: entry["copy"])
+        if row["least_flank_at_which_every_position_carries_a_declared_word"] is None
+        or row["least_flank_at_which_every_position_carries_a_declared_word"]
+        >= LEAST_FLANK_AT_WHICH_A_LOCAL_PRESENCE_IS_FREE_IN_A_RENDERING_OF_NOISE
+    ]
     accepted_wrong_script = sorted(
         (row for row in certified_rows if row["certified"] == "a_wrong_script_reading"
          and row["share_that_recurs"] >= LEAST_RECURRENCE),
@@ -3895,6 +3990,153 @@ def main() -> int:
                 "to a refusal is not available either - the copies there that are not "
                 "certified wrong-script include legible Bengali, Tamil, Urdu and Kashmiri, "
                 "which would be refused for a fact about the word list"
+            ),
+        },
+        # ==============================================================================
+        # ⭐⭐⭐ THE LOCAL PRESENCE — the first instrument of thirteen that does not cross
+        # ==============================================================================
+        {
+            "finding": "control",
+            "control": (
+                "whether_a_local_presence_separates_a_reading_from_a_wrong_script_reading"
+            ),
+            "measured": {
+                "the_statistic": (
+                    "the smallest flank at which EVERY position of the copy carries, within "
+                    "that many characters either side of it, one of the commonest words of a "
+                    "declared language. ⭐ Complete over every position and exact - the "
+                    "covered set is a union of one interval per occurrence, so nothing is "
+                    "sampled. ⛔ Over the UNION of the declared lists, never the smallest of "
+                    "them taken alone"
+                ),
+                "why_this_one": (
+                    "⛔⛔⛔ TWELVE INSTRUMENTS OF THE OTHER CLASS HAVE FAILED IN THE SAME "
+                    "DIRECTION. Every one of them is a statistic of the copy's OWN "
+                    "morphology, and a machine reading is a deterministic function of the "
+                    "printing, so the printing's morphology survives into the noise intact. "
+                    "⭐ This one is not a statistic of the copy at all: it is a distance to "
+                    "words the copy did not supply, fixed in COMMONEST_WORDS before any copy "
+                    "was measured and taken out of none of them"
+                ),
+                "how_it_can_refuse_when_a_presence_cannot": (
+                    "⭐⭐⭐ IT IS A MAXIMUM OVER PRESENCES, AND A MAXIMUM CAN BE EXCEEDED. "
+                    "The twentieth session concluded that an accepting instrument exists "
+                    "here and a refusing one does not, because the only thing that works is "
+                    "a presence and a presence cannot refuse. What it did not consider is a "
+                    "presence measured at the copy's WORST position: every observation "
+                    "feeding this is a presence, and the copy is refused when the worst of "
+                    "them is worse than any certified reading's"
+                ),
+                "the_separation": local_presence,
+                "the_two_bounds": {
+                    "greatest_flank_a_certified_reading_has_needed": (
+                        GREATEST_FLANK_A_CERTIFIED_READING_HAS_NEEDED
+                    ),
+                    "least_flank_at_which_a_presence_is_free_in_a_rendering_of_noise": (
+                        LEAST_FLANK_AT_WHICH_A_LOCAL_PRESENCE_IS_FREE_IN_A_RENDERING_OF_NOISE
+                    ),
+                    "how_they_were_measured": HOW_THE_FLANK_BOUNDS_WERE_MEASURED,
+                },
+                "what_is_armed_and_what_is_not": (
+                    "⛔ THE UNFITTED BOUND IS ARMED AND THE FITTED ONE IS NOT. A value "
+                    "fitted on the specimens draw alone - band (5 129, 16 642), midpoint "
+                    "10 885 - refuses 0 of the 23 held-out readings and accepts 0 of the 4 "
+                    "held-out wrong-script readings, so the hold-out is discharged. ⭐ But no "
+                    "copy certified either way falls between 8 828 and 10 885, so on this "
+                    "evidence the two are the SAME GUARD, and the one that is not fitted to "
+                    "the evidence is the one to arm. ⚠ They differ on exactly one of the "
+                    "copies held here - `pli_kerala_rare_14973` at 15 968 - and it is a copy "
+                    "neither channel speaks for"
+                ),
+                "what_it_costs": {
+                    "copies_it_refuses_of_those_held_here": refused_by_the_local_presence,
+                    "copies_it_cannot_speak_for": (
+                        "⚠ Bengali, Tamil, Urdu and Kashmiri copies held here carry a "
+                        "declared word at NO flank whatever, and every one of them is "
+                        "legible. ⛔ That is an ABSTENTION and a fact about COMMONEST_WORDS, "
+                        "never a refusal and never a fact about those copies"
+                    ),
+                    "it_is_a_worst_case_over_the_copy": (
+                        "⚠ so one long stretch of index, table or plate moves it - "
+                        "`cleared_copy_ajitagamavolin_r_bhatt` reaches 8 828 that way and is "
+                        "a real book throughout. ⇒ the number is the finding, not the boolean"
+                    ),
+                },
+            },
+            # ⛔⛔ BOTH DIRECTIONS. The two sets must not cross AND the certified sets must
+            #   each be large enough for the crossing to be a claim about anything; the two
+            #   published bounds must be the numbers the evidence actually produces, or a
+            #   constant could drift away from what it is a maximum over; and the
+            #   wrong-script side must contain copies this floor ACCEPTS, or the finding
+            #   would be an artefact of which copies were certified.
+            "held": bool(
+                local_presence["the_two_sets_do_not_cross"] is True
+                and local_presence["copies_carrying_their_own_language"] >= 20
+                and local_presence[
+                    "copies_read_in_a_script_the_work_cannot_be_printed_in"
+                ] >= 20
+                and local_presence["the_greatest_flank_a_reading_needs"]["flank"]
+                == GREATEST_FLANK_A_CERTIFIED_READING_HAS_NEEDED
+                and local_presence["the_least_flank_a_wrong_script_reading_needs"]["flank"]
+                == LEAST_FLANK_AT_WHICH_A_LOCAL_PRESENCE_IS_FREE_IN_A_RENDERING_OF_NOISE
+                and local_presence[
+                    "wrong_script_readings_that_carry_a_declared_word_at_no_flank"
+                ]
+                and accepted_wrong_script
+            ),
+            "meaning": (
+                "⭐⭐⭐ A LOCAL PRESENCE SEPARATES THE TWO CERTIFIED SETS AND IT IS THE "
+                "FIRST INSTRUMENT OF THIRTEEN THAT DOES. Every copy certified as a reading "
+                "carries a declared word within "
+                f"{local_presence['the_greatest_flank_a_reading_needs']['flank']} characters "
+                "of every one of its positions; the least any copy certified as a reading in "
+                "a script its work cannot be printed in needs is "
+                f"{local_presence['the_least_flank_a_wrong_script_reading_needs']['flank']}, "
+                f"and {len(local_presence['wrong_script_readings_that_carry_a_declared_word_at_no_flank'])} "
+                "of them never reach one at any flank at all. ⇒ they do not cross, by "
+                f"{local_presence['how_far_apart']}x. ⛔ AND IT IS A CLAIM ABOUT COPIES AND "
+                "NOT ABOUT PASSAGES - see the control below"
+            ),
+        },
+        {
+            "finding": "control",
+            "control": "whether_the_same_presence_separates_at_a_single_locus",
+            "measured": {
+                "the_question": (
+                    "the same measurement at ONE position: how far from a citation must a "
+                    "reader go before meeting a word of the language the citation declares"
+                ),
+                "the_loci_this_file_emits": locus_presence,
+                "the_greatest_any_of_them_needs": greatest_flank_a_locus_here_needs,
+                "and_over_a_certified_rendering_of_noise": (
+                    "⛔ swept over 200 positions of each copy: a certified reading of 1933 "
+                    "reaches 1 633 at its WORST position and a Bibliotheca Indica commentary "
+                    "4 626, while a certified rendering of noise reaches 41 at its TENTH "
+                    "PERCENTILE. ⇒ the per-position values OVERLAP outright"
+                ),
+            },
+            # ⛔⛔ THE CONTROL THAT MUST COME OUT *NEGATIVE*. Every locus this file emits has
+            #   to attest - or requiring it would cost the fixture - and the per-locus number
+            #   must be far under the arm, or "it costs nothing" would be unearned. ⭐ And
+            #   this row exists to publish a NON-separation, so a reader is never handed the
+            #   copy-level finding without it.
+            "held": bool(
+                locus_presence
+                and all(row["outcome"] == "attested" for row in locus_presence)
+                and greatest_flank_a_locus_here_needs
+                < GREATEST_FLANK_A_CERTIFIED_READING_HAS_NEEDED
+            ),
+            "meaning": (
+                "⛔⛔⛔ THE COPIES SEPARATE AND THE POSITIONS DO NOT, AND A GUARD IS APPLIED "
+                "AT A POSITION. All "
+                f"{len(locus_presence)} loci this file emits attest, the furthest at "
+                f"{greatest_flank_a_locus_here_needs} characters - so requiring a local "
+                "presence costs this fixture nothing. ⭐ But the per-position value must NOT "
+                "be thresholded: a locus needing five hundred characters could have come "
+                "from a real book's sparse passage or from a rendering of noise's best one, "
+                "and a value cutting between them would trade a refused citation for an "
+                "accepted one exactly as LEAST_RECURRENCE does. ⇒ what is armed is the "
+                "copy-level worst case; what is published per locus is a MEASUREMENT"
             ),
         },
     ]
