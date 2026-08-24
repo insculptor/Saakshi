@@ -1770,7 +1770,66 @@ GREATEST_FLANK_A_CERTIFIED_READING_HAS_NEEDED = 8828
 #: copies held here — `pli_kerala_rare_14973` at 15 968 — and it is a copy NEITHER channel
 #: speaks for. ⇒ *given two guards that agree on all the evidence, the one that is not
 #: fitted to the evidence is the one to arm.*
+#:
+#: ⛔⛔⛔ **AND FOR A SESSION THE GUARD ACCEPTED THE COPY THIS NUMBER WAS READ OFF.** The
+#: entry above says *at or above 16 642 a presence is free*, and the comparison implementing
+#: it asked for a flank strictly greater than the cap — so
+#: `refused_copy_scienceandtheindiantradition…`, certified a wrong-script reading and the
+#: minimum this constant IS, sat exactly on the cap and was **accepted**. Measured, not
+#: inferred: asked in `sa` and in `hi` it returned `accepted` at 16 642.
+#: ⇒ `refuse_a_rendering_that_goes_too_far_without_its_declared_language` now asks at
+#: `cap - 1`, and the certified wrong-script set is refused **21 of 21** where it was 20.
+#: ⭐⭐⭐ *A guard armed at the least value its refusal set takes must refuse AT that value;
+#: a separation stated as a strict inequality between two sets is not implemented by a
+#: comparison that lets the extreme member of one of them through.*
+#:
+#: ⚠ **AND THE BOUND IS NOT ONLY A LOWER BOUND ON ITSELF, IT IS BOUNDED BY THE COPY.** The
+#: statistic is a worst case over the copy's own positions, so it can never exceed the copy's
+#: length: ⛔ **no copy shorter than this cap can be refused except by carrying no declared
+#: word at all** — an absence. Two of the 26 certified readings are shorter than it and were
+#: never at risk of the refusal they are counted as surviving. See
+#: `GREATEST_EXTENT_OF_A_CERTIFIED_RENDERING_OF_NOISE_THIS_GUARD_ACCEPTS` for the other side.
 LEAST_FLANK_AT_WHICH_A_LOCAL_PRESENCE_IS_FREE_IN_A_RENDERING_OF_NOISE = 16642
+
+#: ⛔⛔⛔ **THE LONGEST CONTIGUOUS STRETCH OF A COPY CERTIFIED AS A *RENDERING OF NOISE*
+#: THAT THIS GUARD ACCEPTS — a measured MAXIMUM, and ⛔ NOT A BOUND, and NOT ARMED.**
+#:
+#: The two certified sets separate as **copies**. Handed a *stretch* the guard answers about
+#: the stretch, and `refused_copy_thetheoryofthesamdhis…` — an English monograph of 1978 read
+#: by a machine set to an Indic script — holds one of **270 896 characters, 81.8 % of
+#: itself**, that this guard accepts. ⚠ Verified with the module's own binary search rather
+#: than the closed form that found it, and one character wider it is refused.
+#:
+#: ⭐⭐⭐ **SIXTEEN OF THE TWENTY-ONE CERTIFIED RENDERINGS OF NOISE HOLD AN ACCEPTED STRETCH
+#: AT LEAST AS LONG AS THE WHOLE COPY THAT SETS THE ARMED BOUND** (53 290 characters). ⇒ the
+#: *specimen at nine thousand* that `LEAST_FLANK_AT_WHICH_A_LOCAL_PRESENCE_IS_FREE_IN_A_
+#: RENDERING_OF_NOISE` names as the thing that would break its separation does not have to be
+#: looked for: the certified evidence already contains sixteen of them, one extent down.
+#:
+#: ⛔⛔ **IT IS NOT ARMED AND CANNOT BE, AND THAT IS A LIMIT RATHER THAN AN OVERSIGHT.**
+#: Refusing every copy shorter than this would refuse `jaimini_sutras_rao` at 228 420
+#: characters — the copy every locus in this repository resolves in. ⇒ this repository cannot
+#: require the extent its own measurement says an acceptance needs, and it says so here
+#: rather than choosing a number that hides it. ⚠ A maximum over 21 copies moves with the
+#: 22nd, exactly as `GREATEST_EXTENT_AT_WHICH_A_WINDOW_OF_A_REFUSED_COPY_HAS_CLEARED` moved
+#: 1 016× when its set grew from one member to thirty-three.
+GREATEST_EXTENT_OF_A_CERTIFIED_RENDERING_OF_NOISE_THIS_GUARD_ACCEPTS = 270896
+
+#: ⛔⛔ **THE LONGEST STRETCH OF A COPY CERTIFIED AS A *READING* THAT CARRIES NO DECLARED
+#: WORD AT ALL — the other side of the same question, and it is measured too.**
+#:
+#: **17 649 characters** of `cleared_copy_ajitagamavolin_r_bhatt`, a real book throughout, at
+#: offset 2 308. A copy consisting of exactly that stretch carries no declared word anywhere,
+#: so this guard refuses it at **every** cap — ⛔ by an ABSENCE, which this file holds
+#: establishes nothing.
+#:
+#: ⭐⭐⭐ **AND 17 649 IS ABOVE THE ARMED CAP WHILE 270 896 IS FIFTEEN TIMES ABOVE IT, SO
+#: THERE IS NO EXTENT BETWEEN THEM.** At every extent up to 270 896 characters both exist: a
+#: stretch of a certified rendering of noise this guard accepts, and a stretch of a certified
+#: reading it refuses. ⇒ *below that extent the verdict is a fact about where the copy was
+#: cut and not about what the copy is* — the finding `LEAST_EXTENT_A_REFUSAL_DISCRIMINATES_AT`
+#: exists to state for the floor beside this one, which this guard shipped without.
+LONGEST_STRETCH_OF_A_CERTIFIED_READING_CARRYING_NO_DECLARED_WORD = 17649
 
 #: ⚠ How the two numbers above were measured, carried on every row that quotes them so that
 #: a reader never meets one without its provenance.
@@ -2123,6 +2182,138 @@ def _positions_of(body: str, terms: frozenset[str]) -> list[tuple[int, int]]:
     return found
 
 
+# --------------------------------------------------------------------------------------
+# ⛔⛔⛔ THE EXTENT THIS GUARD'S ANSWER DEPENDS ON, WHICH IT WAS ARMED WITHOUT
+# --------------------------------------------------------------------------------------
+#
+# ⭐⭐⭐ **`LEAST_RECURRENCE` HAS TWO EXTENT MEASUREMENTS BESIDE IT AND THIS GUARD SHIPPED
+#    WITH NEITHER.** `LEAST_EXTENT_A_REFUSAL_DISCRIMINATES_AT` says below what extent that
+#    floor is a test of size, and `LARGEST_EXTENT_AT_WHICH_A_WINDOW_OF_A_REFUSED_COPY_CLEARS`
+#    says over how long a stretch of a copy it refuses it can be cleared anyway. Both were
+#    found by asking of **every window**, and both moved a published number a long way.
+#
+# ⛔ The same two questions are put here, and the answer to a window question is exact in
+#    closed form: a window is accepted exactly when its first occurrence ends within the
+#    flank of its start, its last begins within the flank of its end, and every consecutive
+#    pair inside it meets. ⇒ nothing is sampled and no window is skipped.
+
+
+def longest_stretch_carrying_no_declared_word(edition: Edition) -> dict[str, Any]:
+    """The longest run of characters in one copy carrying **no** declared word at all.
+
+    ⭐ Why it is the reading side of the extent question: a copy consisting of exactly this
+    stretch carries no declared word anywhere, so
+    `refuse_a_rendering_that_goes_too_far_without_its_declared_language` refuses it at every
+    cap — ⛔ *by an absence*, which this file holds establishes nothing.
+
+    ⚠ Measured over the union of the declared lists, as the census is.
+    """
+    terms: set[str] = set()
+    for name in sorted(COMMONEST_WORDS):
+        terms.update(declared_words_of(name))
+    body = edition.normalised
+    length = len(body)
+    found = _positions_of(body, frozenset(terms))
+    if not found:
+        return {
+            "edition": edition.key,
+            "characters": length,
+            "at": 0,
+            "where": "the whole copy carries no declared word",
+        }
+    best, at, where = found[0][0], 0, "before the first declared word"
+    tail = length - found[-1][1]
+    if tail > best:
+        best, at, where = tail, found[-1][1], "after the last declared word"
+    for (_start, end), (next_start, _next_end) in zip(found, found[1:]):
+        if next_start - end > best:
+            best, at, where = next_start - end, end, "between two declared words"
+    return {"edition": edition.key, "characters": best, "at": at, "where": where}
+
+
+def largest_stretch_this_guard_accepts(
+    edition: Edition,
+    *,
+    cap: int = LEAST_FLANK_AT_WHICH_A_LOCAL_PRESENCE_IS_FREE_IN_A_RENDERING_OF_NOISE,
+) -> dict[str, Any]:
+    """The longest contiguous stretch of one copy this guard **accepts** — ⛔ every window.
+
+    ⭐⭐⭐ **THIS IS THE QUESTION THAT PUTS A NUMBER ON WHAT THE WHOLE-COPY SEPARATION IS
+    WORTH.** The two certified sets separate as *copies*. Handed a stretch instead of a
+    copy, the guard answers about the stretch — and a certified rendering of noise holds
+    stretches it accepts that are longer than most of the copies this repository reads
+    from.
+
+    Exact rather than swept: the widest accepted window sits over a **maximal run** of
+    occurrences whose consecutive pairs all meet at `cap`, opened as far left and right as
+    the two edge conditions allow and stopped one character short of the neighbouring
+    occurrence on each side, because including that one would re-admit the gap that broke
+    the run. ⚠ A sub-run cannot do better: it can only raise the left stop and lower the
+    right one.
+
+    ⛔ Measured over the union of the declared lists, and ⛔ over occurrences taken from the
+    copy — a window cut through a word can turn it into a different declared one, which can
+    only *add* an occurrence at an edge, so what this returns is a **lower bound** on the
+    widest accepted stretch and never an overstatement of it.
+    """
+    terms: set[str] = set()
+    for name in sorted(COMMONEST_WORDS):
+        terms.update(declared_words_of(name))
+    body = edition.normalised
+    length = len(body)
+    found = _positions_of(body, frozenset(terms))
+    if not found:
+        return {
+            "edition": edition.key,
+            "cap": cap,
+            "characters": 0,
+            "at": None,
+            "share_of_the_copy": 0.0,
+            "why": (
+                "this copy carries no declared word at any position, so no window of it is "
+                "accepted at any cap"
+            ),
+        }
+    breaks = [
+        index
+        for index, ((start, _end), (_next_start, next_end)) in enumerate(
+            zip(found, found[1:])
+        )
+        if -((start - next_end + 1) // 2) > cap
+    ]
+    runs = []
+    first = 0
+    for index in breaks:
+        runs.append((first, index))
+        first = index + 1
+    runs.append((first, len(found) - 1))
+    best = {"characters": 0, "at": None}
+    for p, q in runs:
+        low = max(0, found[p][1] - cap)
+        if p:
+            low = max(low, found[p - 1][0] + 1)
+        low = min(low, found[p][0])
+        high = min(length, found[q][0] + cap + 1)
+        if q + 1 < len(found):
+            high = min(high, found[q + 1][1] - 1)
+        high = max(high, found[q][1])
+        if high - low > best["characters"]:
+            best = {"characters": high - low, "at": low}
+    return {
+        "edition": edition.key,
+        "cap": cap,
+        **best,
+        "share_of_the_copy": (
+            round(best["characters"] / length, 4) if length else 0.0
+        ),
+        "why": (
+            "the widest window whose first occurrence ends within the cap of its start, "
+            "whose last begins within the cap of its end, and every consecutive pair "
+            "inside which meets"
+        ),
+    }
+
+
 def whether_a_local_presence_separates(
     *,
     carrying_their_own_language: Mapping[str, int | None],
@@ -2254,6 +2445,27 @@ def refuse_a_rendering_that_goes_too_far_without_its_declared_language(
     and accepts **0** of the 4 held-out wrong-script readings. ⛔ That fitted value is not
     what is armed: see the cap's own note for why the unfitted bound is the one to arm.
 
+    ⭐⭐⭐ **AND IT ACCEPTED THE COPY THE BOUND WAS READ OFF, FOR A SESSION.** The cap is
+    the LEAST flank any certified rendering of noise needs and the comparison asked for a
+    flank strictly greater than it, so the minimum member sat exactly on the cap and passed.
+    Asked at `cap - 1` the certified wrong-script set is refused **21 of 21** where it was
+    **20 of 21**, and no certified reading changes: the greatest any of them needs is 8 828.
+
+    ⛔⛔⛔ **AND BELOW THE CAP IT CANNOT REFUSE AT ALL, WHICH IS ARITHMETIC AND NOT
+    EVIDENCE.** The statistic is a worst case over the copy's own positions, so it is bounded
+    above by the copy's length: a copy shorter than the cap is accepted whenever it carries
+    one declared word anywhere and refused only when it carries none — an ABSENCE, which
+    establishes nothing here. ⇒ this returns `cannot_measure` below that extent, and
+    ⚠ **two of the 26 certified readings are shorter than the cap**, so they were never at
+    risk of the refusal they are counted as surviving.
+
+    ⛔⛔ **AND THE EXTENT THAT WOULD MAKE AN ACCEPTANCE MEAN SOMETHING CANNOT BE ARMED
+    HERE.** See `GREATEST_EXTENT_OF_A_CERTIFIED_RENDERING_OF_NOISE_THIS_GUARD_ACCEPTS`:
+    270 896 characters of a certified rendering of noise are accepted, 16 of the 21 hold an
+    accepted stretch at least as long as the whole copy that sets the bound, and requiring
+    that extent would refuse `jaimini_sutras_rao` at 228 420 — the copy every locus here
+    resolves in. ⇒ published and not armed, and named rather than rounded away.
+
     ⚠ **WHAT IT COSTS, MEASURED.** Of the copies held here it refuses the library scan
     (47 146 — which is the copy the wrong-alphabet finding was made on, so this is the
     instrument working), and it is SILENT over Bengali, Tamil, Urdu and Kashmiri copies that
@@ -2282,8 +2494,41 @@ def refuse_a_rendering_that_goes_too_far_without_its_declared_language(
                 "fact about the word list and about nothing else"
             ),
         }
+    if edition.searchable_characters < cap:
+        # ⛔⛔⛔ AN ABSTENTION, AND THE ARITHMETIC IS WHY. The statistic is bounded above by
+        #    the copy's own length: the worst position of a copy of L characters carrying
+        #    one declared word anywhere needs at most L. ⇒ below `cap` no copy can EXCEED
+        #    the cap, so the only refusal available here is a copy carrying no declared
+        #    word at all - an ABSENCE, which this file holds establishes nothing. ⚠ And the
+        #    acceptance is free in the same breath, for the same reason.
+        return {
+            "edition": edition.key,
+            "declared_language": language,
+            "outcome": "cannot_measure",
+            "word_list": list_name,
+            "cap": cap,
+            "characters": edition.searchable_characters,
+            "least_extent_at_which_this_guard_can_refuse": cap,
+            "what_this_establishes": (
+                "⛔ NOTHING ABOUT THIS COPY, AND THE REASON IS ARITHMETIC RATHER THAN "
+                f"EVIDENTIAL. This copy carries {edition.searchable_characters} normalised "
+                f"characters and the cap is {cap}. The statistic is a worst case over the "
+                "copy's own positions and is bounded above by the copy's length, so a copy "
+                "this short CANNOT exceed the cap: it is accepted whenever it carries one "
+                "of the declared words anywhere at all, and refused only when it carries "
+                "none - which is an ABSENCE, and an absence establishes nothing here. "
+                "⚠ Two of the 26 copies certified as readings are shorter than this cap, so "
+                "they were never at risk of the refusal they are counted as surviving"
+            ),
+        }
+    # ⛔⛔⛔ `cap - 1`, AND THE OFF-BY-ONE IT REPAIRS WAS AN ARMED ONE. The constant is the
+    #    LEAST flank any certified rendering of noise needs, and its own entry says *at or
+    #    above* it a presence is free. Asked with `cap`, this returns a number rather than
+    #    `None` for a copy sitting exactly ON it - so the guard ACCEPTED the copy the bound
+    #    was read off. ⚠ Measured: `refused_copy_scienceandtheindiantradition...`, certified
+    #    a wrong-script reading and the minimum the constant is, was accepted at 16 642.
     reached = least_flank_at_which_every_position_carries_a_declared_word(
-        edition, language=list_name, cap=cap
+        edition, language=list_name, cap=cap - 1
     )
     measured = {
         "edition": edition.key,
@@ -2304,8 +2549,8 @@ def refuse_a_rendering_that_goes_too_far_without_its_declared_language(
             "carries no evidence that the copy is in the language the citation claims. ⛔⛔⛔ "
             "THE CAUSE IS THE DISTANCE TO A DECLARED WORD AND NOT THE RECURRENCE: this "
             "refusal names itself so that nothing downstream has to sort it from "
-            "`refuse_a_rendering_that_does_not_repeat` by its prose. ⚠ Measured over 46 "
-            f"certified copies, every one of the 25 certified as a reading reaches a declared "
+            "`refuse_a_rendering_that_does_not_repeat` by its prose. ⚠ Measured over 47 "
+            f"certified copies, every one of the 26 certified as a reading reaches a declared "
             f"word within {GREATEST_FLANK_A_CERTIFIED_READING_HAS_NEEDED} characters of every "
             f"one of its positions, and the least any of the 21 certified as a reading in a "
             f"script its work cannot be printed in needs is {cap}. ⛔ AND NOTHING HERE SAYS "

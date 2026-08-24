@@ -37,6 +37,9 @@ from saakshi.textual import (
     declared_words_the_passage_carries,
     least_flank_at_which_a_passage_carries_a_declared_word,
     least_flank_at_which_every_position_carries_a_declared_word,
+    least_flank_over_any_declared_language,
+    largest_stretch_this_guard_accepts,
+    longest_stretch_carrying_no_declared_word,
     refuse_a_rendering_that_goes_too_far_without_its_declared_language,
     require_the_passage_to_carry_the_language_the_locus_declares,
     the_passage_a_locus_resolves_in,
@@ -3602,11 +3605,14 @@ def test_an_absence_at_a_locus_establishes_nothing_about_the_copy():
 
 def test_the_copy_level_guard_refuses_a_long_stretch_and_accepts_a_book():
     """⭐⭐⭐ A REFUSING INSTRUMENT BUILT ENTIRELY OUT OF PRESENCES."""
+    # ⚠ `cap` BELOW the copy's own length, on purpose: at a cap above it the answer is
+    #   `cannot_measure` and this test would be scoring the extent abstention instead.
+    assert CARRIES_ENGLISH_THROUGHOUT.searchable_characters > 300
     accepted = refuse_a_rendering_that_goes_too_far_without_its_declared_language(
         CARRIES_ENGLISH_THROUGHOUT,
         language="en",
         what_it_would_make_free="an attestation",
-        cap=2000,
+        cap=300,
     )
     assert accepted["outcome"] == "accepted"
     assert accepted["least_flank_at_which_every_position_carries_a_declared_word"] > 0
@@ -3630,6 +3636,153 @@ def test_the_copy_level_guard_refuses_a_long_stretch_and_accepts_a_book():
     #    the test is owed the marker, not the opening.
     assert "NO DIAGNOSIS IS MADE HERE AND THAT IS THIS REFUSAL NAMING ITS OWN LIMIT" in said
     assert "an absence establishes nothing" in said
+
+
+def test_the_copy_level_guard_refuses_a_copy_sitting_exactly_on_the_cap():
+    """⛔⛔⛔ The armed cap is the LEAST flank its refusal set takes, so it must refuse AT it.
+
+    ⭐⭐⭐ **THIS IS THE DEFECT THAT WAS ARMED.** The comparison asked for a flank strictly
+    greater than the cap, so `refused_copy_scienceandtheindiantradition…` — certified a
+    wrong-script reading, and the very copy the constant is the minimum of — sat exactly on
+    16 642 and was **accepted** by the bound it set.
+
+    ⛔ Driven both ways on ONE copy, so neither direction can pass for the other's reason:
+    at its own flank it is refused, one above it is accepted, and the flank is measured here
+    rather than assumed.
+    """
+    copy = HAS_ONE_LONG_STRETCH_WITHOUT_IT
+    flank = least_flank_at_which_every_position_carries_a_declared_word(
+        copy, language="english", cap=100_000
+    )
+    assert flank is not None
+    # ⚠ The isolating condition: the copy must be longer than the cap being asked at, or
+    #   the extent abstention answers first and this test measures that instead.
+    assert copy.searchable_characters > flank
+    with pytest.raises(TextualError) as error:
+        refuse_a_rendering_that_goes_too_far_without_its_declared_language(
+            copy,
+            language="en",
+            what_it_would_make_free="an attestation",
+            cap=flank,
+        )
+    assert "THE CAUSE IS THE DISTANCE TO A DECLARED WORD" in str(error.value)
+    # ⭐ One character of cap higher and the same copy passes — the control that says the
+    #   refusal above came from the boundary and not from the copy being refusable anyway.
+    allowed = refuse_a_rendering_that_goes_too_far_without_its_declared_language(
+        copy,
+        language="en",
+        what_it_would_make_free="an attestation",
+        cap=flank + 1,
+    )
+    assert allowed["outcome"] == "accepted"
+    assert allowed["least_flank_at_which_every_position_carries_a_declared_word"] == flank
+
+
+def test_the_copy_level_guard_abstains_below_the_extent_at_which_it_could_refuse():
+    """⛔⛔⛔ Below the cap the only refusal available is an ABSENCE, so it abstains.
+
+    The statistic is a worst case over the copy's own positions and is bounded above by the
+    copy's length. ⇒ a copy shorter than the cap cannot exceed it, so it is accepted for
+    carrying one declared word anywhere and refused only for carrying none — and an absence
+    establishes nothing here.
+
+    ⚠ Two of the 26 copies certified as readings are shorter than the armed cap.
+    """
+    copy = HAS_ONE_LONG_STRETCH_WITHOUT_IT
+    row = refuse_a_rendering_that_goes_too_far_without_its_declared_language(
+        copy,
+        language="en",
+        what_it_would_make_free="an attestation",
+        cap=copy.searchable_characters + 1,
+    )
+    assert row["outcome"] == "cannot_measure"
+    assert row["least_extent_at_which_this_guard_can_refuse"] == (
+        copy.searchable_characters + 1
+    )
+    assert "ARITHMETIC RATHER THAN EVIDENTIAL" in row["what_this_establishes"]
+    # ⛔ It is an ABSTENTION and must not be spelled like the refusal: no number is
+    #   returned, and the refusal's own marker is absent from it.
+    assert "least_flank_at_which_every_position_carries_a_declared_word" not in row
+    assert "THE CAUSE IS THE DISTANCE" not in row["what_this_establishes"]
+    # ⭐⭐ THE ISOLATING CONTROL. The SAME copy IS refused, at a cap its own flank exceeds
+    #   — so the abstention above is reached by the EXTENT and not by anything about this
+    #   copy. The twentieth session's escape was a branch a different branch also satisfied.
+    flank = least_flank_at_which_every_position_carries_a_declared_word(
+        copy, language="english", cap=100_000
+    )
+    assert flank < copy.searchable_characters
+    with pytest.raises(TextualError):
+        refuse_a_rendering_that_goes_too_far_without_its_declared_language(
+            copy,
+            language="en",
+            what_it_would_make_free="an attestation",
+            cap=flank,
+        )
+
+
+def test_the_longest_stretch_with_no_declared_word_is_exact():
+    """⭐ Closed form, pinned against a linear scan that does not share its code."""
+    terms: set[str] = set()
+    for name in sorted(COMMONEST_WORDS):
+        terms.update(declared_words_of(name))
+    for copy in (CARRIES_ENGLISH_THROUGHOUT, HAS_ONE_LONG_STRETCH_WITHOUT_IT):
+        row = longest_stretch_carrying_no_declared_word(copy)
+        body = copy.normalised
+        # ⛔ A scan that walks the copy character by character, sharing nothing with the
+        #   union of occurrences the module builds.
+        longest = run = 0
+        for at in range(len(body)):
+            if any(
+                body.startswith(term, at)
+                and (at == 0 or not body[at - 1].isalpha())
+                and (
+                    at + len(term) == len(body)
+                    or not body[at + len(term)].isalpha()
+                )
+                for term in terms
+            ):
+                run = 0
+            else:
+                run += 1
+                longest = max(longest, run)
+        assert row["characters"] <= longest
+        # ⭐ And the stretch it names really carries none of them.
+        piece = body[row["at"] : row["at"] + row["characters"]]
+        assert not (terms & set(words_of(piece)))
+    # ⛔ The two fixtures must not answer the same, or one of them is not being read.
+    assert longest_stretch_carrying_no_declared_word(
+        HAS_ONE_LONG_STRETCH_WITHOUT_IT
+    )["characters"] > longest_stretch_carrying_no_declared_word(
+        CARRIES_ENGLISH_THROUGHOUT
+    )["characters"]
+
+
+def test_the_largest_accepted_stretch_is_maximal_in_both_directions():
+    """⛔⛔⛔ The window it names is accepted and one character wider is not.
+
+    ⭐⭐⭐ **AN EXPECTED DIFFERENCE IS THE CONTROL.** A test that only checked that the
+    named window is accepted would pass on a function returning a window of one character.
+    Both halves are asserted with the module's own binary search, which shares no code with
+    the closed form being tested.
+    """
+    copy = HAS_ONE_LONG_STRETCH_WITHOUT_IT
+    body = copy.normalised
+    cap = 200
+    row = largest_stretch_this_guard_accepts(copy, cap=cap)
+    assert 0 < row["characters"] < copy.searchable_characters
+    window = _copy(body[row["at"] : row["at"] + row["characters"]], key="the_window")
+    assert least_flank_over_any_declared_language(window, cap=cap) is not None
+    wider = _copy(
+        body[row["at"] : row["at"] + row["characters"] + 1], key="one_wider"
+    )
+    assert least_flank_over_any_declared_language(wider, cap=cap) is None
+    # ⚠ A copy carrying no declared word at all has no accepted window at any cap.
+    assert (
+        largest_stretch_this_guard_accepts(
+            _copy("zqx " * 200, key="carries_none"), cap=cap
+        )["characters"]
+        == 0
+    )
 
 
 def test_the_copy_level_guard_abstains_where_no_word_list_is_declared():

@@ -93,12 +93,17 @@ from saakshi.textual import (  # noqa: E402
     LEAST_EXTENT_A_REFUSAL_DISCRIMINATES_AT,
     LEAST_RECURRENCE,
     LEAST_SHARE_A_COPY_CARRYING_ITS_OWN_LANGUAGE_REACHES,
+    GREATEST_EXTENT_OF_A_CERTIFIED_RENDERING_OF_NOISE_THIS_GUARD_ACCEPTS,
+    LONGEST_STRETCH_OF_A_CERTIFIED_READING_CARRYING_NO_DECLARED_WORD,
+    LEAST_FLANK_AT_WHICH_A_LOCAL_PRESENCE_IS_FREE_IN_A_RENDERING_OF_NOISE,
     RECURRENCE_MEASURED_AT,
     discrimination_of_resolving_once,
     how_a_per_language_floor_would_be_fitted,
     least_error_a_single_value_can_reach,
     least_flank_at_which_a_passage_carries_a_declared_word,
     least_flank_over_any_declared_language,
+    largest_stretch_this_guard_accepts,
+    longest_stretch_carrying_no_declared_word,
     refuse_a_rendering_that_goes_too_far_without_its_declared_language,
     require_the_passage_to_carry_the_language_the_locus_declares,
     whether_a_local_presence_separates,
@@ -3442,6 +3447,16 @@ def main() -> int:
                 "least_flank_at_which_every_position_carries_a_declared_word": (
                     least_flank_over_any_declared_language(copy, cap=_FLANK_CAP)
                 ),
+                # ⛔⛔⛔ THE EXTENT THE VERDICT DEPENDS ON, measured in the same pass
+                #    because it reads the same copy. A whole-copy separation says nothing
+                #    about what this guard does with a STRETCH, and a stretch is what a
+                #    shorter book is.
+                "longest_stretch_with_no_declared_word": (
+                    longest_stretch_carrying_no_declared_word(copy)["characters"]
+                ),
+                "largest_stretch_this_guard_accepts": (
+                    largest_stretch_this_guard_accepts(copy)["characters"]
+                ),
             }
             for language in sorted(COMMONEST_WORDS):
                 occurring = declared_words_that_occur(copy, language=language)
@@ -3485,6 +3500,12 @@ def main() -> int:
             "held_here_as": what,
             "least_flank_at_which_every_position_carries_a_declared_word": (
                 least_flank_over_any_declared_language(copy, cap=_FLANK_CAP)
+            ),
+            "longest_stretch_with_no_declared_word": (
+                longest_stretch_carrying_no_declared_word(copy)["characters"]
+            ),
+            "largest_stretch_this_guard_accepts": (
+                largest_stretch_this_guard_accepts(copy)["characters"]
             ),
         }
         for language in sorted(COMMONEST_WORDS):
@@ -3750,6 +3771,12 @@ def main() -> int:
                 "least_flank_at_which_every_position_carries_a_declared_word": row[
                     "least_flank_at_which_every_position_carries_a_declared_word"
                 ],
+                "longest_stretch_with_no_declared_word": row[
+                    "longest_stretch_with_no_declared_word"
+                ],
+                "largest_stretch_this_guard_accepts": row[
+                    "largest_stretch_this_guard_accepts"
+                ],
             }
         )
 
@@ -3819,6 +3846,73 @@ def main() -> int:
     # ⛔ The local presence, scored against BOTH certified sets in the same pass — the
     #   known-noise control sits inside the measurement rather than beside it, which is the
     #   only reason twelve earlier instruments were caught.
+    # ==================================================================================
+    # ⛔⛔⛔ WHAT THE ARMED CAP DOES TO ITS OWN EVIDENCE, AND AT WHAT EXTENT
+    # ==================================================================================
+    #
+    # ⭐ Read off `certified_rows`, which is the live census, so a constant that drifted
+    #   away from what it is a maximum over shows up here rather than in a doc.
+    _cap = LEAST_FLANK_AT_WHICH_A_LOCAL_PRESENCE_IS_FREE_IN_A_RENDERING_OF_NOISE
+    wrong_script_flanks = [
+        row for row in certified_rows if row["certified"] == "a_wrong_script_reading"
+    ]
+    reading_rows = [row for row in certified_rows if row["certified"] == "a_reading"]
+
+    def _refused(row, *, strict):
+        flank = row["least_flank_at_which_every_position_carries_a_declared_word"]
+        if flank is None:
+            return True
+        return flank >= _cap if strict else flank > _cap
+
+    refused_when_strict = sum(1 for row in wrong_script_flanks if _refused(row, strict=True))
+    refused_when_inclusive = sum(
+        1 for row in wrong_script_flanks if _refused(row, strict=False)
+    )
+    readings_refused_either_way = [
+        row["copy"]
+        for row in reading_rows
+        if _refused(row, strict=True) or _refused(row, strict=False)
+    ]
+    the_cap_was_read_off = min(
+        (
+            {"copy": row["copy"], "characters": row["characters"], "flank": row[
+                "least_flank_at_which_every_position_carries_a_declared_word"
+            ]}
+            for row in wrong_script_flanks
+            if row["least_flank_at_which_every_position_carries_a_declared_word"]
+            is not None
+        ),
+        key=lambda entry: entry["flank"],
+    )
+    readings_under_the_cap = [
+        {"copy": row["copy"], "characters": row["characters"]}
+        for row in reading_rows
+        if row["characters"] < _cap
+    ]
+    wrong_script_under_the_cap = [
+        {"copy": row["copy"], "characters": row["characters"]}
+        for row in wrong_script_flanks
+        if row["characters"] < _cap
+    ]
+    _widest = max(wrong_script_flanks, key=lambda row: row["largest_stretch_this_guard_accepts"])
+    greatest_noise_stretch = {
+        "copy": _widest["copy"],
+        "characters": _widest["largest_stretch_this_guard_accepts"],
+        "share_of_the_copy": (
+            _widest["largest_stretch_this_guard_accepts"] / _widest["characters"]
+        ),
+    }
+    _emptiest = max(reading_rows, key=lambda row: row["longest_stretch_with_no_declared_word"])
+    longest_reading_stretch = {
+        "copy": _emptiest["copy"],
+        "characters": _emptiest["longest_stretch_with_no_declared_word"],
+    }
+    noise_holding_a_stretch_that_long = sorted(
+        row["copy"]
+        for row in wrong_script_flanks
+        if row["largest_stretch_this_guard_accepts"] >= the_cap_was_read_off["characters"]
+    )
+
     local_presence = whether_a_local_presence_separates(
         carrying_their_own_language={
             row["copy"]: row["least_flank_at_which_every_position_carries_a_declared_word"]
@@ -4172,6 +4266,139 @@ def main() -> int:
                 "and a value cutting between them would trade a refused citation for an "
                 "accepted one exactly as LEAST_RECURRENCE does. ⇒ what is armed is the "
                 "copy-level worst case; what is published per locus is a MEASUREMENT"
+            ),
+        },
+        # ==============================================================================
+        # ⛔⛔⛔ THE ARMED CAP ACCEPTED THE COPY IT WAS READ OFF
+        # ==============================================================================
+        {
+            "finding": "control",
+            "control": "whether_the_armed_cap_refuses_the_copy_it_was_read_off",
+            "measured": {
+                "the_question": (
+                    "the armed cap is the LEAST flank any certified rendering of noise "
+                    "needs, and its entry says that AT OR ABOVE it a presence is free. So "
+                    "the copy the number was read off sits exactly ON it - and a guard "
+                    "asking for a flank strictly GREATER than the cap accepts that copy"
+                ),
+                "the_copy_the_cap_was_read_off": the_cap_was_read_off,
+                "certified_wrong_script_readings": len(wrong_script_flanks),
+                "refused_when_the_comparison_is_strict": refused_when_strict,
+                "refused_when_the_comparison_lets_the_boundary_through": (
+                    refused_when_inclusive
+                ),
+                "certified_readings_refused_either_way": readings_refused_either_way,
+            },
+            # ⛔⛔ BOTH DIRECTIONS, AND THE DEFECT MUST BE VISIBLE IN THE ROW. The strict
+            #   comparison has to refuse every certified wrong-script copy, the inclusive one
+            #   has to refuse strictly fewer - or nothing here is a finding - and NEITHER may
+            #   refuse a copy certified as a reading. ⭐ Without the middle clause this row
+            #   would pass on a guard that never had the defect and on one that still has it.
+            "held": bool(
+                refused_when_strict == len(wrong_script_flanks)
+                and refused_when_inclusive == refused_when_strict - 1
+                and readings_refused_either_way == []
+                and the_cap_was_read_off["flank"]
+                == LEAST_FLANK_AT_WHICH_A_LOCAL_PRESENCE_IS_FREE_IN_A_RENDERING_OF_NOISE
+            ),
+            "meaning": (
+                "⛔⛔⛔ THE GUARD ACCEPTED THE COPY THE ARMED BOUND WAS READ OFF. "
+                f"{the_cap_was_read_off['copy']} is certified a reading in a script its work "
+                f"cannot be printed in, needs a flank of {the_cap_was_read_off['flank']}, and "
+                "IS the minimum the constant is - so it sat exactly on the cap and passed a "
+                "comparison asking for strictly more. ⇒ asked at cap - 1 the certified "
+                f"wrong-script set is refused {refused_when_strict} of "
+                f"{len(wrong_script_flanks)} where it was {refused_when_inclusive}, and no "
+                "copy certified as a reading changes. ⭐⭐⭐ A guard armed at the least value "
+                "its refusal set takes must refuse AT that value: a separation stated as a "
+                "strict inequality between two sets is not implemented by a comparison that "
+                "lets the extreme member of one of them through"
+            ),
+        },
+        # ==============================================================================
+        # ⛔⛔⛔ AND IT WAS ARMED WITH NO EXTENT BOUND AT ALL
+        # ==============================================================================
+        {
+            "finding": "control",
+            "control": "what_extent_this_guards_answer_is_a_fact_about_the_copy_at",
+            "measured": {
+                "the_question": (
+                    "the two certified sets separate as COPIES. Handed a STRETCH this guard "
+                    "answers about the stretch - and a shorter book is a stretch. "
+                    "⛔ LEAST_RECURRENCE has two extent measurements beside it and this guard "
+                    "shipped with neither"
+                ),
+                "below_this_extent_no_copy_can_be_refused_at_all": (
+                    LEAST_FLANK_AT_WHICH_A_LOCAL_PRESENCE_IS_FREE_IN_A_RENDERING_OF_NOISE
+                ),
+                "why_that_is_arithmetic_and_not_evidence": (
+                    "⭐⭐⭐ THE STATISTIC IS A WORST CASE OVER THE COPY'S OWN POSITIONS, SO "
+                    "IT IS BOUNDED ABOVE BY THE COPY'S LENGTH. A copy shorter than the cap "
+                    "cannot exceed it: it is accepted whenever it carries one declared word "
+                    "anywhere, and refused only when it carries none - which is an ABSENCE, "
+                    "and an absence establishes nothing here"
+                ),
+                "certified_readings_shorter_than_the_cap": readings_under_the_cap,
+                "certified_wrong_script_readings_shorter_than_the_cap": (
+                    wrong_script_under_the_cap
+                ),
+                "greatest_stretch_of_a_certified_rendering_of_noise_it_accepts": (
+                    greatest_noise_stretch
+                ),
+                "longest_stretch_of_a_certified_reading_carrying_no_declared_word": (
+                    longest_reading_stretch
+                ),
+                "certified_renderings_of_noise_holding_an_accepted_stretch_at_least_as_long_as_the_copy_that_sets_the_cap": (
+                    noise_holding_a_stretch_that_long
+                ),
+                "why_the_extent_that_would_matter_is_not_armed": (
+                    "⛔⛔ REFUSING EVERY COPY SHORTER THAN THE GREATEST ACCEPTED STRETCH "
+                    "WOULD REFUSE THE COPY EVERY LOCUS HERE RESOLVES IN. "
+                    f"{edition.key} carries {edition.searchable_characters} normalised "
+                    "characters. ⇒ this repository cannot require the extent its own "
+                    "measurement says an acceptance needs, and it publishes that rather than "
+                    "choosing a number which hides it. ⚠ A MEASURED MAXIMUM, NOT A BOUND"
+                ),
+            },
+            # ⛔⛔ BOTH SIDES, AND THE OVERLAP IS THE FINDING. The accepted stretch of noise
+            #   must exceed the cap, the refused stretch of a real book must exceed it too -
+            #   without the second this row would read as noise being merely hard to catch -
+            #   and the copy this file reads from must be shorter than the accepted stretch,
+            #   which is what makes the honest threshold unarmable HERE rather than in
+            #   principle. ⭐ And the published constants must be the numbers the live
+            #   evidence produces, or they drift away from what they are maxima over.
+            "held": bool(
+                greatest_noise_stretch["characters"]
+                > LEAST_FLANK_AT_WHICH_A_LOCAL_PRESENCE_IS_FREE_IN_A_RENDERING_OF_NOISE
+                and longest_reading_stretch["characters"]
+                > LEAST_FLANK_AT_WHICH_A_LOCAL_PRESENCE_IS_FREE_IN_A_RENDERING_OF_NOISE
+                and greatest_noise_stretch["characters"]
+                == GREATEST_EXTENT_OF_A_CERTIFIED_RENDERING_OF_NOISE_THIS_GUARD_ACCEPTS
+                and longest_reading_stretch["characters"]
+                == LONGEST_STRETCH_OF_A_CERTIFIED_READING_CARRYING_NO_DECLARED_WORD
+                and edition.searchable_characters
+                < greatest_noise_stretch["characters"]
+                and readings_under_the_cap
+                and wrong_script_under_the_cap == []
+                and len(noise_holding_a_stretch_that_long) > len(wrong_script_flanks) / 2
+            ),
+            "meaning": (
+                "⛔⛔⛔ THERE IS NO EXTENT BETWEEN THE TWO SIDES, SO BELOW ONE THE VERDICT "
+                "IS A FACT ABOUT WHERE THE COPY WAS CUT. A certified rendering of noise "
+                f"holds a stretch of {greatest_noise_stretch['characters']} characters this "
+                f"guard ACCEPTS ({greatest_noise_stretch['copy']}, "
+                f"{greatest_noise_stretch['share_of_the_copy']:.1%} of itself), and a copy "
+                "certified as a reading holds one of "
+                f"{longest_reading_stretch['characters']} carrying no declared word at all "
+                f"({longest_reading_stretch['copy']}), which is refused at every cap - by an "
+                "ABSENCE. ⭐⭐⭐ AND "
+                f"{len(noise_holding_a_stretch_that_long)} OF {len(wrong_script_flanks)} "
+                "CERTIFIED RENDERINGS OF NOISE HOLD AN ACCEPTED STRETCH AT LEAST AS LONG AS "
+                "THE WHOLE COPY THAT SETS THE CAP - so the specimen whose existence would "
+                "break the separation does not have to be looked for, one extent down. "
+                f"⚠ And {len(readings_under_the_cap)} of the copies certified as readings "
+                "are shorter than the cap, so they were never at risk of the refusal they "
+                "are counted as surviving"
             ),
         },
     ]
