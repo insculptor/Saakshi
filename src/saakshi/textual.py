@@ -2489,6 +2489,11 @@ def refuse_a_rendering_that_goes_too_far_without_its_declared_language(
             "edition": edition.key,
             "declared_language": language,
             "outcome": "cannot_measure",
+            # ⛔⛔ THE ABSTENTION NAMES ITSELF, for the reason the refusal does: there are
+            #    now TWO of them and they establish nothing for different reasons, so a
+            #    caller that sorted them by their prose would sort them by whichever moved
+            #    last.
+            "abstention": "no_word_list_is_declared_for_this_language",
             "word_list": None,
             "cap": cap,
             "what_this_establishes": (
@@ -2509,6 +2514,7 @@ def refuse_a_rendering_that_goes_too_far_without_its_declared_language(
             "edition": edition.key,
             "declared_language": language,
             "outcome": "cannot_measure",
+            "abstention": "the_copy_is_shorter_than_the_cap",
             "word_list": list_name,
             "cap": cap,
             "characters": edition.searchable_characters,

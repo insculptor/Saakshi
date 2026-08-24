@@ -3913,6 +3913,47 @@ def main() -> int:
         if row["largest_stretch_this_guard_accepts"] >= the_cap_was_read_off["characters"]
     )
 
+    # ==================================================================================
+    # ⛔⛔⛔ RUN THE ARM ITSELF, WHICH NOTHING HERE HAD EVER DONE
+    # ==================================================================================
+    #
+    # ⭐⭐⭐ **THE ARM WAS IMPORTED BY THIS GENERATOR AND NEVER CALLED.** Every row about the
+    #    local presence scored the STATISTIC - `least_flank_over_any_declared_language` -
+    #    and no row ever asked `refuse_a_rendering_that_goes_too_far_without_its_declared_
+    #    language` anything. ⇒ an off-by-one in the arm could not show up in a fixture, and
+    #    for a session it did not. This row runs the arm on the copies this file actually
+    #    resolves loci in, and on the copy it exists to refuse.
+    the_arm_run = []
+    for copy, expected in (
+        (edition, "accepted"),
+        (second, "accepted"),
+        (fifth, "accepted"),
+        (load(BPHS_SANTHANAM, cache=args.cache), "accepted"),
+        (library_scan, "refused"),
+    ):
+        try:
+            answer = refuse_a_rendering_that_goes_too_far_without_its_declared_language(
+                copy,
+                language=copy.language,
+                what_it_would_make_free="an attestation resting on this copy",
+            )
+            outcome = answer["outcome"]
+            reached = answer.get(
+                "least_flank_at_which_every_position_carries_a_declared_word"
+            )
+        except TextualError:
+            outcome, reached = "refused", None
+        the_arm_run.append(
+            {
+                "copy": copy.key,
+                "declared_language": copy.language,
+                "characters": copy.searchable_characters,
+                "outcome": outcome,
+                "least_flank_at_which_every_position_carries_a_declared_word": reached,
+                "as_this_repository_holds_it": expected,
+            }
+        )
+
     local_presence = whether_a_local_presence_separates(
         carrying_their_own_language={
             row["copy"]: row["least_flank_at_which_every_position_carries_a_declared_word"]
@@ -4266,6 +4307,47 @@ def main() -> int:
                 "and a value cutting between them would trade a refused citation for an "
                 "accepted one exactly as LEAST_RECURRENCE does. ⇒ what is armed is the "
                 "copy-level worst case; what is published per locus is a MEASUREMENT"
+            ),
+        },
+        # ==============================================================================
+        # ⛔⛔⛔ THE ARM ITSELF, RUN
+        # ==============================================================================
+        {
+            "finding": "control",
+            "control": "the_arm_is_run_on_the_copies_this_file_resolves_loci_in",
+            "measured": {
+                "the_question": (
+                    "⛔⛔⛔ THE ARM WAS IMPORTED BY THIS GENERATOR AND NEVER CALLED. Every "
+                    "row about the local presence scored the STATISTIC and no row ever "
+                    "asked the guard anything, so an off-by-one in the guard could not "
+                    "show up in a fixture - and for a session it did not"
+                ),
+                "by_copy": the_arm_run,
+            },
+            # ⛔⛔ BOTH DIRECTIONS, AND THE NEGATIVE ONE IS THE COPY THIS FILE EXISTS TO
+            #   REFUSE. Every copy a locus here resolves in must be ACCEPTED - or requiring
+            #   the arm would cost the fixture - and the machine reading set to the wrong
+            #   alphabet must be REFUSED, or the row would pass on a guard that accepts
+            #   everything. ⭐ Without the second clause this control is a tautology.
+            "held": bool(
+                len(the_arm_run) >= 5
+                and all(
+                    row["outcome"] == row["as_this_repository_holds_it"]
+                    for row in the_arm_run
+                )
+                and any(row["outcome"] == "refused" for row in the_arm_run)
+                and any(row["outcome"] == "accepted" for row in the_arm_run)
+            ),
+            "meaning": (
+                "⭐ THE GUARD IS RUN HERE AND NOT ONLY DESCRIBED. Every copy a locus in "
+                "this file resolves in is accepted by it, the furthest at "
+                f"""{max(
+                    row['least_flank_at_which_every_position_carries_a_declared_word'] or 0
+                    for row in the_arm_run
+                )} characters, and the machine reading of an English printing set to an """
+                "Indic script is refused. ⛔ That refusal is the instrument working and it "
+                "is NOT a diagnosis: it says this instrument has no positive evidence at "
+                "one place in that copy, and an absence establishes nothing"
             ),
         },
         # ==============================================================================

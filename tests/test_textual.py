@@ -3711,6 +3711,10 @@ def test_the_copy_level_guard_abstains_below_the_extent_at_which_it_could_refuse
         cap=copy.searchable_characters + 1,
     )
     assert row["outcome"] == "cannot_measure"
+    # ⛔⛔ TWO ABSTENTIONS NOW SHARE AN OUTCOME AND MUST NOT SHARE A NAME. A caller sorting
+    #   on `outcome` alone cannot tell "no list for this language" from "too short to ask",
+    #   and they establish nothing for entirely different reasons.
+    assert row["abstention"] == "the_copy_is_shorter_than_the_cap"
     assert row["least_extent_at_which_this_guard_can_refuse"] == (
         copy.searchable_characters + 1
     )
@@ -3841,6 +3845,7 @@ def test_the_copy_level_guard_abstains_where_no_word_list_is_declared():
     # ⭐ The isolating input: a copy the guard WOULD refuse under a language it has a list
     #   for. So the abstention is reached by the language and not by the copy.
     assert row["outcome"] == "cannot_measure"
+    assert row["abstention"] == "no_word_list_is_declared_for_this_language"
     assert "NOTHING ABOUT THIS COPY" in row["what_this_establishes"]
     with pytest.raises(TextualError):
         refuse_a_rendering_that_goes_too_far_without_its_declared_language(
