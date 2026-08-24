@@ -3568,58 +3568,6 @@ def main() -> int:
             }
         )
         del copy
-    for entry in script_census:
-        entry["certified"] = certification_of(entry["copy"])
-        entry["letters"] = sum(entry["scripts"].values())
-        entry["scripts_carried"] = len(entry["scripts"])
-        entry["the_one_script_it_carries"] = (
-            next(iter(entry["scripts"])) if entry["scripts_carried"] == 1 else None
-        )
-
-    def _census(certified: str) -> list[dict[str, Any]]:
-        return sorted(
-            (e for e in script_census if e["certified"] == certified),
-            key=lambda e: e["letters"],
-        )
-
-    wrong_script_census = _census("a_wrong_script_reading")
-    #: ⭐ The positive control on the census itself: copies here carrying MORE than one
-    #: script. Without them the purity of the twenty-one would be a property of the
-    #: instrument rather than of the copies.
-    carrying_more_than_one_script = sorted(
-        (e for e in script_census if e["scripts_carried"] > 1),
-        key=lambda e: e["copy"],
-    )
-    #: ⛔⛔⛔ The copies that read as NO SCRIPT AT ALL until this session, beside a true
-    #: searchable-character count. `letters_no_script_is_named_for` is what tells them apart
-    #: from the copy that renders to nothing, and it is zero for that one.
-    read_as_no_script_at_all = sorted(
-        (
-            {
-                "copy": e["copy"],
-                "characters": e["characters"],
-                "letters_it_carries": e["letters"],
-                "the_script_it_carries": e["the_one_script_it_carries"],
-                "certified": e["certified"],
-            }
-            for e in script_census
-            if e["the_one_script_it_carries"] in {"bengali", "arabic"}
-        ),
-        key=lambda e: -e["letters_it_carries"],
-    )
-    renders_to_no_letters = sorted(
-        (
-            {
-                "copy": e["copy"],
-                "characters": e["characters"],
-                "letters_no_script_is_named_for": e["letters_no_script_is_named_for"],
-            }
-            for e in script_census
-            if e["letters"] == 0 and e["letters_no_script_is_named_for"] == 0
-        ),
-        key=lambda e: e["copy"],
-    )
-
     def _carrying(language: str, at_least: float) -> list[dict[str, Any]]:
         return sorted(
             (
@@ -3879,6 +3827,67 @@ def main() -> int:
                 ],
             }
         )
+
+    # ⛔⛔ READ OFF `certified_rows`, NOT off `certification_of` ALONE. That function
+    #    answers `not_certified` for every copy certified as a READING - it is the
+    #    declaration channel and says so in its own docstring - so a census keyed on it
+    #    cannot say which side a copy sits on, and which side the two-script copies sit on
+    #    is the whole of this row's positive control. ⚠ The one copy no statistic above can
+    #    be asked about is not in `certified_rows`, and falls back to the declaration.
+    _certified_by_either = {row["copy"]: row["certified"] for row in certified_rows}
+    for entry in script_census:
+        entry["certified"] = _certified_by_either.get(
+            entry["copy"], certification_of(entry["copy"])
+        )
+        entry["letters"] = sum(entry["scripts"].values())
+        entry["scripts_carried"] = len(entry["scripts"])
+        entry["the_one_script_it_carries"] = (
+            next(iter(entry["scripts"])) if entry["scripts_carried"] == 1 else None
+        )
+
+    def _census(certified: str) -> list[dict[str, Any]]:
+        return sorted(
+            (e for e in script_census if e["certified"] == certified),
+            key=lambda e: e["letters"],
+        )
+
+    wrong_script_census = _census("a_wrong_script_reading")
+    #: ⭐ The positive control on the census itself: copies here carrying MORE than one
+    #: script. Without them the purity of the twenty-one would be a property of the
+    #: instrument rather than of the copies.
+    carrying_more_than_one_script = sorted(
+        (e for e in script_census if e["scripts_carried"] > 1),
+        key=lambda e: e["copy"],
+    )
+    #: ⛔⛔⛔ The copies that read as NO SCRIPT AT ALL until this session, beside a true
+    #: searchable-character count. `letters_no_script_is_named_for` is what tells them apart
+    #: from the copy that renders to nothing, and it is zero for that one.
+    read_as_no_script_at_all = sorted(
+        (
+            {
+                "copy": e["copy"],
+                "characters": e["characters"],
+                "letters_it_carries": e["letters"],
+                "the_script_it_carries": e["the_one_script_it_carries"],
+                "certified": e["certified"],
+            }
+            for e in script_census
+            if e["the_one_script_it_carries"] in {"bengali", "arabic"}
+        ),
+        key=lambda e: -e["letters_it_carries"],
+    )
+    renders_to_no_letters = sorted(
+        (
+            {
+                "copy": e["copy"],
+                "characters": e["characters"],
+                "letters_no_script_is_named_for": e["letters_no_script_is_named_for"],
+            }
+            for e in script_census
+            if e["letters"] == 0 and e["letters_no_script_is_named_for"] == 0
+        ),
+        key=lambda e: e["copy"],
+    )
 
     readings_certified = {
         row["copy"]: row["share_that_recurs"]
@@ -4616,6 +4625,14 @@ def main() -> int:
                     {"copy": e["copy"], "letters": e["letters"]}
                     for e in (wrong_script_census[0], wrong_script_census[-1])
                 ],
+                "certified_readings_in_the_census": sum(
+                    1 for e in script_census if e["certified"] == "a_reading"
+                ),
+                "how_many_of_them_carry_exactly_one_script": sum(
+                    1
+                    for e in script_census
+                    if e["certified"] == "a_reading" and e["scripts_carried"] == 1
+                ),
                 "and_the_copies_that_carry_more_than_one": [
                     {"copy": e["copy"], "scripts": e["scripts"], "certified": e["certified"]}
                     for e in carrying_more_than_one_script
@@ -4645,6 +4662,15 @@ def main() -> int:
                     for e in wrong_script_census
                 )
                 and carrying_more_than_one_script
+                # ⛔ AND ONE OF THE TWO-SCRIPT COPIES MUST BE A CERTIFIED READING. Without
+                #   it the row would read as *only a rendering of noise is pure*, which is
+                #   the opposite of what was measured. ⭐ And the readings must be a set
+                #   large enough for "they are single-script too" to be a claim about
+                #   anything.
+                and any(
+                    e["certified"] == "a_reading" for e in carrying_more_than_one_script
+                )
+                and sum(1 for e in script_census if e["certified"] == "a_reading") >= 20
             ),
             "meaning": (
                 "⭐⭐⭐ THE MEASURABLE CLAUSE HOLDS FOR "
@@ -4656,9 +4682,37 @@ def main() -> int:
                 f"({wrong_script_census[0]['copy']}) to "
                 f"{wrong_script_census[-1]['letters']} ({wrong_script_census[-1]['copy']}). "
                 "⇒ the audit of that declaration widens from one copy to twenty-one. "
-                "⛔ AND IT SEPARATES NOTHING: the certified readings are single-script too, "
-                f"and only {len(carrying_more_than_one_script)} copies of the "
-                f"{len(script_census)} held here carry two"
+                "⛔ AND IT SEPARATES NOTHING: "
+                + str(
+                    sum(
+                        1
+                        for e in script_census
+                        if e["certified"] == "a_reading" and e["scripts_carried"] == 1
+                    )
+                )
+                + " of the "
+                + str(sum(1 for e in script_census if e["certified"] == "a_reading"))
+                + " certified READINGS are single-script too, and only "
+                + str(len(carrying_more_than_one_script))
+                + f" copies of the {len(script_census)} held here carry two - and "
+                + (
+                    "every one of them is a CERTIFIED READING"
+                    if all(
+                        e["certified"] == "a_reading"
+                        for e in carrying_more_than_one_script
+                    )
+                    else str(
+                        sum(
+                            1
+                            for e in carrying_more_than_one_script
+                            if e["certified"] == "a_reading"
+                        )
+                    )
+                    + " of them is a CERTIFIED READING"
+                )
+                + ", not a rendering of noise. ⇒ carrying two scripts is a property of the "
+                "READINGS here and of nothing else, which is the direction that makes the "
+                "purity of the twenty-one worth measuring at all"
             ),
         },
         # ==============================================================================

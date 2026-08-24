@@ -52,17 +52,20 @@ Kannada or Tamil letter between them.
 
 ### ⛔ And it discriminates nothing
 
-The same census over the other side: every copy certified as a **reading** is single-script
-too, in its own script. Only **3 of the 66** copies held here carry two scripts at all —
+The same census over the other side: **23 of the 26** copies certified as **readings** are
+single-script too, in their own script. Only **3 of the 66** copies held here carry two scripts
+at all —
 
-| copy | scripts |
-|---|---|
-| `jaimini_sutram_mishra` (a real Devanagari book) | devanagari 196 380 · latin 8 959 |
-| `cleared_copy_in_ernet_dli_2015_101106` | latin 1 781 296 · cyrillic 10 |
-| `cleared_copy_facetofacewithsriramanamaharshi…` | latin 866 810 · cyrillic 2 |
+| copy | scripts | certified |
+|---|---|---|
+| `jaimini_sutram_mishra` | devanagari 196 380 · latin 8 959 | **a reading** |
+| `cleared_copy_in_ernet_dli_2015_101106` | latin 1 781 296 · cyrillic 10 | **a reading** |
+| `cleared_copy_facetofacewithsriramanamaharshi…` | latin 866 810 · cyrillic 2 | **a reading** |
 
-— and the first of them is a certified reading, not a rendering of noise. So a measurement of
-purity puts the two certified sets in the same place.
+— and ⭐ **every one of the three is a certified reading**, none a rendering of noise. **23 of
+the 26 certified readings are single-script too.** So a measurement of purity puts the two
+certified sets in the same place, and what carrying two scripts is a property of here is the
+READINGS and nothing else.
 
 ⭐⭐⭐ **C1 is confirmed for all twenty-one and carries no separating power whatever. Every
 bit of the certification's power sits in the clause that reads a catalogue.** That is the
