@@ -66,6 +66,18 @@ the one under which it passed.**
 
 ⚠ The separation itself is untouched: 8 828 < 16 642 either way. What was wrong is the arm.
 
+### ⭐⭐⭐ And the same boundary, written twice in one session, was right the other time
+
+`least_flank_at_which_a_passage_carries_a_declared_word` — the **passage**-level measurement,
+three hundred lines away in the same module and written in the same session — searches
+`low, high = 1, cap - 1` and returns `None` when the passage at `cap - 1` carries nothing. Its
+docstring says *`None` at or above `cap`*, and it is **correct**.
+
+⇒ the copy-level guard's boundary was not a decision taken and lost; it is an
+**inconsistency between two implementations of one sentence**, and only the wrong one was
+armed. ⚠ The passage-level number is deliberately left alone: no threshold is published on it
+at all, so its boundary carries no claim — see section 4 of the twenty-first session's doc.
+
 ---
 
 ## 2. ⛔⛔⛔ And below the cap it cannot refuse at all — which is arithmetic, not evidence
@@ -75,7 +87,7 @@ copy's own length: the worst position of a copy of *L* characters carrying one d
 anywhere needs at most *L*.
 
 ⇒ **no copy shorter than the cap can exceed the cap.** Below 16 642 characters the guard
-accepts whatever carries one of the 74 declared words anywhere at all, and refuses only what
+accepts whatever carries one of the 69 declared words anywhere at all, and refuses only what
 carries none — which is an **absence**, and this repository holds that an absence establishes
 nothing. So below that extent its only available refusal is one it does not accept as
 evidence.
@@ -84,7 +96,7 @@ evidence.
 `gov_in_notification_2022_99` at 1 345 characters and
 `30776245teachingsofthesidhaspart3conductenglish…` at 15 365. They are counted as surviving a
 refusal they were never at risk of. ⛔ **None of the 21 certified wrong-script copies is that
-short**: the shortest is 53 290, four times the next-shortest gap in the reading set. The two
+short**: the shortest is 53 290 and the next-shortest is 217 121, **four times it**. The two
 certified sets are not comparable in extent at the bottom, and the bound has never been tested
 where it cannot work.
 
