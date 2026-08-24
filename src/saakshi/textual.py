@@ -82,6 +82,20 @@ def digest(text: str) -> str:
 #: The script buckets this repository distinguishes. ⚠ Deliberately coarse: the question
 #: being asked is *could this rendering express the words being searched for at all*, and a
 #: finer classification would answer a question nobody here has.
+#:
+#: ⛔⛔⛔ **COARSE IS NOT THE SAME AS COMPLETE, AND THIS LIST WAS BOTH UNTIL A CENSUS
+#: ASKED IT ABOUT EVERY COPY HELD.** It named seven scripts, and this repository holds three
+#: copies written in scripts none of the seven covers: a Bengali printing carrying **272 820**
+#: letters, and two Arabic-script printings — an Urdu novel and a Kashmiri one — carrying
+#: **81 476** and **23 239**. `scripts_in` answered `{}` for all three. ⚠ That is the same
+#: answer it gives for a copy that renders to no letters at all, and the emitted record
+#: printed `scripts_this_rendering_carries: []` for each of them beside
+#: `carries_searchable_text: true`.
+#: ⭐⭐⭐ *A vocabulary that names seven things answers about the eighth exactly as it
+#: answers about nothing.* ⇒ the two the held evidence needs are named below, and what is
+#: still unnamed is now COUNTED instead of silent — see
+#: `letters_in_a_script_this_file_does_not_name`. ⛔ Naming two more does not make the list
+#: complete and nothing here claims it does; what changed is that the next gap reports itself.
 _SCRIPT_RANGES: tuple[tuple[str, int, int], ...] = (
     ("latin", 0x0041, 0x024F),
     ("devanagari", 0x0900, 0x097F),
@@ -90,6 +104,14 @@ _SCRIPT_RANGES: tuple[tuple[str, int, int], ...] = (
     ("telugu", 0x0C00, 0x0C7F),
     ("kannada", 0x0C80, 0x0CFF),
     ("tamil", 0x0B80, 0x0BFF),
+    # ⭐ Added for copies this repository already held. Measured rather than guessed: the
+    #   Bengali copy's letters occupy U+0985-U+09F0 and the two Arabic-script copies'
+    #   U+0621-U+06D5, so each sits inside its base block and no supplement is required by
+    #   the evidence here. ⚠ Arabic Supplement (U+0750) and Arabic Extended-A (U+08A0) are
+    #   NOT covered, and a letter from either would now be counted as unnamed rather than
+    #   reported as no script at all.
+    ("bengali", 0x0980, 0x09FF),
+    ("arabic", 0x0600, 0x06FF),
 )
 
 
@@ -126,11 +148,41 @@ def scripts_in(text: str) -> dict[str, int]:
     return counts
 
 
+def letters_in_a_script_this_file_does_not_name(text: str) -> int:
+    """How many LETTERS a string carries that `_SCRIPT_RANGES` names no script for.
+
+    ⛔⛔⛔ **BECAUSE `scripts_in` RETURNS AN EMPTY MAPPING FOR TWO DIFFERENT THINGS, AND THE
+    DIFFERENCE IS THE WHOLE REASON THE SCRIPT CENSUS EXISTS.** It returns `{}` for a
+    rendering carrying no letters at all — a copy that was never read, which is the state
+    every guard here is watching for — and it returns `{}` for a rendering carrying nothing
+    but letters of a script this file happens not to list. ⚠ Measured over the copies held:
+    three of them answered `{}` while carrying 272 820 Bengali, 81 476 Arabic and 23 239
+    Arabic letters, and four published sentences call those copies *legible* on a reader's
+    say-so, which is the one claim their own instrument could not corroborate.
+
+    ⭐⭐⭐ *An instrument that cannot name a thing must say so, because its silence is
+    already spoken for.*
+
+    ⚠ It counts LETTERS and asks `isalpha`, exactly as `script_of` does, so the two agree
+    about what a letter is: a Devanagari vowel sign is not one, and a rendering full of them
+    is not thereby made to carry a script.
+    """
+    return sum(1 for c in text if c.isalpha() and script_of(c) is None)
+
+
 def scripts_required_by(terms: Sequence[str]) -> set[str]:
     """The scripts a set of search terms is written in.
 
     ⛔ **A term carrying no script contributes nothing**, which is how the one spelling that
     is a printed mark rather than a word stops standing in for eleven that are words.
+
+    ⛔⛔⛔ **AND A TERM IN A SCRIPT THIS FILE DOES NOT NAME CONTRIBUTES NOTHING IN EXACTLY
+    THE SAME WAY, WHICH IS NOT THE SAME FACT.** A printed mark carries no script and a
+    Bengali word carries one this file cannot say the name of, and both are dropped here
+    silently. ⇒ an alphabet of eleven Bengali spellings and one Latin one returns `{"latin"}`
+    and is checked against a rendering on the Latin spelling alone — the drop is invisible in
+    the result, so every caller must ask `letters_in_a_script_this_file_does_not_name` of the
+    terms BEFORE reading this, and the two callers here now do.
     """
     required: set[str] = set()
     for term in terms:
@@ -293,6 +345,21 @@ class Edition:
         """
         return scripts_in(self.normalised)
 
+    @property
+    def letters_no_script_is_named_for(self) -> int:
+        """Letters this rendering carries that `_SCRIPT_RANGES` names no script for.
+
+        ⛔⛔⛔ **PUBLISHED BESIDE `scripts` BECAUSE WITHOUT IT AN EMPTY `scripts` HAS TWO
+        MEANINGS AND A READER CANNOT TELL THEM APART.** A copy that was never read and a
+        copy read perfectly in a script this file does not list both report no scripts at
+        all. Measured here: a Bengali printing of 659 015 searchable characters reported an
+        empty script list for six sessions, beside `carries_searchable_text: true`, which is
+        the exact signature the record's own prose says means *the machine reading was set to
+        the wrong script*. ⇒ **zero here and an empty `scripts` is a copy with no letters;
+        nonzero here and an empty `scripts` is this file's vocabulary, not the copy's.**
+        """
+        return letters_in_a_script_this_file_does_not_name(self.normalised)
+
     def carries_script(self, script: str) -> bool:
         """Whether a locus or a search term written in `script` could resolve here at all."""
         return self.scripts.get(script, 0) > 0
@@ -324,6 +391,20 @@ class Edition:
                     {"script": name, "code_points": count}
                     for name, count in sorted(self.scripts.items())
                 ],
+                # ⛔⛔⛔ EMITTED BESIDE THE LIST BECAUSE AN EMPTY LIST MEANT TWO THINGS AND
+                #   SAID SO IN ONE WAY. A Bengali printing here carried 272 820 letters and
+                #   printed `scripts_this_rendering_carries: []` under prose that reads an
+                #   empty list as a machine reading set to the wrong script.
+                "letters_no_script_is_named_for": self.letters_no_script_is_named_for,
+                "why_that_number_is_beside_the_list": (
+                    "⛔ AN EMPTY SCRIPT LIST IS NOT ONE FINDING. It is a copy carrying no "
+                    "letters, or a copy carrying nothing but letters of a script this file "
+                    "names none of, and the two are opposite states of the same copy. ⚠ A "
+                    "nonzero count here is a fact about this file's vocabulary and NEVER "
+                    "about the copy: three copies held in this cache - Bengali, Urdu and "
+                    "Kashmiri, 377 535 letters between them - read as no script at all "
+                    "until the census asked"
+                ),
                 "why_the_scripts_are_here": (
                     "⛔ a large searchable count still does not mean a word can be found. A "
                     "library scan of an English printing, held in this repository's cache, "
@@ -1673,7 +1754,9 @@ def how_a_per_language_floor_would_be_fitted(
             "bucket is fitted with no copy below it, which is this floor's original defect "
             "one bucket at a time. ⚠ Routing the undeclared bucket to a refusal is not "
             "available either: the copies there that are NOT certified wrong-script include "
-            "legible Bengali, Tamil, Urdu and Kashmiri, refused for a fact about the word "
+            "legible Bengali, Tamil, Urdu and Kashmiri - ⭐ legible is MEASURED for three "
+            "of the four now, 272 820 Bengali and 104 715 Arabic letters where the script "
+            "census read no script at all - refused for a fact about the word "
             "list rather than about themselves"
         ),
     }
@@ -2026,7 +2109,10 @@ def require_the_passage_to_carry_the_language_the_locus_declares(
                 f"declared for {declared!r}, so the instrument has no question to ask here. "
                 "⚠ THIS IS AN ABSTENTION AND NOT A REFUSAL, and the difference is the whole "
                 "of it: copies in Bengali, Tamil, Urdu and Kashmiri held here carry a "
-                "declared word at no flank whatever, and every one of them is legible"
+                "declared word at no flank whatever, and every one of them is legible - "
+                "⭐ which was a reader's say-so until the script census measured 272 820 "
+                "Bengali and 104 715 Arabic letters in three of the four, where this file's "
+                "own instrument had answered no script at all"
             ),
         }
     least = least_flank_at_which_a_passage_carries_a_declared_word(
@@ -2473,7 +2559,9 @@ def refuse_a_rendering_that_goes_too_far_without_its_declared_language(
     ⚠ **WHAT IT COSTS, MEASURED.** Of the copies held here it refuses the library scan
     (47 146 — which is the copy the wrong-alphabet finding was made on, so this is the
     instrument working), and it is SILENT over Bengali, Tamil, Urdu and Kashmiri copies that
-    are perfectly legible, because no list here covers them. ⛔ That silence is an
+    are perfectly legible — ⭐ measured for three of them since the script census, at
+    272 820 Bengali and 104 715 Arabic letters, where `scripts_in` had answered nothing at
+    all — because no list here covers them. ⛔ That silence is an
     **abstention** — `word_list_a_locus_calls_for` returns `None` and no refusal is raised —
     and it is a fact about `COMMONEST_WORDS`, never about those copies.
 
@@ -2499,7 +2587,10 @@ def refuse_a_rendering_that_goes_too_far_without_its_declared_language(
             "what_this_establishes": (
                 "⛔ NOTHING ABOUT THIS COPY. No list of commonest words is declared for "
                 f"{language!r}. ⚠ Bengali, Tamil, Urdu and Kashmiri copies held here carry a "
-                "declared word at no flank whatever and every one of them is legible - a "
+                "declared word at no flank whatever and every one of them is legible - "
+                "⭐ measured for three of the four, 272 820 Bengali and 104 715 Arabic "
+                "letters, where this file's own script instrument answered nothing at all - "
+                "a "
                 "fact about the word list and about nothing else"
             ),
         }
@@ -2770,12 +2861,40 @@ class AbsenceSearch:
         # ⛔⛔ CHECKED BEFORE THE CONTROL, BECAUSE A CONTROL CANNOT REPAIR THIS. Measured on a
         #    real copy: a library scan of an English printing whose machine reading carries
         #    246 777 characters and no Latin at all. Every guard above passes it.
+        # ⛔⛔⛔ ASKED BEFORE `scripts_required_by`, BECAUSE THAT FUNCTION DROPS WHAT THIS
+        #    COUNTS AND THE DROP IS INVISIBLE IN ITS RESULT. A spelling in a script
+        #    `_SCRIPT_RANGES` names none of contributes nothing to `required`, exactly as a
+        #    printed mark does - so an alphabet of eleven Bengali spellings and one Latin one
+        #    is checked against the rendering on the Latin one alone, which is the very
+        #    failure the checks here exist to catch. ⚠ And the refusal below used to fire for
+        #    it with the words `every spelling in it is punctuation or digits`, which is
+        #    false of a Bengali word and would send a reader to repair the alphabet.
+        #    ⭐⭐⭐ *A fix that names the right cause was written for one cause, and the
+        #    wrong cause has more than one* - this file's own sentence, third instance.
+        unnameable = [
+            spelling
+            for spelling in self.alphabet
+            if letters_in_a_script_this_file_does_not_name(spelling)
+        ]
+        if unnameable:
+            raise TextualError(
+                f"{self.edition.key}: {len(unnameable)} of {len(self.alphabet)} spellings in "
+                "this alphabet carry letters of a script this file names none of - "
+                f"{unnameable[0]!r} is one. ⛔ `scripts_required_by` DROPS them, so the "
+                "script check below would be made on whatever spellings are left and the "
+                "row would report a coverage it never had. ⚠ This is a fact about "
+                "`_SCRIPT_RANGES` and never about the alphabet or the copy - name the script "
+                "there and ask again"
+            )
         required = scripts_required_by(self.alphabet)
         if not required:
             raise TextualError(
                 f"{self.edition.key}: the alphabet searched is written in no script at all - "
                 "every spelling in it is punctuation or digits. ⛔ Nothing can establish that "
-                "this rendering could have expressed it, so the zeroes cannot be read"
+                "this rendering could have expressed it, so the zeroes cannot be read. "
+                "⚠ MEASURED, not inferred: the check above has already established that no "
+                "spelling here carries a letter of an unnamed script, so this sentence is "
+                "true of the alphabet rather than true of this file's vocabulary"
             )
         missing = sorted(s_ for s_ in required if not self.edition.carries_script(s_))
         if missing:
@@ -3494,12 +3613,34 @@ class PassageAbsence:
         #    Latin spelling is unattested in it, and the cause is the machine reading, not the
         #    vocabulary. ⭐ *A fix that names the right cause was written for one cause, and
         #    the wrong cause has more than one.*
+        # ⛔⛔⛔ AND A FOURTH CAUSE, ASKED FIRST, BECAUSE IT IS THE ONE THAT DOES NOT
+        #    ANNOUNCE ITSELF. `scripts_required_by` drops a spelling in a script this file
+        #    names none of exactly as it drops a printed mark, so the check below is made on
+        #    the spellings that survive the drop and reports coverage of an alphabet it never
+        #    saw. ⚠ The refusal that used to fire here told the reader every spelling was
+        #    punctuation or digits, which is false of a Bengali word.
+        unnameable = [
+            spelling
+            for spelling in self.alphabet
+            if letters_in_a_script_this_file_does_not_name(spelling)
+        ]
+        if unnameable:
+            raise TextualError(
+                f"{self.passage_label}: {len(unnameable)} of {len(self.alphabet)} spellings "
+                "in this alphabet carry letters of a script this file names none of - "
+                f"{unnameable[0]!r} is one - and `scripts_required_by` drops them silently. "
+                "⛔ The script check below would then be made on the remainder and would "
+                "report a coverage it never had. ⚠ A fact about `_SCRIPT_RANGES`, never "
+                "about the alphabet or the copy"
+            )
         required = scripts_required_by(self.alphabet)
         if not required:
             raise TextualError(
                 f"{self.passage_label}: every spelling in this alphabet is punctuation or "
                 "digits, so it is written in no script and nothing can establish that this "
-                "rendering could express it"
+                "rendering could express it. ⚠ Measured rather than inferred - the check "
+                "above has established that no spelling here carries a letter of an unnamed "
+                "script, so this names the alphabet and not this file's vocabulary"
             )
         missing = sorted(s_ for s_ in required if not self.edition.carries_script(s_))
         if missing:

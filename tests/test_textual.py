@@ -99,6 +99,7 @@ from saakshi.textual import (
     refuse_a_rendering_that_does_not_repeat,
     script_of,
     scripts_in,
+    letters_in_a_script_this_file_does_not_name,
     scripts_required_by,
     refusal_summary,
     region,
@@ -1179,6 +1180,128 @@ def test_a_term_that_is_only_a_mark_requires_no_script():
     """⭐ The one spelling that is a printed mark must not stand in for eleven that are words."""
     assert scripts_required_by(("*",)) == set()
     assert scripts_required_by(("*", "Prof.")) == {"latin"}
+
+
+# ==========================================================================================
+# ⛔⛔⛔ AND `scripts_in` ANSWERED THE SAME WAY ABOUT A SCRIPT IT CANNOT NAME
+# ==========================================================================================
+
+#: A script `_SCRIPT_RANGES` still names none of. ⭐ It has to be one that is still unnamed,
+#: or the branches below are branches no disarm can reach.
+UNNAMED_SCRIPT = "ગુજરાતી"
+
+#: The two the census found copies of in this repository's own cache, and which are named now.
+BENGALI = "বাংলা"
+ARABIC = "کشمیری"
+
+
+def test_an_empty_script_list_meant_two_things_and_only_one_of_them_is_the_copy():
+    """⛔⛔⛔ A COPY NEVER READ AND A COPY READ IN A SCRIPT THIS FILE CANNOT NAME AGREE.
+
+    Both report no scripts at all. ⚠ Measured on the copies held rather than argued: a
+    Bengali printing of 659 015 searchable characters carried 272 820 letters and reported an
+    empty script list for six sessions, beside `carries_searchable_text: true` — which is the
+    exact signature the record's own prose reads as a machine reading set to the wrong script.
+    ⇒ the two states are spelled differently now.
+    """
+    unnamed = edition(UNNAMED_SCRIPT * 40)
+    assert scripts_in(unnamed.normalised) == {}
+    assert unnamed.carries_searchable_text
+    assert unnamed.letters_no_script_is_named_for == 4 * 40
+
+    # ⛔ THE OTHER STATE, WHICH USED TO PRINT THE SAME ROW: letters of no script because
+    #   there are no letters.
+    marks = edition("{[^`|~} 12 34 [56]")
+    assert scripts_in(marks.normalised) == {}
+    assert marks.carries_searchable_text
+    assert marks.letters_no_script_is_named_for == 0
+
+    # ⭐ And the record a reader is handed carries the pair, not the list alone.
+    assert unnamed.as_json()["searchable"]["scripts_this_rendering_carries"] == []
+    assert unnamed.as_json()["searchable"]["letters_no_script_is_named_for"] == 160
+    assert marks.as_json()["searchable"]["letters_no_script_is_named_for"] == 0
+
+
+def test_the_two_scripts_the_census_found_copies_in_are_named():
+    """⭐ 377 535 letters in this repository's cache read as no script at all until asked."""
+    assert scripts_in(BENGALI) == {"bengali": 2}  # ⚠ two letters and two marks
+    assert scripts_in(ARABIC) == {"arabic": 6}
+    assert letters_in_a_script_this_file_does_not_name(BENGALI) == 0
+    assert letters_in_a_script_this_file_does_not_name(ARABIC) == 0
+    # ⚠ And naming two more did not make the list complete, which is why the counter exists.
+    assert scripts_in(UNNAMED_SCRIPT) == {}
+    assert letters_in_a_script_this_file_does_not_name(UNNAMED_SCRIPT) == 4
+
+
+def test_a_term_in_a_script_this_file_cannot_name_is_dropped_exactly_like_a_mark():
+    """⛔⛔⛔ THE HOLE, MEASURED BEFORE IT IS CLOSED.
+
+    `scripts_required_by` drops a spelling carrying no NAMED script exactly as it drops a
+    printed mark, and the drop leaves no trace in the result. ⇒ eleven spellings in an
+    unnamed script and one in Latin ask for `{"latin"}` and nothing says the other eleven
+    were never checked.
+    """
+    alphabet = (*[f"{UNNAMED_SCRIPT}{n}" for n in range(11)], "Professor")
+    assert scripts_required_by(alphabet) == {"latin"}
+    assert len([s for s in alphabet if letters_in_a_script_this_file_does_not_name(s)]) == 11
+
+
+def test_absence_refuses_an_alphabet_this_file_can_name_no_script_for():
+    """⛔⛔ AND THE REFUSAL THAT USED TO FIRE HERE NAMED THE WRONG CAUSE.
+
+    An alphabet in an unnamed script requires no script, so the older branch caught it — and
+    told the reader every spelling was punctuation or digits, which is false of a Bengali
+    word and sends a reader to repair an alphabet that is not the problem.
+    """
+    with pytest.raises(TextualError) as excinfo:
+        AbsenceSearch(
+            claim="that this copy does not print it",
+            alphabet=(UNNAMED_SCRIPT, f"{UNNAMED_SCRIPT}2"),
+            edition=edition(),
+            occurrences=[],
+            what_the_hits_do_say=[],
+            positive_control=CONTROL,
+        )
+    message = str(excinfo.value)
+    assert "names none of" in message
+    assert "2 of 2 spellings" in message
+    # ⛔ AND IT MUST NOT SAY THE OLD THING, which is the whole repair.
+    assert "punctuation or digits" not in message
+
+
+def test_absence_refuses_a_mixed_alphabet_it_would_otherwise_check_on_the_remainder():
+    """⛔⛔⛔ THE ONE WHERE THE OUTCOME WAS WRONG AND NOT ONLY THE MESSAGE.
+
+    Eleven spellings in a script this file names none of and one in Latin, over a Latin copy:
+    `required` is `{"latin"}`, the copy carries Latin, and every older check passes. ⇒ the row
+    would have reported a twelve-spelling absence measured on one spelling.
+    """
+    alphabet = (*[f"{UNNAMED_SCRIPT}{n}" for n in range(11)], "Professor")
+    copy = edition()
+    assert copy.carries_script("latin")  # ⚠ so the script-presence check below would pass
+    with pytest.raises(TextualError, match="11 of 12 spellings"):
+        AbsenceSearch(
+            claim="that this copy does not print it",
+            alphabet=alphabet,
+            edition=copy,
+            occurrences=[],
+            what_the_hits_do_say=[],
+            positive_control=CONTROL,
+        )
+
+
+def test_passage_absence_refuses_an_alphabet_this_file_can_name_no_script_for():
+    """⚠ The same drop, at the second of the two call sites."""
+    with pytest.raises(TextualError, match="names none of"):
+        PassageAbsence(
+            claim="that the passage does not say it",
+            edition=edition(),
+            passage_label="a passage",
+            after="The first rule",
+            before="once and only once",
+            alphabet=(UNNAMED_SCRIPT, "Professor"),
+            alphabet_read_from="the other printing, where each is attested",
+        )
 
 
 def test_absence_refuses_a_rendering_carrying_none_of_the_searched_script():

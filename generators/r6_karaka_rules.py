@@ -52,6 +52,7 @@ from saakshi.texts import (
     CACHE,
     DEVANAGARI,
     READINGS_IN_A_SCRIPT_THE_WORK_CANNOT_BE_PRINTED_IN,
+    SOURCES,
     acquire,
     certification_of,
     load,
@@ -3457,6 +3458,15 @@ def main() -> int:
                 "largest_stretch_this_guard_accepts": (
                     largest_stretch_this_guard_accepts(copy)["characters"]
                 ),
+                # ⭐⭐⭐ THE MEASURABLE HALF OF THE WRONG-SCRIPT CERTIFICATION, ASKED OF
+                #    EVERY COPY IN THE SAME PASS BECAUSE IT LOADS THE SAME COPY. The
+                #    certification reads *the rendering carries, at essentially every one of
+                #    its letters, a script the catalogued work cannot be printed in*. The
+                #    second clause reads a catalogue; the first is a measurement, and it had
+                #    never been made - one copy of the twenty-one had a measurable channel
+                #    agreeing with its certification and the other twenty had a reader's eye.
+                "scripts": dict(copy.scripts),
+                "letters_no_script_is_named_for": copy.letters_no_script_is_named_for,
             }
             for language in sorted(COMMONEST_WORDS):
                 occurring = declared_words_that_occur(copy, language=language)
@@ -3507,6 +3517,10 @@ def main() -> int:
             "largest_stretch_this_guard_accepts": (
                 largest_stretch_this_guard_accepts(copy)["characters"]
             ),
+            # ⭐ The same two fields as the draw rows above, so the script census is over
+            #   every copy this file loads and not over the draws alone.
+            "scripts": dict(copy.scripts),
+            "letters_no_script_is_named_for": copy.letters_no_script_is_named_for,
         }
         for language in sorted(COMMONEST_WORDS):
             occurring = declared_words_that_occur(copy, language=language)
@@ -3519,6 +3533,92 @@ def main() -> int:
                 "the_three_commonest_that_occur": list(occurring["which_ones"])[:3],
             }
         language_rows.append(row)
+
+    # ======================================================================================
+    # ⭐⭐⭐ THE SCRIPT CENSUS — over EVERY copy this repository holds, not the loaded ones
+    # ======================================================================================
+    #
+    # ⛔ The two loops above load 65 of the 66 copies `SOURCES` declares. The one they do not
+    #    is the scanned printing with no text layer, which every statistic above would refuse
+    #    to be asked about - and it is exactly the copy this census is about, because it is
+    #    the state an empty script list is READ as. ⇒ the remainder is taken by difference
+    #    rather than named, so a copy added to `SOURCES` cannot fall out of this census
+    #    silently.
+    script_census = [
+        {
+            "copy": row["copy"],
+            "characters": row["characters"],
+            "scripts": row["scripts"],
+            "letters_no_script_is_named_for": row["letters_no_script_is_named_for"],
+        }
+        for row in language_rows
+    ]
+    for key in sorted(set(SOURCES) - {row["copy"] for row in language_rows}):
+        copy = load(key, cache=args.cache)
+        script_census.append(
+            {
+                "copy": key,
+                "characters": copy.searchable_characters,
+                "scripts": dict(copy.scripts),
+                "letters_no_script_is_named_for": copy.letters_no_script_is_named_for,
+                "held_here_as": (
+                    "the copy no statistic above can be asked about - 219 scanned page "
+                    "images with no text layer, which renders to no searchable text at all"
+                ),
+            }
+        )
+        del copy
+    for entry in script_census:
+        entry["certified"] = certification_of(entry["copy"])
+        entry["letters"] = sum(entry["scripts"].values())
+        entry["scripts_carried"] = len(entry["scripts"])
+        entry["the_one_script_it_carries"] = (
+            next(iter(entry["scripts"])) if entry["scripts_carried"] == 1 else None
+        )
+
+    def _census(certified: str) -> list[dict[str, Any]]:
+        return sorted(
+            (e for e in script_census if e["certified"] == certified),
+            key=lambda e: e["letters"],
+        )
+
+    wrong_script_census = _census("a_wrong_script_reading")
+    #: ⭐ The positive control on the census itself: copies here carrying MORE than one
+    #: script. Without them the purity of the twenty-one would be a property of the
+    #: instrument rather than of the copies.
+    carrying_more_than_one_script = sorted(
+        (e for e in script_census if e["scripts_carried"] > 1),
+        key=lambda e: e["copy"],
+    )
+    #: ⛔⛔⛔ The copies that read as NO SCRIPT AT ALL until this session, beside a true
+    #: searchable-character count. `letters_no_script_is_named_for` is what tells them apart
+    #: from the copy that renders to nothing, and it is zero for that one.
+    read_as_no_script_at_all = sorted(
+        (
+            {
+                "copy": e["copy"],
+                "characters": e["characters"],
+                "letters_it_carries": e["letters"],
+                "the_script_it_carries": e["the_one_script_it_carries"],
+                "certified": e["certified"],
+            }
+            for e in script_census
+            if e["the_one_script_it_carries"] in {"bengali", "arabic"}
+        ),
+        key=lambda e: -e["letters"],
+    )
+    renders_to_no_letters = sorted(
+        (
+            {
+                "copy": e["copy"],
+                "characters": e["characters"],
+                "letters_no_script_is_named_for": e["letters_no_script_is_named_for"],
+            }
+            for e in script_census
+            if e["letters"] == 0 and e["letters_no_script_is_named_for"] == 0
+        ),
+        key=lambda e: e["copy"],
+    )
 
     def _carrying(language: str, at_least: float) -> list[dict[str, Any]]:
         return sorted(
@@ -4481,6 +4581,171 @@ def main() -> int:
                 f"⚠ And {len(readings_under_the_cap)} of the copies certified as readings "
                 "are shorter than the cap, so they were never at risk of the refusal they "
                 "are counted as surviving"
+            ),
+        },
+        # ==============================================================================
+        # ⭐⭐⭐ THE WRONG-SCRIPT CERTIFICATION'S MEASURABLE CLAUSE, ASKED OF ALL 21
+        # ==============================================================================
+        {
+            "finding": "control",
+            "control": (
+                "whether_the_measurable_clause_of_the_wrong_script_certification_holds"
+            ),
+            "measured": {
+                "the_certification_has_two_clauses_and_only_one_is_a_measurement": (
+                    "⛔ IT READS *the rendering carries, at essentially every one of its "
+                    "letters, a script the catalogued work cannot be printed in*. The second "
+                    "clause reads a catalogue and is a DECLARATION audited by a reader. The "
+                    "first is a measurement over the copy, and until this session it had "
+                    "been made on NO copy: one of the twenty-one had a measurable channel "
+                    "agreeing with what its certification says about it, and the other "
+                    "twenty had the phrase `essentially every one`"
+                ),
+                "copies_certified_wrong_script": len(wrong_script_census),
+                "how_many_carry_exactly_one_script": sum(
+                    1 for e in wrong_script_census if e["scripts_carried"] == 1
+                ),
+                "the_one_script_each_of_them_carries": sorted(
+                    {e["the_one_script_it_carries"] for e in wrong_script_census}
+                ),
+                "letters_of_any_other_script": sum(
+                    e["letters"] - max(e["scripts"].values(), default=0)
+                    for e in wrong_script_census
+                ),
+                "the_smallest_and_largest": [
+                    {"copy": e["copy"], "letters": e["letters"]}
+                    for e in (wrong_script_census[0], wrong_script_census[-1])
+                ],
+                "and_the_copies_that_carry_more_than_one": [
+                    {"copy": e["copy"], "scripts": e["scripts"], "certified": e["certified"]}
+                    for e in carrying_more_than_one_script
+                ],
+                "what_this_does_not_establish": (
+                    "⛔⛔⛔ THAT THE CLAUSE DISCRIMINATES, AND IT DOES NOT. Every copy "
+                    "certified as a READING is single-script too, in its own script, so a "
+                    "measurement of purity puts the two certified sets in the same place. "
+                    "⇒ the clause is CONFIRMED for all twenty-one and carries no separating "
+                    "power whatever: every bit of the certification's power sits in the "
+                    "clause that reads a catalogue. ⚠ And the direction is not reversible - "
+                    "a copy carrying two scripts is not thereby a reading, and the three "
+                    "that do here include a real Devanagari book with Latin front matter"
+                ),
+            },
+            # ⛔⛔ BOTH WAYS, AND THE SECOND CLAUSE IS WHAT KEEPS THIS FROM BEING A
+            #   TAUTOLOGY OF THE INSTRUMENT. If NO copy this repository holds carried more
+            #   than one script, the purity of the twenty-one would be a property of
+            #   `scripts_in` and not of the copies. ⭐ And the census must be over every copy
+            #   `SOURCES` declares, or the count is a count of what was convenient to load.
+            "held": bool(
+                len(script_census) == len(SOURCES)
+                and len(wrong_script_census) == 21
+                and all(e["scripts_carried"] == 1 for e in wrong_script_census)
+                and all(
+                    e["the_one_script_it_carries"] == "devanagari"
+                    for e in wrong_script_census
+                )
+                and carrying_more_than_one_script
+            ),
+            "meaning": (
+                "⭐⭐⭐ THE MEASURABLE CLAUSE HOLDS FOR "
+                f"{sum(1 for e in wrong_script_census if e['scripts_carried'] == 1)} OF "
+                f"{len(wrong_script_census)}, EXACTLY AND NOT APPROXIMATELY. Every copy "
+                "certified as a reading in a script its catalogued work cannot be printed "
+                "in carries letters of ONE script - Devanagari - and not one letter of any "
+                f"other, from {wrong_script_census[0]['letters']} letters "
+                f"({wrong_script_census[0]['copy']}) to "
+                f"{wrong_script_census[-1]['letters']} ({wrong_script_census[-1]['copy']}). "
+                "⇒ the audit of that declaration widens from one copy to twenty-one. "
+                "⛔ AND IT SEPARATES NOTHING: the certified readings are single-script too, "
+                f"and only {len(carrying_more_than_one_script)} copies of the "
+                f"{len(script_census)} held here carry two"
+            ),
+        },
+        # ==============================================================================
+        # ⛔⛔⛔ AND THE CENSUS FOUND THE INSTRUMENT ANSWERING NOTHING ABOUT THREE COPIES
+        # ==============================================================================
+        {
+            "finding": "control",
+            "control": "what_this_files_script_vocabulary_could_not_name",
+            "measured": {
+                "the_defect": (
+                    "⛔⛔⛔ `scripts_in` RETURNED AN EMPTY MAPPING FOR THREE COPIES IN THIS "
+                    "CACHE, WHICH IS THE ANSWER IT GIVES FOR A COPY THAT WAS NEVER READ. "
+                    "`_SCRIPT_RANGES` named seven scripts and this repository holds copies "
+                    "in two more. ⚠ The emitted record printed "
+                    "`scripts_this_rendering_carries: []` for each of them beside "
+                    "`carries_searchable_text: true` - the exact signature that record's own "
+                    "prose reads as a machine reading set to the wrong script"
+                ),
+                "the_copies": read_as_no_script_at_all,
+                "letters_between_them": sum(
+                    e["letters_it_carries"] for e in read_as_no_script_at_all
+                ),
+                "letters_of_a_script_named_before_this_session": sum(
+                    count
+                    for e in script_census
+                    if e["the_one_script_it_carries"] in {"bengali", "arabic"}
+                    for name, count in e["scripts"].items()
+                    if name not in {"bengali", "arabic"}
+                ),
+                "and_the_copy_that_genuinely_renders_to_no_letters": renders_to_no_letters,
+                "how_the_two_are_told_apart_now": (
+                    "⭐ `letters_no_script_is_named_for`, emitted beside the script list on "
+                    "every record. Zero there with an empty list is a copy with no letters; "
+                    "nonzero there is this file's vocabulary and NEVER the copy"
+                ),
+                "what_was_said_about_these_copies_before": (
+                    "⚠ FOUR PUBLISHED SENTENCES CALL THEM LEGIBLE - *Bengali, Tamil, Urdu "
+                    "and Kashmiri copies held here carry a declared word at no flank "
+                    "whatever, and every one of them is legible*. ⛔ That was a reader's "
+                    "say-so, and the only channel this repository has for it answered with "
+                    "an empty mapping. ⇒ it is a measurement now for three of the four, and "
+                    "it is the SAME evidential shape as the wrong-script certification with "
+                    "the sign flipped: a presence of the script the catalogue says the work "
+                    "is printed in. ⛔ It establishes that the reader was set to that script "
+                    "and NOT that it returned the right words - a wrong-script reading of a "
+                    "Bengali printing would answer identically"
+                ),
+                "and_it_had_a_second_consequence_in_code": (
+                    "⛔⛔ `scripts_required_by` DROPS a term in an unnamed script exactly as "
+                    "it drops a printed mark, so an alphabet of eleven such spellings and "
+                    "one Latin one asks for the Latin script alone and is checked on the "
+                    "Latin spelling alone - the very failure those checks exist to catch. "
+                    "⚠ And the refusal that did fire told the reader every spelling was "
+                    "punctuation or digits, which is false of a Bengali word. Both call "
+                    "sites now ask about the unnamed letters FIRST and refuse naming that "
+                    "cause"
+                ),
+            },
+            # ⛔⛔ HELD IN THREE DIRECTIONS. The three copies must now carry a NAMED script;
+            #   they must carry no letter of any script named before this session, which is
+            #   what says they read as nothing at all rather than as something faint; and
+            #   the copy that genuinely renders to no letters must still be distinguishable
+            #   from them. ⭐ Without the last clause the row would pass on a repair that
+            #   simply stopped reporting the empty state.
+            "held": bool(
+                len(read_as_no_script_at_all) == 3
+                and all(e["letters_it_carries"] > 0 for e in read_as_no_script_at_all)
+                and renders_to_no_letters
+                and all(
+                    e["letters_no_script_is_named_for"] == 0
+                    for e in renders_to_no_letters
+                )
+            ),
+            "meaning": (
+                "⛔⛔⛔ THREE COPIES CARRYING "
+                f"{sum(e['letters_it_carries'] for e in read_as_no_script_at_all)} LETTERS "
+                "BETWEEN THEM READ AS NO SCRIPT AT ALL, WHICH IS THIS INSTRUMENT'S ANSWER "
+                "FOR A COPY THAT WAS NEVER READ. "
+                + " · ".join(
+                    f"{e['copy']}: {e['letters_it_carries']} {e['the_script_it_carries']} "
+                    f"letters in {e['characters']} searchable characters"
+                    for e in read_as_no_script_at_all
+                )
+                + ". ⭐⭐⭐ A VOCABULARY THAT NAMES SEVEN THINGS ANSWERS ABOUT THE EIGHTH "
+                "EXACTLY AS IT ANSWERS ABOUT NOTHING. ⇒ the two the evidence needs are "
+                "named, and what is still unnamed is COUNTED - naming two more does not "
+                "make the list complete and nothing here claims it does"
             ),
         },
     ]
