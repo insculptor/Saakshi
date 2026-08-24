@@ -1,6 +1,6 @@
 # The bound that accepted the copy it was read off — and the extent it was armed without
 
-**2026-08-24 · `2b62c0f` → this session · 507 → 511 tests · artifact 66 → 68 rows**
+**2026-08-24 · `2b62c0f` → this session · 507 → 511 tests · artifact 66 → 69 rows · sweep 13 of 13**
 
 The twenty-first session armed a refusing instrument made of presences and left, at the top
 of its own list of what was open:
@@ -193,14 +193,48 @@ its set grew from one member to thirty-three.
 
 ---
 
-## 5a. The sweep — 11 of 11, and two of them were unreachable
+## 5b. ⛔⛔⛔ And the arm was imported by the generator and never called
+
+This is how the off-by-one survived a session. Every row this repository publishes about the
+local presence scores the **statistic** — `least_flank_over_any_declared_language` — and
+**not one row ever asked the guard anything**.
+`refuse_a_rendering_that_goes_too_far_without_its_declared_language` appears in the
+generator's import list and at no call site in it.
+
+> ⭐⭐⭐ **A CONTROL THAT SCORES THE STATISTIC AN INSTRUMENT READS IS NOT A CONTROL ON THE
+> INSTRUMENT.** The census could not have caught a boundary error in the arm at any value,
+> because the arm was never on the path that produced the fixture.
+
+⇒ a new row, `the_arm_is_run_on_the_copies_this_file_resolves_loci_in`, **runs** it:
+
+| copy | declared | outcome | flank |
+|---|---|---|---|
+| `jaimini_sutras_rao` — the copy every rule resolves in | `en` | accepted | 376 |
+| `jaimini_sutram_mishra` — the second witness | `hi` | accepted | 1 283 |
+| `jaimini_sutras_rao_fifth_edition` | `en` | accepted | 275 |
+| `bphs_santhanam` | `en` | accepted | 3 713 |
+| `jaimini_sutras_rao_library_scan` — the wrong-alphabet reading | `en` | ⛔ **refused** | — |
+
+⛔ Held in **both** directions, and the second clause is what stops it being a tautology: a
+row asserting only that the four real copies pass would hold on a guard that accepts
+everything.
+
+⚠ **Two abstentions now name themselves apart.** *No word list for this language* and *the
+copy is shorter than the cap* share the outcome `cannot_measure` and establish nothing for
+entirely different reasons, so each carries an `abstention` field — the same discipline the
+refusal already had, for the same reason: *nothing downstream should have to sort them by
+their prose.*
+
+---
+
+## 5a. The sweep — 13 of 13, and two of them were unreachable
 
 Every branch added here was patched to a disarmed form and the suite required to fail. Green
 baseline first, `sys.executable`, `PYTHONDONTWRITEBYTECODE=1`, every patch verified to have
 reached the file and every file verified restored byte-for-byte. ⛔ An anchor not occurring
 exactly once is an error, not a pass.
 
-**First pass: 9 of 11.** The two that escaped were both clamps in
+**First pass: 9 of 11**, of the eleven then written. The two that escaped were both clamps in
 `largest_stretch_this_guard_accepts`, written so that opening a window could not re-admit the
 gap that broke its run — *stop short of occurrence `p - 1`, stop short of `q + 1`*.
 
@@ -213,20 +247,21 @@ gap that broke its run — *stop short of occurrence `p - 1`, stop short of `q +
 
 ⚠ The two clamps the function keeps — it must contain the whole occurrence it opens around —
 are reachable only at a **cap shorter than a declared word**, which nothing here asks. They
-are reached at a cap of 1, and that is the input the test uses. **Second pass: 11 of 11.**
+are reached at a cap of 1, and that is the input the test uses. **Second pass: 11 of 11, and 13 of 13 with the two the arm control and the named abstentions added.**
 
 ---
 
 ## 6. The artifact
 
-`out/textual/significator-series-rules.jsonl`, **66 → 68** rows, byte-identical on re-run.
-**63 byte-identical · 4 changed · 2 added · 0 removed.**
+`out/textual/significator-series-rules.jsonl`, **66 → 69** rows, byte-identical on re-run.
+**63 byte-identical · 4 changed · 3 added · 0 removed.**
 
 * the header moves on `generated`, `generator` and `summary`;
 * `the_three_constants…not_fitted_to` moves on this repository's own program text, which grew;
 * the two censuses gain the two new fields on each of their rows and nothing else;
-* the two added rows are `whether_the_armed_cap_refuses_the_copy_it_was_read_off` and
-  `what_extent_this_guards_answer_is_a_fact_about_the_copy_at`.
+* the added rows are `whether_the_armed_cap_refuses_the_copy_it_was_read_off`,
+  `what_extent_this_guards_answer_is_a_fact_about_the_copy_at`, and
+  `the_arm_is_run_on_the_copies_this_file_resolves_loci_in`.
 
 Both new controls are computed from the **live census** rather than from a constant, so a
 published number that drifted away from what it is a maximum over fails the row rather than a
