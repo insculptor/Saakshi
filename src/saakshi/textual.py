@@ -2289,14 +2289,18 @@ def largest_stretch_this_guard_accepts(
     runs.append((first, len(found) - 1))
     best = {"characters": 0, "at": None}
     for p, q in runs:
-        low = max(0, found[p][1] - cap)
-        if p:
-            low = max(low, found[p - 1][0] + 1)
-        low = min(low, found[p][0])
-        high = min(length, found[q][0] + cap + 1)
-        if q + 1 < len(found):
-            high = min(high, found[q + 1][1] - 1)
-        high = max(high, found[q][1])
+        # ⛔⛔⛔ NO CLAMP AGAINST THE NEIGHBOURING OCCURRENCE, AND THE SWEEP IS WHY.
+        #    Two were written - stop short of occurrence `p - 1`, stop short of `q + 1`, so
+        #    that including one could not re-admit the gap that broke the run - and the
+        #    disarming sweep ESCAPED on both, because neither can ever bind: a run breaks at
+        #    `q` only when `e[q+1] - s[q] - 1 > 2 * cap`, and the window already stops at
+        #    `s[q] + cap + 1`, which is smaller. ⭐ *A branch a disarm cannot reach is not a
+        #    branch a test can hold*, so it is removed rather than covered.
+        low = min(max(0, found[p][1] - cap), found[p][0])
+        # ⚠ The two remaining clamps hold only for a cap SHORTER THAN A DECLARED WORD,
+        #   where the window would otherwise cut the occurrence it is opened around. They are
+        #   reached at a cap of 1 and by nothing this repository asks.
+        high = max(min(length, found[q][0] + cap + 1), found[q][1])
         if high - low > best["characters"]:
             best = {"characters": high - low, "at": low}
     return {

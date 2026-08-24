@@ -3412,6 +3412,21 @@ CARRIES_ENGLISH_THROUGHOUT = _copy(
     key="carries_english_throughout",
 )
 
+#: ⛔ The same stretch at the copy's HEAD and at its TAIL. ⭐ Three fixtures rather than one
+#: because `longest_stretch_carrying_no_declared_word` has three arms and a single fixture
+#: whose answer lies between two words lets the other two be deleted without a test moving.
+BEGINS_WITH_A_LONG_STRETCH_WITHOUT_IT = _copy(
+    "".join(f"zqx{number:04d} " for number in range(400))
+    + "and that is the whole of it, with the words that were missing above.",
+    key="begins_with_a_long_stretch",
+)
+
+ENDS_WITH_A_LONG_STRETCH_WITHOUT_IT = _copy(
+    "The rule is stated here and that is the whole of it, with all of its words. "
+    + "".join(f"zqx{number:04d} " for number in range(400)),
+    key="ends_with_a_long_stretch",
+)
+
 #: ⛔ A copy in which one long stretch carries no declared word at all — the shape a rendering
 #: of noise has, and the shape one long index in a real book has too. ⚠ That ambiguity is
 #: the finding, not a defect in the fixture.
@@ -3755,6 +3770,25 @@ def test_the_longest_stretch_with_no_declared_word_is_exact():
     )["characters"] > longest_stretch_carrying_no_declared_word(
         CARRIES_ENGLISH_THROUGHOUT
     )["characters"]
+    # ⛔⛔⛔ EACH ARM IS REACHED BY A FIXTURE BUILT TO REACH IT AND BY NO OTHER. With one
+    #   fixture whose longest stretch lies between two words, the head arm and the tail arm
+    #   can both be deleted and nothing moves.
+    for copy, where in (
+        (HAS_ONE_LONG_STRETCH_WITHOUT_IT, "between two declared words"),
+        (BEGINS_WITH_A_LONG_STRETCH_WITHOUT_IT, "before the first declared word"),
+        (ENDS_WITH_A_LONG_STRETCH_WITHOUT_IT, "after the last declared word"),
+    ):
+        row = longest_stretch_carrying_no_declared_word(copy)
+        assert row["where"] == where
+        assert row["characters"] > 1000
+        piece = copy.normalised[row["at"] : row["at"] + row["characters"]]
+        assert not (terms & set(words_of(piece)))
+    # ⚠ And a copy carrying no declared word at all answers with the whole of itself.
+    none_at_all = longest_stretch_carrying_no_declared_word(
+        _copy("zqx " * 200, key="carries_none_at_all")
+    )
+    assert none_at_all["where"] == "the whole copy carries no declared word"
+    assert none_at_all["characters"] == 800 - 1
 
 
 def test_the_largest_accepted_stretch_is_maximal_in_both_directions():
@@ -3783,6 +3817,17 @@ def test_the_largest_accepted_stretch_is_maximal_in_both_directions():
         )["characters"]
         == 0
     )
+    # ⛔⛔ AND AT A CAP SHORTER THAN A DECLARED WORD THE WINDOW STILL CONTAINS ONE WHOLE.
+    #   ⭐ This is the only input that reaches the two clamps the function keeps: at any cap
+    #   this repository asks, the flank alone already opens the window past the occurrence,
+    #   and a test that never reaches a branch cannot hold it. ⚠ Written after the disarming
+    #   sweep escaped on two clamps that could not bind at all, which were removed.
+    tight = largest_stretch_this_guard_accepts(CARRIES_ENGLISH_THROUGHOUT, cap=1)
+    piece = CARRIES_ENGLISH_THROUGHOUT.normalised[
+        tight["at"] : tight["at"] + tight["characters"]
+    ]
+    assert piece in declared_words_of("english")
+    assert tight["characters"] == len(piece) >= LEAST_LENGTH_A_DECLARED_WORD_CARRIES
 
 
 def test_the_copy_level_guard_abstains_where_no_word_list_is_declared():
