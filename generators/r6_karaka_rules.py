@@ -3605,7 +3605,7 @@ def main() -> int:
             for e in script_census
             if e["the_one_script_it_carries"] in {"bengali", "arabic"}
         ),
-        key=lambda e: -e["letters"],
+        key=lambda e: -e["letters_it_carries"],
     )
     renders_to_no_letters = sorted(
         (
