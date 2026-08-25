@@ -3511,6 +3511,186 @@ def test_the_wrong_script_certification_is_a_declaration_over_copies_this_reposi
     assert certification_of("a key no source exists for") == "not_certified"
 
 
+def test_every_abstention_names_a_reason_this_file_knows():
+    """⛔ The reason vocabulary is CLOSED and an unknown reason is an error, not a silence.
+
+    ⭐⭐⭐ *A vocabulary that names three things must not answer about the fourth exactly as
+    it answers about nothing* — the defect the 23rd session found in `scripts_in`, which
+    named seven scripts and returned an empty mapping for a copy carrying 272 820 Bengali
+    letters. So the check is driven **both ways**: a mapping that has drifted must raise,
+    and the shipped one must not.
+    """
+    import pytest
+
+    from saakshi.texts import (
+        ABSTAINED_FROM_CERTIFYING,
+        ABSTENTION_REASONS,
+        REASONS_AN_ABSTENTION_CAN_NAME,
+        _check_every_abstention_names_a_reason_this_file_knows as check,
+        abstention_reason,
+        copies_abstained_from_because,
+    )
+
+    # ⭐ The shipped mappings pass — asserted here rather than relied on from import, so a
+    #   check that had been deleted would show up as a failure and not as a green import.
+    check(ABSTENTION_REASONS, ABSTAINED_FROM_CERTIFYING)
+    assert set(ABSTENTION_REASONS) == set(ABSTAINED_FROM_CERTIFYING)
+    assert set(ABSTENTION_REASONS.values()) <= REASONS_AN_ABSTENTION_CAN_NAME
+
+    # ⛔ Drift 1 — a copy abstained from with no named reason. It must NAME the copy: a
+    #   count with no names is a silent cap on what a reader can check.
+    dropped = next(iter(ABSTENTION_REASONS))
+    with pytest.raises(Exception) as one:
+        check(
+            {k: v for k, v in ABSTENTION_REASONS.items() if k != dropped},
+            ABSTAINED_FROM_CERTIFYING,
+        )
+    assert dropped in str(one.value)
+
+    # ⛔ Drift 2 — a named reason for a copy this file does not abstain from.
+    with pytest.raises(Exception) as two:
+        check(
+            {**ABSTENTION_REASONS, "a key nothing is abstained from": "the_script_is_not_wrong"},
+            ABSTAINED_FROM_CERTIFYING,
+        )
+    assert "a key nothing is abstained from" in str(two.value)
+
+    # ⛔ Drift 3 — a reason outside the closed vocabulary. ⚠ The three branches are
+    #   separated: this input keeps the key sets equal, so only the vocabulary branch fires.
+    with pytest.raises(Exception) as three:
+        check(
+            {**ABSTENTION_REASONS, dropped: "a reason nobody declared"},
+            ABSTAINED_FROM_CERTIFYING,
+        )
+    assert "a reason nobody declared" in str(three.value)
+
+    # ⭐ `None` from `abstention_reason` means *not abstained from* and nothing else.
+    assert abstention_reason(dropped) == ABSTENTION_REASONS[dropped]
+    assert abstention_reason("a key no source exists for") is None
+
+    # ⛔⛔⛔ AND AN UNKNOWN REASON IS REFUSED RATHER THAN ANSWERED EMPTY. An empty tuple must
+    #    mean *no copy*, and it cannot also mean *this file does not know that reason*.
+    with pytest.raises(Exception) as four:
+        copies_abstained_from_because("a reason nobody declared")
+    assert "a reason nobody declared" in str(four.value)
+
+    # ⭐ Every declared reason answers, and the three partition the thirteen abstentions.
+    named = {
+        reason: copies_abstained_from_because(reason)
+        for reason in sorted(REASONS_AN_ABSTENTION_CAN_NAME)
+    }
+    assert sum(len(keys) for keys in named.values()) == len(ABSTAINED_FROM_CERTIFYING)
+    assert all(keys for keys in named.values()), {k: len(v) for k, v in named.items()}
+
+    # ⭐⭐⭐ THE ONE THE SECOND CLAUSE OF THE WRONG-SCRIPT CERTIFICATION NEEDS. Six copies
+    #    this repository declines to certify BECAUSE THE SCRIPT IS NOT WRONG - the only
+    #    comparator a claim that a work cannot be printed in a script can have here.
+    denying = copies_abstained_from_because("the_script_is_not_wrong")
+    assert len(denying) == 6, denying
+
+    # ⛔⛔ AND THE CHECK IS ON THE CALL PATH, WHICH IS THE ONLY PLACE A DISARM CAN REACH IT.
+    #    An import-time call is already spent by the time a test runs; these two accessors
+    #    resolve the mappings at CALL time, so a drifted mapping is refused wherever asked.
+    import saakshi.texts as texts
+
+    drifted = {k: v for k, v in ABSTENTION_REASONS.items() if k != dropped}
+    monkeypatched = pytest.MonkeyPatch()
+    try:
+        monkeypatched.setattr(texts, "ABSTENTION_REASONS", drifted)
+        with pytest.raises(Exception) as five:
+            texts.abstention_reason(dropped)
+        assert dropped in str(five.value)
+        with pytest.raises(Exception) as six:
+            texts.copies_abstained_from_because("the_script_is_not_wrong")
+        assert dropped in str(six.value)
+    finally:
+        monkeypatched.undo()
+    # ⭐ And undone, both answer again — or the two refusals above would be a broken import.
+    assert texts.abstention_reason(dropped) == ABSTENTION_REASONS[dropped]
+    # ⛔ And the two sides are disjoint by construction: an abstention is not a certification.
+    from saakshi.texts import READINGS_IN_A_SCRIPT_THE_WORK_CANNOT_BE_PRINTED_IN
+
+    assert not set(denying) & set(READINGS_IN_A_SCRIPT_THE_WORK_CANNOT_BE_PRINTED_IN)
+
+
+def test_the_flank_guard_publishes_what_it_refuses_outside_the_two_certified_sets():
+    """⛔ The bounds were measured over 47 copies and this repository holds 65 that render.
+
+    ⭐⭐⭐ *An enumeration of what an instrument refuses, taken over the copies nothing is
+    claimed about, skips the copies something IS claimed about.* The 21st session counted
+    the refused copies among the five NEITHER channel speaks for and got 3 of 5 exactly
+    right; it never asked the thirteen a channel speaks for and declines to certify.
+    """
+    from saakshi.textual import (
+        COPIES_DECLINED_BECAUSE_THE_SCRIPT_IS_RIGHT_THIS_GUARD_REFUSES,
+        COPIES_OUTSIDE_BOTH_CERTIFIED_SETS,
+        COPIES_OUTSIDE_BOTH_CERTIFIED_SETS_THIS_GUARD_REFUSES,
+        GREATEST_FLANK_A_CERTIFIED_READING_HAS_NEEDED,
+        LEAST_FLANK_AT_WHICH_A_LOCAL_PRESENCE_IS_FREE_IN_A_RENDERING_OF_NOISE as CAP,
+    )
+    from saakshi.texts import ABSTAINED_FROM_CERTIFYING, copies_abstained_from_because
+
+    # ⚠ A share with no denominator reads as a property of the instrument. Both travel.
+    assert COPIES_OUTSIDE_BOTH_CERTIFIED_SETS_THIS_GUARD_REFUSES <= (
+        COPIES_OUTSIDE_BOTH_CERTIFIED_SETS
+    )
+    assert COPIES_OUTSIDE_BOTH_CERTIFIED_SETS == 18
+    # ⛔ 26 readings + 21 wrong-script + 18 = the 65 copies that render to anything.
+    assert 26 + 21 + COPIES_OUTSIDE_BOTH_CERTIFIED_SETS == 65
+    # ⛔ Thirteen abstentions plus five copies neither channel speaks for.
+    assert len(ABSTAINED_FROM_CERTIFYING) + 5 == COPIES_OUTSIDE_BOTH_CERTIFIED_SETS
+    # ⛔⛔ Every copy declined because the script is RIGHT is refused by this guard.
+    assert COPIES_DECLINED_BECAUSE_THE_SCRIPT_IS_RIGHT_THIS_GUARD_REFUSES == len(
+        copies_abstained_from_because("the_script_is_not_wrong")
+    )
+    assert COPIES_DECLINED_BECAUSE_THE_SCRIPT_IS_RIGHT_THIS_GUARD_REFUSES <= (
+        COPIES_OUTSIDE_BOTH_CERTIFIED_SETS_THIS_GUARD_REFUSES
+    )
+    # ⭐ The separation the constants above rest on is untouched by any of this.
+    assert GREATEST_FLANK_A_CERTIFIED_READING_HAS_NEEDED < CAP
+
+
+def test_the_flank_refusal_says_it_lands_on_legible_copies_read_in_their_own_script():
+    """⛔ A refusal that names its own limit in the abstract has not named this one.
+
+    ⭐ The message used to quote an evidence base of 47 certified copies and stop. A reader
+    meeting it is owed the measured number of times it has landed on a copy this repository
+    declines to certify BECAUSE THE SCRIPT IS NOT WRONG.
+    """
+    import pytest
+
+    from saakshi.textual import (
+        COPIES_DECLINED_BECAUSE_THE_SCRIPT_IS_RIGHT_THIS_GUARD_REFUSES,
+        COPIES_OUTSIDE_BOTH_CERTIFIED_SETS,
+        COPIES_OUTSIDE_BOTH_CERTIFIED_SETS_THIS_GUARD_REFUSES,
+        TextualError,
+        refuse_a_rendering_that_goes_too_far_without_its_declared_language as refuse,
+    )
+
+    # ⛔ A copy long enough to be measurable and carrying not one declared word, so the
+    #   refusing branch is the only one that can fire.
+    copy = edition("zzzz " * 40000)
+    with pytest.raises(TextualError) as raised:
+        refuse(copy, language="sa", what_it_would_make_free="a resolution")
+    message = str(raised.value)
+    # ⛔⛔⛔ EACH NUMBER IS ASSERTED IN ITS OWN SENTENCE AND NOT AS A BARE SUBSTRING.
+    #    `str(16)` and `str(6)` both occur inside `16642`, which this message already
+    #    carries — so `assert str(number) in message` passed for two of these three while
+    #    the sentence was absent, and the disarm that deleted the sentence went green.
+    #    ⭐⭐⭐ *A number searched for as text is satisfied by any longer number containing
+    #    it*, which is this repository's own lesson about anchors, in arithmetic.
+    for phrase in (
+        f"Of the {COPIES_OUTSIDE_BOTH_CERTIFIED_SETS} copies held here",
+        f"{COPIES_OUTSIDE_BOTH_CERTIFIED_SETS_THIS_GUARD_REFUSES} are refused",
+        f"including all {COPIES_DECLINED_BECAUSE_THE_SCRIPT_IS_RIGHT_THIS_GUARD_REFUSES} this",
+    ):
+        assert phrase in message, phrase
+    assert "BECAUSE THE SCRIPT IS NOT WRONG" in message
+    assert "MEASURED to land on a legible copy read in its own script" in message
+    # ⛔ And the older limit it already named is still there - this adds, it does not replace.
+    assert "NO DIAGNOSIS IS MADE HERE" in message
+
+
 # ==========================================================================================
 # The LOCAL presence — the passage a locus resolves in, rather than the copy it sits in
 # ==========================================================================================

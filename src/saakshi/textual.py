@@ -1914,6 +1914,36 @@ GREATEST_EXTENT_OF_A_CERTIFIED_RENDERING_OF_NOISE_THIS_GUARD_ACCEPTS = 270896
 #: exists to state for the floor beside this one, which this guard shipped without.
 LONGEST_STRETCH_OF_A_CERTIFIED_READING_CARRYING_NO_DECLARED_WORD = 17649
 
+#: ⛔⛔⛔ **WHAT THIS GUARD REFUSES OUTSIDE THE TWO SETS IT WAS MEASURED ON — AND IT IS
+#: NEARLY ALL OF THEM.**
+#:
+#: The bounds above separate 26 certified readings from 21 certified renderings of noise and
+#: they do not cross. ⚠ That is a fact about **forty-seven** copies, and this repository holds
+#: **sixty-five** that render to anything. The other eighteen were never counted, and asked:
+#: **16 of the 18 are refused.** Of the 39 copies here that are NOT certified readings, **37**
+#: are refused and **0 of the 26 readings** are — ⇒ ⭐⭐⭐ *the set this guard accepts is the
+#: set the certification defines, and the certification is a presence of the very words this
+#: guard measures the distance to.* The separation is real and it has not been shown to be
+#: about a wrong script.
+#:
+#: ⛔⛔ **AND SIX OF THE SIXTEEN ARE COPIES THIS REPOSITORY DECLINES TO CERTIFY *BECAUSE THE
+#: SCRIPT IS NOT WRONG*** — a Devanagari astrology dictionary read in Devanagari (21 916), a
+#: Sanskrit thesis (39 229), a Sanskrit play (48 785), and three Arabic-script printings no
+#: declared word list can reach at all. ⇒ **this guard has been measured refusing a legible
+#: copy read in its own script**, which is the defect `LEAST_RECURRENCE` was found to have by
+#: the 20th session, in the instrument built to replace it. ⚠ Not a repair to make by moving
+#: a number: the three Devanagari ones interleave with the twenty-one from the second value
+#: onward (16 642 · **21 916** · 31 574 · 35 484 · **39 229** · 47 146 · **48 785**).
+COPIES_OUTSIDE_BOTH_CERTIFIED_SETS_THIS_GUARD_REFUSES = 16
+
+#: ⚠ How many copies fall outside both certified sets at all — the denominator of the number
+#: above, carried beside it so that 16 is never met without it.
+COPIES_OUTSIDE_BOTH_CERTIFIED_SETS = 18
+
+#: ⛔ Of the six copies declined from certification because the script they were read in is
+#: the right one, how many this guard refuses. **Six of six.**
+COPIES_DECLINED_BECAUSE_THE_SCRIPT_IS_RIGHT_THIS_GUARD_REFUSES = 6
+
 #: ⚠ How the two numbers above were measured, carried on every row that quotes them so that
 #: a reader never meets one without its provenance.
 HOW_THE_FLANK_BOUNDS_WERE_MEASURED = (
@@ -2654,7 +2684,16 @@ def refuse_a_rendering_that_goes_too_far_without_its_declared_language(
             f"certified copies, every one of the 26 certified as a reading reaches a declared "
             f"word within {GREATEST_FLANK_A_CERTIFIED_READING_HAS_NEEDED} characters of every "
             f"one of its positions, and the least any of the 21 certified as a reading in a "
-            f"script its work cannot be printed in needs is {cap}. ⛔ AND NOTHING HERE SAYS "
+            f"script its work cannot be printed in needs is {cap}. ⛔⛔⛔ AND FORTY-SEVEN IS "
+            "NOT THE SET THIS REFUSAL LANDS ON. Of the "
+            f"{COPIES_OUTSIDE_BOTH_CERTIFIED_SETS} copies held here that are in neither "
+            f"certified set, {COPIES_OUTSIDE_BOTH_CERTIFIED_SETS_THIS_GUARD_REFUSES} are "
+            "refused - including all "
+            f"{COPIES_DECLINED_BECAUSE_THE_SCRIPT_IS_RIGHT_THIS_GUARD_REFUSES} this "
+            "repository declines to certify BECAUSE THE SCRIPT IS NOT WRONG, among them a "
+            "Devanagari dictionary and two Sanskrit works read in Devanagari. ⇒ this "
+            "refusal is MEASURED to land on a legible copy read in its own script. ⛔ AND "
+            "NOTHING HERE SAYS "
             "THIS COPY IS A MACHINE READING THAT RETURNED NOISE - NO DIAGNOSIS IS MADE HERE AND "
             "THAT IS THIS REFUSAL NAMING ITS OWN LIMIT. It says this instrument has no "
             "positive evidence at one place in it, and an absence establishes nothing. "

@@ -35,7 +35,15 @@ from pathlib import Path
 from typing import Any, Callable, Mapping
 
 from .acquisition import AcquisitionError, retrieve
-from .textual import Edition, Rendering, Witness, digest, measured_extent, normalise
+from .textual import (
+    Edition,
+    Rendering,
+    TextualError,
+    Witness,
+    digest,
+    measured_extent,
+    normalise,
+)
 
 #: ⚠ Relative to the repository root, and git-ignored. ⛔ Never written into a fixture.
 CACHE = Path("cache") / "textual"
@@ -1428,6 +1436,144 @@ ABSTAINED_FROM_CERTIFYING: Mapping[str, str] = {
         "Kashmiri read in the Arabic script - the script is not wrong"
     ),
 }
+
+
+#: ⭐⭐⭐ **THE REASON AN ABSTENTION WAS MADE, AS A NAME RATHER THAN AS PROSE — AND IT IS
+#: THE ONLY COMPARATOR THE SECOND CLAUSE OF THE WRONG-SCRIPT CERTIFICATION HAS.**
+#:
+#: The certification above reads *the rendering carries, at essentially every one of its
+#: letters, a script the catalogued work cannot be printed in*. Its first clause is a
+#: measurement over the copy and was made on all twenty-one. Its second — **the catalogued
+#: work cannot be printed in that script** — reads a catalogue, and nothing measurable had
+#: ever been asked about it, for the simple reason that **it had no other side**: a claim
+#: that a work cannot be printed in a script is answered by a work that CAN be, and this
+#: repository holds three of those, read in exactly that script, sitting in the mapping
+#: above with the words *the script is not wrong* inside an English sentence.
+#:
+#: ⛔⛔⛔ **AND A SUBSTRING OF PROSE IS NOT A CHANNEL.** `ABSTAINED_FROM_CERTIFYING` names a
+#: SET and gives each member a sentence; it cannot be asked which of its members deny the
+#: clause and which are silent about it, and a reader who matched on the phrase would be
+#: measuring this file's punctuation. ⭐⭐⭐ *A field that names a SET is not a field that
+#: can name which side of it a copy is on* — this file's own sentence, one level down from
+#: where it was first written.
+#:
+#: ⚠ These are DECLARATIONS, exactly as the certification is. Naming them buys no
+#: measurement; it buys the comparison a measurement can be run against.
+ABSTENTION_REASONS: Mapping[str, str] = {
+    "refused_copy_b_c_lawvolumepart1ms_900_n": "the_work_is_multilingual",
+    "refused_copy_k_b_pathakcommemorationvolumes_k_belvalkar_272_w": (
+        "the_work_is_multilingual"
+    ),
+    "refused_copy_m_hiriyannacommemorationvolume_444_t": "the_work_is_multilingual",
+    "refused_copy_r_g_bhandarkarcommemorationvolume_745_r": "the_work_is_multilingual",
+    "refused_copy_06kssayingsoflalleshwari_202003_29_n": "the_work_is_multilingual",
+    "refused_copy_manusmritivol4part2_202003_726_p": "the_language_is_not_settled_here",
+    "refused_copy_20tarjumabhagavatgitarahasyalokmanyabalgangadhartilak_6": (
+        "the_language_is_not_settled_here"
+    ),
+    "refused_copy_the_mudra_rakshasa_nataka_katha_of_mahadeva_ed__dr_v__raghavan_series_no__1_than": (
+        "the_script_is_not_wrong"
+    ),
+    "refused_copy_nacaratnamalikaandotherworksofsastrasarmannavyanyayamarip_i_thesis_202003_693_m": (
+        "the_script_is_not_wrong"
+    ),
+    "refused_copy_dictionaryofastrologybhansinj_n__738_": "the_script_is_not_wrong",
+    "refused_copy_paar_pare_urdu_novel_joginder_paul": "the_script_is_not_wrong",
+    "refused_copy_wafatnamah_anhazrat_kashmiri_ghulam_mohd_noor_mohd": (
+        "the_script_is_not_wrong"
+    ),
+    "refused_copy_qadeemshaariyaataskashirenhunddyutbykndharkashmirithepgdeptofkashmirikashmiruniversity": (
+        "the_script_is_not_wrong"
+    ),
+}
+
+#: The reasons this file can name. ⛔⛔⛔ **CLOSED, AND UNKNOWN IS AN ERROR RATHER THAN A
+#: SILENCE.** A vocabulary that names three things and returns `None` for the fourth answers
+#: about a reason it does not know exactly as it answers about a copy that was never
+#: abstained from — the defect the 23rd session found in `scripts_in`, which named seven
+#: scripts and returned an empty mapping for a copy carrying 272 820 Bengali letters.
+REASONS_AN_ABSTENTION_CAN_NAME: frozenset[str] = frozenset(
+    {
+        "the_work_is_multilingual",
+        "the_language_is_not_settled_here",
+        "the_script_is_not_wrong",
+    }
+)
+
+
+def _check_every_abstention_names_a_reason_this_file_knows(
+    reasons: Mapping[str, str], abstained: Mapping[str, str]
+) -> None:
+    """⛔ Refuse a reason vocabulary that has drifted from the abstentions it describes.
+
+    Two ways it can drift and both are refused here rather than left to a reader:
+    a copy abstained from with no named reason, or a named reason outside the closed
+    vocabulary. ⭐ Enforced from the mappings themselves, never applied by hand — the
+    defect this file already paid for once, in a length rule stated in a comment.
+    """
+    unnamed = sorted(set(abstained) - set(reasons))
+    if unnamed:
+        raise TextualError(
+            f"{len(unnamed)} copy(ies) are abstained from with no named reason: "
+            f"{unnamed}. ⛔ An abstention whose reason is only prose cannot be asked "
+            "which side of a claim the copy is on"
+        )
+    stray = sorted(set(reasons) - set(abstained))
+    if stray:
+        raise TextualError(
+            f"{len(stray)} named reason(s) describe a copy this file does not abstain "
+            f"from: {stray}"
+        )
+    unknown = sorted(
+        {reason for reason in reasons.values() if reason not in REASONS_AN_ABSTENTION_CAN_NAME}
+    )
+    if unknown:
+        raise TextualError(
+            f"reason(s) outside the closed vocabulary: {unknown}; this file names "
+            f"{sorted(REASONS_AN_ABSTENTION_CAN_NAME)}. ⛔ An unnamed reason must be an "
+            "error and not an empty answer"
+        )
+
+
+#: ⛔⛔ **THE CHECK RUNS ON THE CALL PATH AND NOT AT IMPORT, AND THAT IS DELIBERATE.**
+#: An import-time call cannot be disarmed by any test this suite can write — doctor the
+#: mapping and the module has already been imported — and ⭐ *a branch a disarm cannot reach
+#: is not a branch a test can hold*. Both accessors below resolve the two mappings from the
+#: module at CALL time, so a drifted mapping is refused wherever anybody asks. ⚠ Thirteen
+#: entries: the cost of checking them on every call is not a cost.
+
+
+def abstention_reason(key: str) -> str | None:
+    """The NAMED reason this file declines to certify `key`, or `None` if it does not.
+
+    ⛔ `None` means *this copy is not abstained from* and nothing else. A copy abstained
+    from always names a reason — the check refuses the mapping otherwise — so this function
+    cannot return `None` for an abstention the way `scripts_in` once returned an empty
+    mapping for a copy carrying a quarter of a million letters.
+    """
+    _check_every_abstention_names_a_reason_this_file_knows(
+        ABSTENTION_REASONS, ABSTAINED_FROM_CERTIFYING
+    )
+    return ABSTENTION_REASONS.get(key)
+
+
+def copies_abstained_from_because(reason: str) -> tuple[str, ...]:
+    """Every copy declined for one named reason. ⛔ An unknown reason is REFUSED, not empty.
+
+    ⭐⭐⭐ **THE EMPTY TUPLE MUST MEAN *no copy*, AND IT CANNOT ALSO MEAN *this file does not
+    know that reason*.** That collapse is the defect this repository has now paid for twice.
+    """
+    _check_every_abstention_names_a_reason_this_file_knows(
+        ABSTENTION_REASONS, ABSTAINED_FROM_CERTIFYING
+    )
+    if reason not in REASONS_AN_ABSTENTION_CAN_NAME:
+        raise TextualError(
+            f"{reason!r} is not a reason this file names; it names "
+            f"{sorted(REASONS_AN_ABSTENTION_CAN_NAME)}"
+        )
+    return tuple(
+        sorted(key for key, named in ABSTENTION_REASONS.items() if named == reason)
+    )
 
 
 def certification_of(key: str) -> str:
