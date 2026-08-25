@@ -5043,7 +5043,7 @@ def main() -> int:
                 "by_the_share_of_the_copy_carrying_the_scripts_language": {
                     "block": LANGUAGE_MEASURED_OVER_BLOCKS_OF[0],
                     "language": _C2_LANGUAGE,
-                    "both_sides_are_devanagari_BY_DECLARATION": (
+                    "both_sides_are_devanagari_by_declaration": (
                         "⛔⛔⛔ AND NOT BY WHAT THE RENDERING CARRIES, WHICH IS A DIFFERENT "
                         "SET. Asking *does this copy carry Devanagari* admits a copy the "
                         "catalogue calls an Arabic-script printing whose reading carries "
@@ -5288,7 +5288,7 @@ def main() -> int:
                     "the criterion the twenty-one are certified by, sitting in the bucket "
                     "that says the script is right"
                 ),
-                "what_is_NOT_done_about_it": (
+                "what_is_not_done_about_it": (
                     "⛔⛔ IT IS NOT RECERTIFIED, AND THE COUNT OF TWENTY-ONE DOES NOT MOVE. "
                     "Which side of a certification a copy belongs on is a DECLARATION and "
                     "the owner's to make; this row measures one and reports that it is "
