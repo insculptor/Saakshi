@@ -5070,8 +5070,12 @@ def main() -> int:
                     "any_value_separates_them": _c2_flank_separates,
                     "interleaved": _c2_interleaved[:9],
                     "how_to_read_the_interleaving": (
-                        "⭐ The two sides alternate from the second value onward, so there "
-                        "is no cut. ⚠ Shown rather than asserted: a reader who is told two "
+                        "⭐ EVERY MEASURABLE VALUE OF THE DENYING SIDE FALLS STRICTLY "
+                        "BETWEEN TWO OF THE ASSERTED SIDE'S, so no cut exists anywhere. "
+                        "⚠ They interleave and do NOT alternate - the asserted side takes "
+                        "two consecutive places twice in the nine shown, and a reader told "
+                        "*alternate* would have been told a tidier shape than the one "
+                        "measured. ⛔ Shown rather than asserted: a reader who is told two "
                         "ranges overlap has been told a number and not a shape"
                     ),
                 },
