@@ -47,6 +47,8 @@ from saakshi.fixture import Header, describe_reserved_names, write_jsonl  # noqa
 from saakshi.provenance import generator_for, today  # noqa: E402
 from saakshi.texts import (
     ABSTAINED_FROM_CERTIFYING,  # noqa: E402
+    copies_abstained_from_because,
+    script_an_abstention_declares,
     COPIES_THAT_CLEARED_KEYS,
     COPIES_THIS_FLOOR_REFUSES_KEYS,
     CACHE,
@@ -61,6 +63,9 @@ from saakshi.texts import (
 )
 from saakshi.textual import (  # noqa: E402
     COMMONEST_WORDS,
+    COPIES_DECLINED_BECAUSE_THE_SCRIPT_IS_RIGHT_THIS_GUARD_REFUSES,
+    COPIES_OUTSIDE_BOTH_CERTIFIED_SETS,
+    COPIES_OUTSIDE_BOTH_CERTIFIED_SETS_THIS_GUARD_REFUSES,
     LANGUAGE_MEASURED_OVER_BLOCKS_OF,
     LEAST_LENGTH_A_DECLARED_WORD_CARRIES,
     NO_LICENCE_DETERMINATION,
@@ -3956,6 +3961,170 @@ def main() -> int:
     #   known-noise control sits inside the measurement rather than beside it, which is the
     #   only reason twelve earlier instruments were caught.
     # ==================================================================================
+    # ⭐⭐⭐ THE SECOND CLAUSE OF THE WRONG-SCRIPT CERTIFICATION, AND THE ONLY OTHER SIDE
+    #      IT HAS
+    # ==================================================================================
+    #
+    # ⛔ The certification reads *the rendering carries, at essentially every one of its
+    #    letters, a script the catalogued work cannot be printed in*. Last session measured
+    #    the first clause on all twenty-one. The second reads a catalogue and had no
+    #    measurable channel, for the reason that it had no OTHER SIDE: a claim that a work
+    #    cannot be printed in a script is answered by a work that CAN be, read in exactly
+    #    that script. ⭐ This repository declines to certify six copies for precisely that
+    #    reason, and they are now askable by NAME rather than by a substring of prose.
+    _C2_LANGUAGE = "sanskrit_or_hindi"
+    _scripts_of = {entry["copy"]: entry["scripts"] for entry in script_census}
+    _c2_asserted = [
+        row for row in certified_rows if row["certified"] == "a_wrong_script_reading"
+    ]
+    _c2_denied_keys = set(copies_abstained_from_because("the_script_is_not_wrong"))
+    _c2_denied = [row for row in certified_rows if row["copy"] in _c2_denied_keys]
+
+    def _c2_row(row: dict[str, Any]) -> dict[str, Any]:
+        return {
+            "copy": row["copy"],
+            "characters": row["characters"],
+            "scripts": _scripts_of.get(row["copy"], {}),
+            "share_of_its_blocks_carrying_the_scripts_language": row["carries"][
+                _C2_LANGUAGE
+            ],
+            "least_flank_at_which_every_position_carries_a_declared_word": row[
+                "least_flank_at_which_every_position_carries_a_declared_word"
+            ],
+        }
+
+    #: ⛔⛔⛔ THE SIDE IS TAKEN OFF THE DECLARATION AND NOT OFF THE RENDERING, AND THE
+    #: DIFFERENCE WAS MEASURED. Asking *does this copy carry Devanagari* admits a copy the
+    #: catalogue calls an Arabic-script printing and whose reading carries 1 165 stray
+    #: Devanagari letters — which would have pulled the denying side's least share from
+    #: 0.0957 to 0.0 and published a range that is not the range. ⭐⭐⭐ *A predicate that
+    #: asks whether a script is PRESENT cannot ask whether the copy is IN it.*
+    #: ⚠ So the two sides are Devanagari by DECLARATION on both sides: the twenty-one are
+    #: certified against a Devanagari rendering, and the denying copies are the ones whose
+    #: abstention names `devanagari` as the script that is not wrong.
+    def _by_share(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
+        return sorted(
+            (_c2_row(row) for row in rows),
+            key=lambda entry: entry["share_of_its_blocks_carrying_the_scripts_language"],
+        )
+
+    _C2_SCRIPT = "devanagari"
+    _c2_asserted_dev = _by_share(_c2_asserted)
+    _c2_denied_dev = _by_share(
+        [
+            row
+            for row in _c2_denied
+            if script_an_abstention_declares(row["copy"]) == _C2_SCRIPT
+        ]
+    )
+    #: ⛔ Named, never dropped: the copies the share channel cannot speak about, and why.
+    _c2_denied_elsewhere = sorted(
+        (
+            {
+                "copy": row["copy"],
+                "the_script_its_abstention_declares": script_an_abstention_declares(
+                    row["copy"]
+                ),
+                "scripts_its_rendering_carries": _scripts_of.get(row["copy"], {}),
+            }
+            for row in _c2_denied
+            if script_an_abstention_declares(row["copy"]) != _C2_SCRIPT
+        ),
+        key=lambda entry: entry["copy"],
+    )
+    #: ⛔⛔⛔ AND THE DECLARATION ITSELF, ASKED OF THE COPY. A copy declared to be printed
+    #: in a script and carrying not one letter of it has been caught by its own measurement.
+    _c2_declared_script_held = sorted(
+        (
+            {
+                "copy": row["copy"],
+                "the_script_its_abstention_declares": script_an_abstention_declares(
+                    row["copy"]
+                ),
+                "letters_of_that_script_its_rendering_carries": _scripts_of.get(
+                    row["copy"], {}
+                ).get(script_an_abstention_declares(row["copy"]), 0),
+                "scripts_its_rendering_carries": _scripts_of.get(row["copy"], {}),
+                "characters": row["characters"],
+            }
+            for row in _c2_denied
+        ),
+        key=lambda entry: entry["letters_of_that_script_its_rendering_carries"],
+    )
+    _c2_declarations_the_copy_contradicts = [
+        entry
+        for entry in _c2_declared_script_held
+        if entry["letters_of_that_script_its_rendering_carries"] == 0
+    ]
+
+    def _span(rows: list[dict[str, Any]], field: str) -> dict[str, Any]:
+        measured = sorted(
+            entry[field] for entry in rows if entry[field] is not None
+        )
+        return {
+            "copies": len(rows),
+            "least": measured[0] if measured else None,
+            "greatest": measured[-1] if measured else None,
+            "never": sum(1 for entry in rows if entry[field] is None),
+        }
+
+    #: ⭐ Exactly the disjointness question `least_error_a_single_value_can_reach` asks, and
+    #: it is COMPUTED here rather than declared. ⚠ A `None` flank is the worst answer there
+    #: is, so a side carrying one cannot be the lower side of any threshold.
+    def _separates(left: dict[str, Any], right: dict[str, Any]) -> bool:
+        if not left["copies"] or not right["copies"]:
+            return False
+        if left["never"] and right["never"]:
+            return False
+        if left["never"]:
+            return right["greatest"] is not None and left["least"] is not None and (
+                left["least"] > right["greatest"]
+            )
+        if right["never"]:
+            return left["greatest"] is not None and right["least"] is not None and (
+                right["least"] > left["greatest"]
+            )
+        return (
+            left["least"] > right["greatest"] or right["least"] > left["greatest"]
+        )
+
+    _SHARE = "share_of_its_blocks_carrying_the_scripts_language"
+    _FLANK = "least_flank_at_which_every_position_carries_a_declared_word"
+    _c2_by_share = {
+        "the_work_cannot_be_printed_in_this_script": _span(_c2_asserted_dev, _SHARE),
+        "the_script_is_not_wrong": _span(_c2_denied_dev, _SHARE),
+    }
+    _c2_by_flank = {
+        "the_work_cannot_be_printed_in_this_script": _span(
+            [_c2_row(row) for row in _c2_asserted], _FLANK
+        ),
+        "the_script_is_not_wrong": _span([_c2_row(row) for row in _c2_denied], _FLANK),
+    }
+    _c2_share_separates = _separates(*_c2_by_share.values())
+    _c2_flank_separates = _separates(*_c2_by_flank.values())
+    #: ⭐ The interleaving, in one sorted list, so a reader can see that no cut exists rather
+    #: than being told so. ⛔ `None` is carried through as itself and sorts last.
+    _c2_interleaved = sorted(
+        (
+            {
+                "flank": entry[_FLANK],
+                "side": side,
+                "copy": entry["copy"],
+            }
+            for side, rows in (
+                ("the_work_cannot_be_printed_in_this_script", _c2_asserted),
+                ("the_script_is_not_wrong", _c2_denied),
+            )
+            for entry in (_c2_row(row) for row in rows)
+        ),
+        key=lambda entry: (entry["flank"] is None, entry["flank"] or 0),
+    )
+    #: ⛔ The one copy the share channel fires on, and the one below it. ⚠ Read off the live
+    #: census, so a copy that changed places shows up here and not in a sentence.
+    _c2_highest = _c2_asserted_dev[-1] if _c2_asserted_dev else None
+    _c2_next = _c2_asserted_dev[-2] if len(_c2_asserted_dev) > 1 else None
+
+    # ==================================================================================
     # ⛔⛔⛔ WHAT THE ARMED CAP DOES TO ITS OWN EVIDENCE, AND AT WHAT EXTENT
     # ==================================================================================
     #
@@ -3982,6 +4151,32 @@ def main() -> int:
         for row in reading_rows
         if _refused(row, strict=True) or _refused(row, strict=False)
     ]
+    #: ⛔⛔ WHAT THE ARMED RULE DOES TO EVERY CERTIFICATION, not to the two it was read over.
+    #: ⭐ Keyed off `certified_rows`, which is the live census, so a copy that changed sides
+    #: moves this table rather than a sentence.
+    _guard_by_certification = {}
+    for _row in certified_rows:
+        _bucket = _guard_by_certification.setdefault(
+            _row["certified"], {"copies": 0, "refused": 0}
+        )
+        _bucket["copies"] += 1
+        _bucket["refused"] += int(_refused(_row, strict=True))
+    _outside_total = sum(
+        entry["copies"]
+        for name, entry in _guard_by_certification.items()
+        if name not in {"a_reading", "a_wrong_script_reading"}
+    )
+    _outside_refused = sum(
+        entry["refused"]
+        for name, entry in _guard_by_certification.items()
+        if name not in {"a_reading", "a_wrong_script_reading"}
+    )
+    _readings_refused = _guard_by_certification.get("a_reading", {}).get("refused", 0)
+    _denied_refused = sum(
+        1
+        for row in certified_rows
+        if row["copy"] in _c2_denied_keys and _refused(row, strict=True)
+    )
     the_cap_was_read_off = min(
         (
             {"copy": row["copy"], "characters": row["characters"], "flank": row[
@@ -4800,6 +4995,348 @@ def main() -> int:
                 "EXACTLY AS IT ANSWERS ABOUT NOTHING. ⇒ the two the evidence needs are "
                 "named, and what is still unnamed is COUNTED - naming two more does not "
                 "make the list complete and nothing here claims it does"
+            ),
+        },
+        # ==============================================================================
+        # ⭐⭐⭐ THE SECOND CLAUSE, ASKED OF THE ONLY OTHER SIDE IT HAS
+        # ==============================================================================
+        {
+            "finding": "control",
+            "control": (
+                "whether_anything_measurable_speaks_to_the_second_clause_of_the_"
+                "wrong_script_certification"
+            ),
+            "measured": {
+                "the_clause": (
+                    "⛔ *the catalogued work cannot be printed in that script*. The first "
+                    "clause of the same certification is a measurement over the copy and "
+                    "was made on all twenty-one last session; this one reads a catalogue. "
+                    "⚠ It carries every bit of the certification's separating power, "
+                    "because the first clause is true of the certified READINGS too"
+                ),
+                "why_it_had_no_channel": (
+                    "⭐⭐⭐ NOT BECAUSE NOBODY LOOKED, BUT BECAUSE IT HAD NO OTHER SIDE. A "
+                    "claim that a work cannot be printed in a script is answered by a work "
+                    "that CAN be, read in exactly that script - and this repository holds "
+                    "six of those. They sat inside `ABSTAINED_FROM_CERTIFYING` "
+                    "distinguishable only by the phrase *the script is not wrong* in an "
+                    "English sentence. ⭐ A field that names a SET is not a field that can "
+                    "name which side of it a copy is on"
+                ),
+                "the_channel_asked": (
+                    "⭐ A machine reading set to a script returns REAL words of a language "
+                    "written in that script exactly where the printing genuinely used it. "
+                    "So a PRESENCE of the script's language in the reading is evidence that "
+                    "the printing carried the script there - evidence AGAINST the clause - "
+                    "and it consults no catalogue. ⛔ It can only REFUTE: an absence is what "
+                    "a wrong-script reading and a legible book in a language no list covers "
+                    "both give"
+                ),
+                "the_two_sides_are_both_declarations": (
+                    "⚠ AND THAT IS THE POINT RATHER THAN A LIMITATION. Both sides are said "
+                    "by the same declaring channel, so a statistic that separated them "
+                    "would be a statistic that agrees with the catalogue about the script. "
+                    "⛔ Neither does"
+                ),
+                "copies_the_clause_is_asserted_of": len(_c2_asserted),
+                "copies_the_same_channel_denies_it_of": len(_c2_denied),
+                "by_the_share_of_the_copy_carrying_the_scripts_language": {
+                    "block": LANGUAGE_MEASURED_OVER_BLOCKS_OF[0],
+                    "language": _C2_LANGUAGE,
+                    "both_sides_are_devanagari_BY_DECLARATION": (
+                        "⛔⛔⛔ AND NOT BY WHAT THE RENDERING CARRIES, WHICH IS A DIFFERENT "
+                        "SET. Asking *does this copy carry Devanagari* admits a copy the "
+                        "catalogue calls an Arabic-script printing whose reading carries "
+                        "1 165 stray Devanagari letters, and it would have pulled the "
+                        "denying side's least share from 0.0957 to 0.0. ⭐⭐⭐ A predicate "
+                        "that asks whether a script is PRESENT cannot ask whether the copy "
+                        "is IN it"
+                    ),
+                    "the_denying_copies_this_channel_cannot_speak_about": (
+                        _c2_denied_elsewhere
+                    ),
+                    "why_they_are_named_rather_than_dropped": (
+                        "⚠ Their abstentions declare the Arabic script and no declared word "
+                        "list reaches it, so they measure zero - a fact about the two "
+                        "declared lists and NOT about those copies. ⛔ A comparison that "
+                        "silently narrowed to what it could measure would report a range "
+                        "with no denominator"
+                    ),
+                    **_c2_by_share,
+                    "any_value_separates_them": _c2_share_separates,
+                },
+                "by_the_flank_at_which_every_position_carries_a_declared_word": {
+                    **_c2_by_flank,
+                    "any_value_separates_them": _c2_flank_separates,
+                    "interleaved": _c2_interleaved[:9],
+                    "how_to_read_the_interleaving": (
+                        "⭐ The two sides alternate from the second value onward, so there "
+                        "is no cut. ⚠ Shown rather than asserted: a reader who is told two "
+                        "ranges overlap has been told a number and not a shape"
+                    ),
+                },
+                "the_one_copy_the_share_channel_fires_on": _c2_highest,
+                "and_the_copy_below_it": _c2_next,
+                "what_that_one_copy_establishes": (
+                    "⭐⭐ ITS OWN CERTIFICATION ENTRY PREDICTED IT, IN WORDS, BEFORE ANY OF "
+                    "THIS WAS MEASURED - an English monograph on the Natyashastra quoting "
+                    "the Natyashastra's Sanskrit, which the wrong-script reader got RIGHT "
+                    "because that Sanskrit really is printed in Devanagari. ⇒ the clause is "
+                    "false OF PART of that copy's work, and its own entry says so. ⚠ The "
+                    "21st session found the same copy standing 8x above the next on a "
+                    "different channel; this is a second, independent channel agreeing on "
+                    "the SAME one copy, and on no other"
+                ),
+                "what_this_does_not_establish": (
+                    "⛔⛔⛔ THAT EITHER CHANNEL SEPARATES THE SIDES, AND NEITHER DOES. The "
+                    "copies this repository declines to certify BECAUSE THE SCRIPT IS NOT "
+                    "WRONG fall INSIDE the range of the twenty-one on both statistics. "
+                    "⭐ The reason is structural rather than a shortage of copies: how much "
+                    "of a copy carries the commonest words of running prose is a fact about "
+                    "the GENRE of the printing and not about whether the reader could read "
+                    "it - a dictionary, a shelf-mark catalogue and a thesis are printed in "
+                    "Devanagari and are not running prose, while an English monograph "
+                    "quoting Sanskrit is running Sanskrit across half of itself. ⇒ the axis "
+                    "measures register and the clause asks about script. ⛔ Twenty of the "
+                    "twenty-one are un-refuted, which is twenty ABSTENTIONS and not twenty "
+                    "confirmations, and the clause remains a declaration"
+                ),
+            },
+            # ⛔⛔ HELD IN FOUR DIRECTIONS, AND THE FIRST TWO ARE WHAT KEEP A ROW REPORTING
+            #   *no separation* FROM BEING SATISFIED BY AN EMPTY SIDE. A maximum over an
+            #   empty set is how a bound in this file came to be published off one specimen.
+            "held": bool(
+                len(_c2_asserted) == 21
+                and len(_c2_denied) == 6
+                and len(_c2_denied_dev) == 3
+                # ⛔ Narrowed sides must ACCOUNT for what they left out, or a range is
+                #   published with no denominator.
+                and len(_c2_denied_dev) + len(_c2_denied_elsewhere) == len(_c2_denied)
+                and not set(row["copy"] for row in _c2_asserted)
+                & set(row["copy"] for row in _c2_denied)
+                # ⛔ The finding itself: neither statistic separates them.
+                and not _c2_share_separates
+                and not _c2_flank_separates
+                # ⭐⭐ AND THE CHANNEL MUST BE SHOWN CAPABLE OF FIRING, or *it separates
+                #   nothing* is a claim about an instrument that never answers. The highest
+                #   copy on the asserted side must stand well clear of the next.
+                and _c2_highest is not None
+                and _c2_next is not None
+                and _c2_highest[_SHARE] > 4 * _c2_next[_SHARE]
+                # ⛔ And the denying side must genuinely lie inside the asserted range
+                #   rather than merely touch it, which is what *no value separates* means.
+                and _c2_by_share["the_script_is_not_wrong"]["least"]
+                > _c2_by_share["the_work_cannot_be_printed_in_this_script"]["least"]
+                and _c2_by_share["the_script_is_not_wrong"]["greatest"]
+                < _c2_by_share["the_work_cannot_be_printed_in_this_script"]["greatest"]
+            ),
+            "meaning": (
+                "⭐⭐⭐ THE SECOND CLAUSE NOW HAS A CHANNEL AND THE CHANNEL SEPARATES "
+                "NOTHING. Asked of the "
+                f"{len(_c2_asserted)} copies the clause is asserted of and the "
+                f"{len(_c2_denied)} the same channel DENIES it of, the share of a copy "
+                "carrying the script's language runs "
+                f"{_c2_by_share['the_work_cannot_be_printed_in_this_script']['least']}-"
+                f"{_c2_by_share['the_work_cannot_be_printed_in_this_script']['greatest']} "
+                "where the clause is asserted and "
+                f"{_c2_by_share['the_script_is_not_wrong']['least']}-"
+                f"{_c2_by_share['the_script_is_not_wrong']['greatest']} where it is denied "
+                "- ⛔ the denying side lies wholly INSIDE the asserted one. The flank does "
+                "the same and interleaves from its second value. ⇒ the clause is exposed to "
+                "a measurement capable of contradicting it and is contradicted on exactly "
+                "one copy, "
+                f"{_c2_highest['copy'] if _c2_highest else 'none'} at "
+                f"{_c2_highest[_SHARE] if _c2_highest else 'none'} against "
+                f"{_c2_next[_SHARE] if _c2_next else 'none'} for the next - ⭐ the copy "
+                "whose own certification entry predicted it. ⛔ THAT IS ONE COPY, THE SAME "
+                "ONE A DIFFERENT CHANNEL FOUND LAST TIME, AND THE CLAUSE IS STILL A "
+                "DECLARATION FOR THE OTHER TWENTY"
+            ),
+        },
+        # ==============================================================================
+        # ⛔⛔⛔ AND WHAT THE ARMED CAP REFUSES OUTSIDE THE FORTY-SEVEN IT WAS MEASURED ON
+        # ==============================================================================
+        {
+            "finding": "control",
+            "control": "what_this_guard_refuses_outside_the_two_sets_it_was_measured_on",
+            "measured": {
+                "the_gap": (
+                    "⛔⛔⛔ THE BOUNDS WERE PUBLISHED OVER 47 CERTIFIED COPIES AND THIS "
+                    "REPOSITORY HOLDS 65 THAT RENDER TO ANYTHING. The 21st session "
+                    "enumerated what this guard refuses among the five copies NEITHER "
+                    "channel speaks for and got 3 of 5 exactly right. ⚠ It never asked the "
+                    "thirteen a channel DOES speak for and declines to certify. ⭐⭐⭐ An "
+                    "enumeration of what an instrument refuses, taken over the copies "
+                    "nothing is claimed about, skips the copies something IS claimed about"
+                ),
+                "by_certification": _guard_by_certification,
+                "copies_outside_both_certified_sets": _outside_total,
+                "of_those_this_guard_refuses": _outside_refused,
+                "certified_readings_it_refuses": _readings_refused,
+                "and_the_copies_declined_because_the_script_is_right": {
+                    "copies": len(_c2_denied),
+                    "this_guard_refuses": _denied_refused,
+                    "each": sorted(
+                        (
+                            {
+                                "copy": entry["copy"],
+                                "scripts": entry["scripts"],
+                                "flank": entry[_FLANK],
+                            }
+                            for entry in (_c2_row(row) for row in _c2_denied)
+                        ),
+                        key=lambda entry: (
+                            entry["flank"] is None, entry["flank"] or 0
+                        ),
+                    ),
+                },
+                "what_this_costs_the_separation": (
+                    "⛔ NOTHING. The 21st session's separation is re-measured here and "
+                    "stands: no certified reading is refused and every certified rendering "
+                    "of noise is. ⚠ What it bounds is what the separation ESTABLISHES - the "
+                    "set this guard accepts is the set the reading certification defines, "
+                    "and that certification is a PRESENCE of the very words this guard "
+                    "measures the distance to. ⇒ the separation has not been shown to be "
+                    "about a wrong script"
+                ),
+                "and_it_refuses_a_legible_copy_read_in_its_own_script": (
+                    "⛔⛔ MEASURED, ON SIX COPIES. A Devanagari astrology dictionary read "
+                    "in Devanagari, a Sanskrit thesis and a Sanskrit play, plus three "
+                    "Arabic-script printings no declared word list can reach at all. ⇒ this "
+                    "is the defect the 20th session found in `LEAST_RECURRENCE`, in the "
+                    "instrument built to replace it. ⚠ Not a repair to make by moving the "
+                    "cap: the three Devanagari ones interleave with the twenty-one"
+                ),
+            },
+            # ⛔⛔ BOTH DIRECTIONS. Without the second clause this row is satisfied by a
+            #   guard that refuses EVERYTHING, and without the third by one that refuses
+            #   nothing outside the certified sets - which is what it was believed to do.
+            "held": bool(
+                _guard_by_certification
+                and _readings_refused == 0
+                and _outside_refused > 0
+                and _outside_total
+                == COPIES_OUTSIDE_BOTH_CERTIFIED_SETS
+                and _outside_refused
+                == COPIES_OUTSIDE_BOTH_CERTIFIED_SETS_THIS_GUARD_REFUSES
+                and _denied_refused
+                == COPIES_DECLINED_BECAUSE_THE_SCRIPT_IS_RIGHT_THIS_GUARD_REFUSES
+                # ⛔ And the arithmetic must close over every copy that renders: 47
+                #   certified plus the outside ones is the whole census minus the copy that
+                #   renders to nothing.
+                and len(certified_rows) == 47 + _outside_total
+            ),
+            "meaning": (
+                "⛔⛔⛔ THIS GUARD REFUSES "
+                f"{_outside_refused} OF THE {_outside_total} COPIES OUTSIDE THE TWO "
+                "CERTIFIED SETS ITS BOUNDS WERE MEASURED OVER, AND "
+                f"{_readings_refused} OF THE "
+                f"{sum(1 for row in certified_rows if row['certified'] == 'a_reading')} "
+                "CERTIFIED READINGS. "
+                + " · ".join(
+                    f"{name}: {entry['refused']} of {entry['copies']}"
+                    for name, entry in sorted(_guard_by_certification.items())
+                )
+                + f". ⛔⛔ AND ALL {_denied_refused} COPIES THIS REPOSITORY DECLINES TO "
+                "CERTIFY BECAUSE THE SCRIPT IS NOT WRONG ARE AMONG THEM. ⇒ the acceptance "
+                "set is the set the reading certification defines, and that certification "
+                "is a presence of the very words this guard measures the distance to. "
+                "⭐⭐⭐ A GUARD THAT ACCEPTS EXACTLY THE SET ITS ACCEPTANCE CRITERION "
+                "DEFINES HAS NOT BEEN SHOWN TO MEASURE ANYTHING ELSE. ⚠ The separation is "
+                "re-measured and unwithdrawn; what is bounded is what it establishes"
+            ),
+        },
+        # ==============================================================================
+        # ⛔⛔⛔ AND ONE ABSTENTION'S OWN COPY CONTRADICTS THE REASON IT WAS ABSTAINED FOR
+        # ==============================================================================
+        {
+            "finding": "control",
+            "control": "whether_each_abstention_that_names_a_script_is_true_of_its_copy",
+            "measured": {
+                "what_is_asked": (
+                    "⭐ Six copies are declined from certification BECAUSE THE SCRIPT IS NOT "
+                    "WRONG, and each names the script its printing uses. That is a "
+                    "declaration about a copy this repository holds, so it can be asked of "
+                    "the copy: does the rendering carry one letter of the script the "
+                    "abstention names? ⛔ A presence, in the same evidential shape as the "
+                    "wrong-script certification with the sign flipped"
+                ),
+                "how_it_became_askable": (
+                    "⚠ NOT BY LOOKING HARDER. Until this session the script an abstention "
+                    "means was a word inside an English sentence, and nothing could compare "
+                    "it with a measurement. ⭐ The claim is now `SCRIPT_AN_ABSTENTION_"
+                    "DECLARES_THE_PRINTING_USES`, checked against the scripts this "
+                    "repository can actually count"
+                ),
+                "each": _c2_declared_script_held,
+                "abstentions_whose_copy_carries_the_script_they_name": len(
+                    _c2_declared_script_held
+                )
+                - len(_c2_declarations_the_copy_contradicts),
+                "and_the_ones_it_does_not": _c2_declarations_the_copy_contradicts,
+                "what_the_contradicting_copy_measures": (
+                    "⛔⛔⛔ A COPY DECLARED *KASHMIRI READ IN THE ARABIC SCRIPT - THE SCRIPT "
+                    "IS NOT WRONG* CARRIES NOT ONE ARABIC LETTER. Its rendering carries "
+                    "1 165 Devanagari letters, 7 letters no script here names and 0 of any "
+                    "other, in 29 411 searchable characters of which a third are decimal "
+                    "digits. ⇒ it has the shape of a machine reading of an Arabic-script "
+                    "printing SET TO DEVANAGARI - which is a presence of the wrong script, "
+                    "the criterion the twenty-one are certified by, sitting in the bucket "
+                    "that says the script is right"
+                ),
+                "what_is_NOT_done_about_it": (
+                    "⛔⛔ IT IS NOT RECERTIFIED, AND THE COUNT OF TWENTY-ONE DOES NOT MOVE. "
+                    "Which side of a certification a copy belongs on is a DECLARATION and "
+                    "the owner's to make; this row measures one and reports that it is "
+                    "contradicted. ⚠ The reading is not the only one available either - an "
+                    "abstention's sentence may describe the PRINTING while the measurement "
+                    "describes the RENDERING, and those are different claims"
+                ),
+                "what_this_does_not_establish": (
+                    "⛔ THAT THE OTHER FIVE ABSTENTIONS ARE RIGHT. A copy carrying letters "
+                    "of the script its abstention names establishes that the reader was set "
+                    "to that script and NOT that the catalogue entry is correct - the same "
+                    "limit the 23rd session published for the three copies it made legible"
+                ),
+            },
+            # ⛔⛔ BOTH DIRECTIONS. Without the second clause a mapping in which EVERY
+            #   declaration were contradicted would satisfy this row exactly as well, and
+            #   the finding is that one of six is - not that the check can fire.
+            "held": bool(
+                len(_c2_declared_script_held) == 6
+                and len(_c2_declarations_the_copy_contradicts) == 1
+                and all(
+                    entry["the_script_its_abstention_declares"]
+                    for entry in _c2_declared_script_held
+                )
+                # ⭐ The five that hold must hold by a real presence and not by an empty
+                #   script list, which is the answer a copy that was never read gives.
+                and all(
+                    entry["letters_of_that_script_its_rendering_carries"] > 0
+                    for entry in _c2_declared_script_held
+                    if entry not in _c2_declarations_the_copy_contradicts
+                )
+                # ⛔ And the contradicting copy must carry letters of SOMETHING, or the row
+                #   is about a copy that renders to nothing rather than about a declaration.
+                and all(
+                    sum(entry["scripts_its_rendering_carries"].values()) > 0
+                    for entry in _c2_declarations_the_copy_contradicts
+                )
+            ),
+            "meaning": (
+                "⛔⛔⛔ FIVE OF THE SIX ABSTENTIONS THAT NAME A SCRIPT ARE TRUE OF THEIR "
+                "COPY AND ONE IS CONTRADICTED BY IT. "
+                + " · ".join(
+                    f"{entry['copy']}: declares {entry['the_script_its_abstention_declares']}"
+                    f", carries {entry['letters_of_that_script_its_rendering_carries']} "
+                    "letters of it"
+                    for entry in _c2_declared_script_held
+                )
+                + ". ⭐⭐⭐ A DECLARATION ABOUT A COPY THIS REPOSITORY HOLDS CAN BE ASKED OF "
+                "THE COPY, AND UNTIL THIS SESSION THIS ONE WAS A WORD INSIDE AN ENGLISH "
+                "SENTENCE. ⛔ It is reported and NOT repaired: which side of a certification "
+                "a copy belongs on is the owner's call, and the count of twenty-one does not "
+                "move"
             ),
         },
     ]

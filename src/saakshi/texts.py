@@ -1543,6 +1543,86 @@ def _check_every_abstention_names_a_reason_this_file_knows(
 #: entries: the cost of checking them on every call is not a cost.
 
 
+#: ⭐⭐⭐ **AND WHERE THE ABSTENTION SAYS *THE SCRIPT IS NOT WRONG*, WHICH SCRIPT IT MEANS.**
+#:
+#: ⛔ Without this the reason code is still not askable. Six copies are declined because the
+#: script they were read in is the right one, three of them printed in Devanagari and three
+#: in the Arabic script, and a comparison run against the twenty-one on a Devanagari word
+#: list is meaningful for the first three and meaningless for the rest. ⚠ Naming the reason
+#: without naming the script leaves that distinction where it was: inside an English
+#: sentence.
+#:
+#: ⛔⛔⛔ **AND IT IS A DECLARATION THE COPY CAN BE ASKED ABOUT, WHICH IS THE POINT.** A copy
+#: declared to be printed in a script and carrying not one letter of it has been caught by
+#: its own measurement — the same evidential shape as the wrong-script certification, in the
+#: other direction. ⭐ One of these six is exactly that, and it is REPORTED rather than
+#: recertified: which side of a certification a copy belongs on is the owner's call.
+SCRIPT_AN_ABSTENTION_DECLARES_THE_PRINTING_USES: Mapping[str, str] = {
+    "refused_copy_the_mudra_rakshasa_nataka_katha_of_mahadeva_ed__dr_v__raghavan_series_no__1_than": (
+        "devanagari"
+    ),
+    "refused_copy_nacaratnamalikaandotherworksofsastrasarmannavyanyayamarip_i_thesis_202003_693_m": (
+        "devanagari"
+    ),
+    "refused_copy_dictionaryofastrologybhansinj_n__738_": "devanagari",
+    "refused_copy_paar_pare_urdu_novel_joginder_paul": "arabic",
+    "refused_copy_wafatnamah_anhazrat_kashmiri_ghulam_mohd_noor_mohd": "arabic",
+    "refused_copy_qadeemshaariyaataskashirenhunddyutbykndharkashmirithepgdeptofkashmirikashmiruniversity": (
+        "arabic"
+    ),
+}
+
+
+def _check_every_script_is_named_for_the_abstention_that_claims_one(
+    declared: Mapping[str, str], reasons: Mapping[str, str]
+) -> None:
+    """⛔ Refuse a script declaration that has drifted from the abstentions it describes.
+
+    ⭐ Three ways to drift and all three are refused: an abstention that says the script is
+    not wrong without saying which script; a script declared for an abstention that says no
+    such thing; and a script name this repository's own vocabulary does not carry — the
+    last because a name nothing can measure is a declaration that cannot be checked.
+    """
+    from .textual import script_names
+
+    claiming = {
+        key for key, reason in reasons.items() if reason == "the_script_is_not_wrong"
+    }
+    missing = sorted(claiming - set(declared))
+    if missing:
+        raise TextualError(
+            f"{len(missing)} abstention(s) say the script is not wrong without saying "
+            f"which script: {missing}"
+        )
+    stray = sorted(set(declared) - claiming)
+    if stray:
+        raise TextualError(
+            f"{len(stray)} script declaration(s) describe an abstention that does not "
+            f"claim the script is right: {stray}"
+        )
+    known = script_names()
+    unknown = sorted({name for name in declared.values() if name not in known})
+    if unknown:
+        raise TextualError(
+            f"script(s) this repository cannot measure: {unknown}; it names "
+            f"{sorted(known)}. ⛔ A declaration naming a script no instrument here can "
+            "count is a declaration nothing can check"
+        )
+
+
+def script_an_abstention_declares(key: str) -> str | None:
+    """The script an abstention says the copy is rightly printed in, or `None`.
+
+    ⛔ `None` means *this abstention makes no claim about a script* and never *the claim
+    could not be read* — the check above refuses a mapping in which those two could be
+    confused.
+    """
+    _check_every_script_is_named_for_the_abstention_that_claims_one(
+        SCRIPT_AN_ABSTENTION_DECLARES_THE_PRINTING_USES, ABSTENTION_REASONS
+    )
+    return SCRIPT_AN_ABSTENTION_DECLARES_THE_PRINTING_USES.get(key)
+
+
 def abstention_reason(key: str) -> str | None:
     """The NAMED reason this file declines to certify `key`, or `None` if it does not.
 

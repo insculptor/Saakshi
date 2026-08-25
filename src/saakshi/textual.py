@@ -138,6 +138,16 @@ def script_of(character: str) -> str | None:
     return None
 
 
+def script_names() -> frozenset[str]:
+    """Every script this file can count. ⛔ The vocabulary, exposed so a DECLARATION about a
+    copy's script can be checked against what any instrument here is able to measure.
+
+    ⭐ Read off `_SCRIPT_RANGES` rather than restated, so a script added there is askable the
+    moment it is added and a name written down twice cannot drift.
+    """
+    return frozenset(name for name, _first, _last in _SCRIPT_RANGES)
+
+
 def scripts_in(text: str) -> dict[str, int]:
     """How many code points of each script a string carries. ⛔ Only scripts it actually has."""
     counts: dict[str, int] = {}

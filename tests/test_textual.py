@@ -3613,6 +3613,104 @@ def test_every_abstention_names_a_reason_this_file_knows():
     assert not set(denying) & set(READINGS_IN_A_SCRIPT_THE_WORK_CANNOT_BE_PRINTED_IN)
 
 
+def test_an_abstention_that_says_the_script_is_right_names_which_script():
+    """⛔ A reason code that does not name the script is still not askable.
+
+    ⭐⭐⭐ *A predicate that asks whether a script is PRESENT cannot ask whether the copy is
+    IN it.* Six copies are declined because the script is right, three printed in Devanagari
+    and three in the Arabic script; and one of the Arabic ones carries 1 165 stray Devanagari
+    letters, so a comparison keyed on *does this copy carry Devanagari* silently admits it.
+    """
+    import pytest
+
+    from saakshi.texts import (
+        ABSTENTION_REASONS,
+        SCRIPT_AN_ABSTENTION_DECLARES_THE_PRINTING_USES as DECLARED,
+        _check_every_script_is_named_for_the_abstention_that_claims_one as check,
+        copies_abstained_from_because,
+        script_an_abstention_declares,
+    )
+    from saakshi.textual import script_names
+
+    check(DECLARED, ABSTENTION_REASONS)
+    claiming = set(copies_abstained_from_because("the_script_is_not_wrong"))
+    assert set(DECLARED) == claiming
+    # ⭐ Every declared script is one this repository can actually count, or the claim is
+    #   one no instrument here could ever check.
+    assert set(DECLARED.values()) <= script_names()
+    assert set(DECLARED.values()) == {"devanagari", "arabic"}
+
+    # ⛔ Drift 1 — an abstention claiming the script is right without naming it.
+    dropped = next(iter(DECLARED))
+    with pytest.raises(Exception) as one:
+        check({k: v for k, v in DECLARED.items() if k != dropped}, ABSTENTION_REASONS)
+    assert dropped in str(one.value)
+
+    # ⛔ Drift 2 — a script declared for an abstention that claims no such thing.
+    other = next(
+        key for key, reason in ABSTENTION_REASONS.items()
+        if reason != "the_script_is_not_wrong"
+    )
+    with pytest.raises(Exception) as two:
+        check({**DECLARED, other: "devanagari"}, ABSTENTION_REASONS)
+    assert other in str(two.value)
+
+    # ⛔⛔ Drift 3 — a script name nothing here can measure. ⭐ The key sets stay equal so
+    #    only the vocabulary branch can fire.
+    with pytest.raises(Exception) as three:
+        check({**DECLARED, dropped: "a script nothing here counts"}, ABSTENTION_REASONS)
+    assert "a script nothing here counts" in str(three.value)
+
+    # ⭐ `None` means *this abstention claims nothing about a script* and never *unreadable*.
+    assert script_an_abstention_declares(dropped) == DECLARED[dropped]
+    assert script_an_abstention_declares(other) is None
+    assert script_an_abstention_declares("a key no source exists for") is None
+
+    # ⛔⛔ AND THE CHECK IS ON THE CALL PATH. An import-time call is spent before any
+    #    test runs; this accessor resolves the mapping at CALL time, so a drift is refused
+    #    wherever it is asked. ⭐ Held the same way as `abstention_reason` above, because a
+    #    branch a disarm cannot reach is not a branch a test can hold.
+    import saakshi.texts as texts
+
+    monkeypatched = pytest.MonkeyPatch()
+    try:
+        monkeypatched.setattr(
+            texts,
+            "SCRIPT_AN_ABSTENTION_DECLARES_THE_PRINTING_USES",
+            {k: v for k, v in DECLARED.items() if k != dropped},
+        )
+        with pytest.raises(Exception) as four:
+            texts.script_an_abstention_declares(dropped)
+        assert dropped in str(four.value)
+    finally:
+        monkeypatched.undo()
+    assert texts.script_an_abstention_declares(dropped) == DECLARED[dropped]
+
+    # ⭐⭐ AND THE TWO SIDES OF THE COMPARISON THIS EXISTS FOR: three Devanagari, three not.
+    devanagari = {k for k, name in DECLARED.items() if name == "devanagari"}
+    assert len(devanagari) == 3, sorted(devanagari)
+    assert len(claiming - devanagari) == 3
+
+
+def test_script_names_is_read_off_the_ranges_rather_than_restated():
+    """⛔ A vocabulary written down twice drifts. This one is derived from the ranges.
+
+    ⭐ So a script added to `_SCRIPT_RANGES` is askable the moment it is added, and a
+    declaration naming it can be checked without anybody editing a second list.
+    """
+    from saakshi.textual import _SCRIPT_RANGES, script_names, scripts_in
+
+    assert script_names() == frozenset(name for name, _f, _l in _SCRIPT_RANGES)
+    # ⛔ The 23rd session's two additions are in it, which is what says it is not a stale
+    #   copy of the seven that were there before.
+    assert {"bengali", "arabic"} <= script_names()
+    # ⭐ And every name it returns is one `scripts_in` can actually produce — checked on a
+    #   character from each range rather than assumed.
+    for name, first, _last in _SCRIPT_RANGES:
+        found = scripts_in(chr(first))
+        assert found in ({}, {name}) or set(found) == {name}, (name, found)
+
+
 def test_the_flank_guard_publishes_what_it_refuses_outside_the_two_certified_sets():
     """⛔ The bounds were measured over 47 copies and this repository holds 65 that render.
 
