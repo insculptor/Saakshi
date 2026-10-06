@@ -34,13 +34,17 @@ swe = pytest.importorskip(
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
+import saakshi.swiss as swiss_module  # noqa: E402
+from saakshi.fixture import FixtureContractError, _scan_keys, bits  # noqa: E402
 from saakshi.kernels import KernelIdentityError  # noqa: E402
 from saakshi.swiss import (  # noqa: E402
     ASSERTIONS,
     ENTRY_POINTS,
     MODES,
+    OFFSET_READ_BACK_STATE,
     REFUSES_ATTRIBUTION,
     REPORTING,
+    REQUESTS,
     SOURCE_MASK,
     TIDAL_BY_SOURCE,
     TIDAL_CONSTANTS,
@@ -49,15 +53,21 @@ from saakshi.swiss import (  # noqa: E402
     assert_library_state_returned,
     Session,
     SurveyRefusal,
+    _call_whole_return,
     _check_declaration,
     assert_reported,
     assert_window,
     coverage_edges,
     entry_point_records,
+    measured_entry_point_records,
     offset_attribution,
+    returns_ephemeris_flag,
+    returns_read_blind,
     source_bits_in_return,
     source_name,
     sources_named_by_constant,
+    state_mediation,
+    state_mediation_measured,
     tidal_constant_names,
     verify_ephe_set,
 )
@@ -491,6 +501,318 @@ def test_the_unflagged_entry_point_is_recorded_as_having_chosen_a_flag_anyway(
         # ⛔ It takes no ephemeris argument and its answer is one of the flagged answers.
         assert row["equals_the_flagged_answer_for"]
         assert row["this_epoch_has_the_property_under_test"] is True
+
+
+# --------------------------------------------------------------------------------------
+# ⭐ Three answers a consumer tests mechanically -- each MEASURED, never declared
+# --------------------------------------------------------------------------------------
+
+
+def test_the_tidal_constant_is_written_as_bits_beside_every_offset_reading(two_empty_regimes):
+    """⭐ A decimal read through text is not a committed value, so every reading carries the
+    pattern; ⛔ and the two prose rows, which read no constant, carry none."""
+    left, right = two_empty_regimes
+    rows = offset_attribution(
+        epochs=[_year(1900), _year(2000)], with_files=left, without_files=right
+    )
+    readings = [r for r in rows if r["row"] in ("per_flag", "unflagged")]
+    assert len(readings) == 16
+    for row in readings:
+        assert row["tidal_constant_in_force_bits"] == bits(row["tidal_constant_in_force"])
+    for row in rows:
+        if row["row"] in ("harness_control", "verdict"):
+            assert "tidal_constant_in_force_bits" not in row
+
+
+@pytest.fixture()
+def one_empty_session(tmp_path):
+    (tmp_path / "e").mkdir()
+    yield Session(ephe_path=str(tmp_path / "e"), sidereal_mode=swe.SIDM_LAHIRI)
+    swe.close()
+
+
+def test_every_entry_point_is_read_blind_under_every_request_it_can_take(one_empty_session):
+    """⛔ A flag-taking entry point read under one request has been read under one request."""
+    readings = returns_read_blind(one_empty_session)
+    assert list(readings) == [e.name for e in ENTRY_POINTS]
+    for entry in ENTRY_POINTS:
+        expected = [r for r, _ in REQUESTS] if entry.accepts_flag else ["no_flag_accepted"]
+        assert list(readings[entry.name]) == expected
+
+
+def test_every_blind_read_is_taken_from_a_reset_state():
+    """⛔⛔ THE DISARM THE LIBRARY COULD NOT CATCH. Deleting the reset before each read went
+    green: with no data files here, no call order changes any return. ⭐ So the reset is
+    driven through the reader's own seam -- every call must see one more reset than the
+    call before it, and a reader that skips one is refused by this test, not by luck."""
+
+    class CountingSession:
+        resets = 0
+
+        def reset(self):
+            self.resets += 1
+
+    session = CountingSession()
+    seen: list[int] = []
+
+    def call(name, jd, flag):
+        seen.append(session.resets)
+        return 0.0
+
+    readings = returns_read_blind(session, call=call)
+    calls = sum(len(r) for r in readings.values())
+    assert seen == list(range(1, calls + 1))
+
+
+def test_returning_a_flag_is_measured_and_is_not_the_same_question_as_reporting_one(
+    one_empty_session,
+):
+    """⭐⭐ The echoing entry point RETURNS a flag and does not REPORT one. A key that read
+    `reports_answering_ephemeris = false` as *returns no flag* would refuse the very flag a
+    consumer must carry for it -- which is why the answer is read off the return."""
+    readings = returns_read_blind(one_empty_session)
+    measured = {name: returns_ephemeris_flag(name, r) for name, r in readings.items()}
+    assert measured == {
+        "calc_ut": True,
+        "get_ayanamsa_ex_ut": True,
+        "houses_ex": False,
+        "rise_trans": False,
+        "deltat_ex": False,
+        "deltat": False,
+    }
+    reports = {e.name: e.reports_source for e in ENTRY_POINTS}
+    assert [n for n in measured if measured[n] and not reports[n]] == ["get_ayanamsa_ex_ut"]
+
+
+def test_a_flag_under_some_requests_and_not_others_is_refused_not_rounded():
+    """⛔ All or nothing. Both clean answers are let through, and the mixture is refused --
+    with both sides named, so the refusal says what was seen."""
+    flag = {"carries_a_source": True, "integers_in_return": [2], "named_sources_readable": ["swiss_file"]}
+    none = {"carries_a_source": False, "integers_in_return": [0], "named_sources_readable": []}
+    assert returns_ephemeris_flag("x", {"moshier": flag, "swiss_file": flag}) is True
+    assert returns_ephemeris_flag("x", {"moshier": none, "swiss_file": none}) is False
+    with pytest.raises(SurveyRefusal) as excinfo:
+        returns_ephemeris_flag("x", {"moshier": flag, "swiss_file": none})
+    assert "['moshier'] and not under ['swiss_file']" in str(excinfo.value)
+    with pytest.raises(SurveyRefusal):
+        returns_ephemeris_flag("x", {})
+
+
+def test_an_entry_point_the_reader_cannot_call_is_refused_not_read_as_silent():
+    """⛔ An uncalled entry point would read exactly like one that returned nothing."""
+    assert _call_whole_return("deltat", 2451545.0, None) is not None
+    with pytest.raises(SurveyRefusal) as excinfo:
+        _call_whole_return("no_such_entry_point", 2451545.0, None)
+    assert "no way to call" in str(excinfo.value)
+
+
+def test_the_table_is_checked_against_the_measurement_and_not_copied_into_it(
+    one_empty_session, two_empty_regimes
+):
+    """⛔ A declared reporter whose return carried no flag is a contradiction, refused."""
+    left, right = two_empty_regimes
+    offsets = offset_attribution(
+        epochs=[_year(1900), _year(2000)], with_files=left, without_files=right
+    )
+    readings = returns_read_blind(one_empty_session)
+    assert measured_entry_point_records(readings=readings, offset_rows=offsets)
+    silent = {"carries_a_source": False, "integers_in_return": [], "named_sources_readable": []}
+    lying = {**readings, "calc_ut": {r: silent for r in readings["calc_ut"]}}
+    with pytest.raises(EntryPointDeclarationError) as excinfo:
+        measured_entry_point_records(readings=lying, offset_rows=offsets)
+    assert "The table and the library disagree" in str(excinfo.value)
+
+
+def test_membership_is_measured_so_the_same_code_answers_differently_on_other_evidence(
+    one_empty_session, two_empty_regimes
+):
+    """⭐⭐⭐ A MEMBERSHIP KEY THAT CANNOT CHANGE ITS ANSWER WITH THE EVIDENCE IS A DECLARATION.
+
+    The suite holds no data files, so both of its regimes are empty and `deltat` -- which
+    takes no flag -- reads one state in both. Its value is never seen to MOVE with the state,
+    so clause (b) is not established for it here and no membership is written; `deltat_ex`,
+    whose flags put two different constants in force, is established. ⚠ With the pinned data
+    files present the generator sees `deltat` move too. ⇒ the row's answer is the run's.
+    """
+    left, right = two_empty_regimes
+    offsets = offset_attribution(
+        epochs=[_year(1900), _year(2000)], with_files=left, without_files=right
+    )
+    rows = {
+        r["entry_point"]: r
+        for r in measured_entry_point_records(
+            readings=returns_read_blind(one_empty_session), offset_rows=offsets
+        )
+    }
+    members = sorted(name for name, row in rows.items() if "state_mediation" in row)
+    assert members == ["deltat_ex"]
+    assert rows["deltat_ex"]["state_mediation"] == {
+        "answering_ephemeris": "none",
+        "read_back_state": "tidal_acceleration",
+    }
+    assert rows["deltat"]["state_mediation_measured"]["b_epochs_where_the_state_moved_the_value"] == []
+    assert rows["deltat"]["state_mediation_measured"]["b_value_follows_the_read_back_state"] is False
+    # ⚠ (a) alone makes nothing a member: the house cusps return no integer at all and have
+    #   no read-back, so (b) and (c) are NOT MEASURED -- null, never false.
+    houses = rows["houses_ex"]["state_mediation_measured"]
+    assert houses["a_returns_no_flag_and_no_code"] is True
+    assert houses["b_value_follows_the_read_back_state"] is None
+    assert houses["c_read_back_state"] is None
+    # ⚠ And a return CODE is a statement: the rise/set integer fails (a).
+    assert rows["rise_trans"]["state_mediation_measured"]["a_returns_no_flag_and_no_code"] is False
+
+
+#: The committed survey's own readings (2026-08-21) -- epoch, regime, entry point, request,
+#: constant in force, offset bits. ⭐ The twin every clause-(b) negative mutates one place of.
+_SURVEYED = [
+    ("year_1900", "present", "deltat_ex", "moshier", -25.58, "bef8e53f9390af26"),
+    ("year_1900", "present", "deltat_ex", "swiss_file", -25.936, "bef7b4c59a971c0d"),
+    ("year_1900", "present", "deltat_ex", "jpl_file", -25.8, "bef82916b78c0694"),
+    ("year_1900", "present", "deltat", None, -25.936, "bef7b4c59a971c0d"),
+    ("year_2000", "present", "deltat_ex", "moshier", -25.58, "3f483521f8f78e61"),
+    ("year_2000", "present", "deltat_ex", "swiss_file", -25.936, "3f483521f8f78e61"),
+    ("year_2000", "present", "deltat_ex", "jpl_file", -25.8, "3f483521f8f78e61"),
+    ("year_2000", "present", "deltat", None, -25.936, "3f483521f8f78e61"),
+    ("year_1900", "absent", "deltat_ex", "moshier", -25.58, "bef8e53f9390af26"),
+    ("year_1900", "absent", "deltat_ex", "swiss_file", -25.8, "bef82916b78c0694"),
+    ("year_1900", "absent", "deltat_ex", "jpl_file", -25.8, "bef82916b78c0694"),
+    ("year_1900", "absent", "deltat", None, -25.8, "bef82916b78c0694"),
+    ("year_2000", "absent", "deltat_ex", "moshier", -25.58, "3f483521f8f78e61"),
+    ("year_2000", "absent", "deltat_ex", "swiss_file", -25.8, "3f483521f8f78e61"),
+    ("year_2000", "absent", "deltat_ex", "jpl_file", -25.8, "3f483521f8f78e61"),
+    ("year_2000", "absent", "deltat", None, -25.8, "3f483521f8f78e61"),
+]
+
+
+def _rows(table):
+    return [
+        {
+            "row": "unflagged" if requested is None else "per_flag",
+            "regime": regime,
+            "epoch_id": epoch,
+            "entry_point": entry_point,
+            **({} if requested is None else {"ephemeris_requested": requested}),
+            "tidal_constant_in_force_bits": bits(constant),
+            "offset_days_bits": value,
+        }
+        for epoch, regime, entry_point, requested, constant, value in table
+    ]
+
+
+def _entry(name):
+    return next(e for e in ENTRY_POINTS if e.name == name)
+
+
+_SILENT = {"x": {"carries_a_source": False, "integers_in_return": [], "named_sources_readable": []}}
+
+
+def _b(name, table):
+    return state_mediation_measured(_entry(name), readings=_SILENT, offset_rows=_rows(table))
+
+
+def test_clause_b_holds_on_the_committed_surveys_own_readings_for_both_offset_entry_points():
+    """⭐ The twin. Both entry points: one value per state, shared across conditions, moved."""
+    for name, sharing in (("deltat_ex", 12), ("deltat", 4)):
+        measured = _b(name, _SURVEYED)
+        assert measured["b_value_follows_the_read_back_state"] is True
+        assert measured["b_epochs_where_the_state_moved_the_value"] == ["year_1900"]
+        assert measured["b_readings_sharing_a_state_under_another_condition"] == sharing
+        assert measured["c_read_back_state"] == "tidal_acceleration"
+
+
+def test_clause_b_refuses_one_state_carrying_two_values():
+    """⛔ ① -- if one read-back state gave two values, something else entered the value."""
+    table = list(_SURVEYED)
+    table[9] = table[9][:5] + ("bef8e53f9390af26",)  # 1900 absent swiss_file: -25.8, another value
+    for name in ("deltat_ex", "deltat"):
+        assert _b(name, table)["b_value_follows_the_read_back_state"] is False
+
+
+def test_clause_b_refuses_a_function_nobody_tested():
+    """⛔ ② -- every state seen once is 'one value per state' about nothing. The present
+    regime's flagged readings alone put three states in force once each per epoch."""
+    table = [r for r in _SURVEYED if r[1] == "present" and r[2] == "deltat_ex"]
+    measured = _b("deltat_ex", table)
+    assert measured["b_readings_sharing_a_state_under_another_condition"] == 0
+    assert measured["b_epochs_where_the_state_moved_the_value"] == ["year_1900"]
+    assert measured["b_value_follows_the_read_back_state"] is False
+
+
+def test_clause_b_refuses_a_state_that_moves_nothing():
+    """⛔ ③ -- at a tabulated epoch every state gives one value; a survey confined there has
+    not seen the state carry anything."""
+    table = [r for r in _SURVEYED if r[0] == "year_2000"]
+    measured = _b("deltat_ex", table)
+    assert measured["b_epochs_where_the_state_moved_the_value"] == []
+    assert measured["b_value_follows_the_read_back_state"] is False
+
+
+def test_an_entry_point_with_no_read_back_is_not_measured_rather_than_failed():
+    """⛔ NOT MEASURED is null. Publishing it as false would claim a clause fails."""
+    measured = _b("calc_ut", _SURVEYED)
+    assert measured["b_value_follows_the_read_back_state"] is None
+    assert measured["c_read_back_state"] is None
+    assert state_mediation(measured) is None
+
+
+def test_a_read_back_state_the_library_state_record_does_not_name_is_refused(monkeypatch):
+    """⛔ A respelt state would publish a read-back of a state nobody measured."""
+    assert _b("deltat_ex", _SURVEYED)["c_read_back_state"] == OFFSET_READ_BACK_STATE
+    monkeypatch.setattr(swiss_module, "OFFSET_READ_BACK_STATE", "tidal_accel")
+    with pytest.raises(SurveyRefusal) as excinfo:
+        _b("deltat_ex", _SURVEYED)
+    assert "not a state the library-state record names" in str(excinfo.value)
+
+
+_ALL_THREE = {
+    "a_returns_no_flag_and_no_code": True,
+    "b_value_follows_the_read_back_state": True,
+    "b_readings_sharing_a_state_under_another_condition": 1,
+    "b_epochs_where_the_state_moved_the_value": ["year_1900"],
+    "c_read_back_state": "tidal_acceleration",
+}
+
+
+@pytest.mark.parametrize(
+    "overrides",
+    [
+        {"a_returns_no_flag_and_no_code": False},
+        {"b_value_follows_the_read_back_state": False},
+        {"b_value_follows_the_read_back_state": None},
+        {"c_read_back_state": None},
+    ],
+)
+def test_the_membership_field_is_written_only_where_all_three_were_measured(overrides):
+    """⭐ Each clause alone withholds it -- and the twin, all three, writes it."""
+    assert state_mediation(_ALL_THREE) == {
+        "answering_ephemeris": "none",
+        "read_back_state": "tidal_acceleration",
+    }
+    assert state_mediation({**_ALL_THREE, **overrides}) is None
+
+
+def test_the_measured_rows_pass_the_emission_gate_and_the_gate_still_refuses(
+    one_empty_session, two_empty_regimes
+):
+    """⛔⛔ A DRY RUN THAT STOPS BEFORE THE LAST GATE HAS NOT DRY-RUN THE LAST GATE. The rows
+    the generator will write go through the writer's own key and pattern scan here -- and the
+    scan is driven the other way too, so a pass is not a scan that refuses nothing."""
+    left, right = two_empty_regimes
+    offsets = offset_attribution(
+        epochs=[_year(1900), _year(2000)], with_files=left, without_files=right
+    )
+    rows = measured_entry_point_records(
+        readings=returns_read_blind(one_empty_session), offset_rows=offsets
+    )
+    for i, row in enumerate([*rows, *offsets]):
+        _scan_keys(row, where="dry-run", path=f"row[{i}]")
+    with pytest.raises(FixtureContractError):
+        _scan_keys({**rows[0], "Returns_Ephemeris_Flag": True}, where="dry-run", path="row[0]")
+    reading = next(r for r in offsets if r["row"] == "per_flag")
+    with pytest.raises(FixtureContractError):
+        _scan_keys(
+            {**reading, "tidal_constant_in_force_bits": bits(-1.0)}, where="dry-run", path="r"
+        )
 
 
 # --------------------------------------------------------------------------------------

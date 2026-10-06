@@ -783,6 +783,15 @@ TIDAL_BY_SOURCE: dict[str, float] = {
 }
 
 
+#: The three requests a flag-taking entry point is called under, in the survey's own spelling
+#: and order. ⭐ One tuple for every survey that asks, so two surveys cannot ask differently.
+REQUESTS: tuple[tuple[str, int], ...] = (
+    ("moshier", swe.FLG_MOSEPH),
+    ("swiss_file", swe.FLG_SWIEPH),
+    ("jpl_file", swe.FLG_JPLEPH),
+)
+
+
 def bits_of(value: float) -> str:
     """The bit pattern of a double. ⛔ Deferred so there is one writer, never two."""
     from .fixture import bits
@@ -937,7 +946,7 @@ def offset_attribution(
         ("data_files_present", with_files, True),
         ("data_files_absent", without_files, False),
     )
-    flags = (("moshier", swe.FLG_MOSEPH), ("swiss_file", swe.FLG_SWIEPH), ("jpl_file", swe.FLG_JPLEPH))
+    flags = REQUESTS
     identifying = 0
     disagreements = 0
 
@@ -997,6 +1006,7 @@ def offset_attribution(
                         "offset_days_bits": bits_of(offset),
                         "offset_seconds": offset * 86400.0,
                         "tidal_constant_in_force": constant,
+                        "tidal_constant_in_force_bits": bits_of(constant),
                         "library_names_for_that_constant": tidal_constant_names(constant),
                         "sources_that_constant_could_name": candidates,
                         "constant_identifies_exactly_one_source": identifies,
@@ -1033,6 +1043,7 @@ def offset_attribution(
                     "offset_days": unflagged,
                     "offset_days_bits": bits_of(unflagged),
                     "tidal_constant_in_force": constant,
+                    "tidal_constant_in_force_bits": bits_of(constant),
                     "library_names_for_that_constant": tidal_constant_names(constant),
                     "equals_the_flagged_answer_for": sorted(
                         k for k, v in readings.items() if v == unflagged
@@ -1115,6 +1126,265 @@ def offset_attribution(
             ),
         }
     )
+    return rows
+
+
+# --------------------------------------------------------------------------------------
+# ⭐ Three questions a consumer asks mechanically, answered by measurement
+# --------------------------------------------------------------------------------------
+#
+# A consumer reading this survey cannot parse prose, and a key it could test that only
+# restated the table above would be a declaration in a new place. So each answer below is
+# read off a call made in this run, and the table is checked against it rather than copied.
+
+#: The library state through which an ephemeris enters the time offset, spelled as the
+#: library-state record spells it. ⛔ Checked on the call path against that record's own
+#: names, so a respelling here is refused rather than published as a state nobody measured.
+OFFSET_READ_BACK_STATE = "tidal_acceleration"
+
+#: The instant every entry point's return is read at: inside the pinned data files' coverage,
+#: where a data-file request is honoured and a report therefore has something to say.
+RETURN_READ_JD = 2451545.0
+
+#: The site the two entry points that need one are called at — the first of the grid's sites
+#: and the one the substitution demonstration's sunrise uses. (longitude, latitude, height)
+RETURN_READ_SITE = (80.3319, 26.4499, 0.0)
+
+
+def _call_whole_return(name: str, jd: float, flag: int | None) -> Any:
+    """Call one audited entry point and hand back its WHOLE return, unread.
+
+    ⛔ An entry point the audit names and this reader cannot call is a refusal, never a
+    silence: a missing caller would read as an entry point that returned nothing.
+    """
+    lon, lat, height = RETURN_READ_SITE
+    calls: dict[str, Callable[[], Any]] = {
+        "calc_ut": lambda: swe.calc_ut(jd, swe.SUN, (flag or 0) | swe.FLG_SPEED),
+        "get_ayanamsa_ex_ut": lambda: swe.get_ayanamsa_ex_ut(jd, flag or 0),
+        "houses_ex": lambda: swe.houses_ex(jd, lat, lon, b"P", flag or 0),
+        "rise_trans": lambda: swe.rise_trans(
+            jd, swe.SUN, swe.CALC_RISE | swe.BIT_DISC_CENTER,
+            (lon, lat, height), 0.0, 0.0, flag or 0,
+        ),
+        "deltat_ex": lambda: swe.deltat_ex(jd, flag or 0),
+        "deltat": lambda: swe.deltat(jd),
+    }
+    if name not in calls:
+        raise SurveyRefusal(
+            f"{name}: an entry point the audit names and this reader has no way to call. "
+            "Refusing: an uncalled entry point would read as one that returned nothing."
+        )
+    return calls[name]()
+
+
+def returns_read_blind(
+    session: Session,
+    *,
+    entries: Iterable[EntryPoint] = ENTRY_POINTS,
+    jd: float = RETURN_READ_JD,
+    call: Callable[[str, float, int | None], Any] = _call_whole_return,
+) -> dict[str, dict[str, dict[str, Any]]]:
+    """Every audited entry point's return, read blind, under every request it can take.
+
+    ⭐ The same reader as the harness control (:func:`source_bits_in_return`), which is
+    shown there to hear a flag where one exists and not to be fooled by a return code. A
+    flag-taking entry point is called once per source in :data:`REQUESTS`; one that takes
+    no flag is called once, under the declared absence ``no_flag_accepted``. ⛔ Each call
+    from a reset state, because the answering ephemeris was measured to depend on the
+    preceding call.
+    """
+    out: dict[str, dict[str, dict[str, Any]]] = {}
+    for entry in entries:
+        requests: tuple[tuple[str, int | None], ...] = (
+            REQUESTS if entry.accepts_flag else (("no_flag_accepted", None),)
+        )
+        readings: dict[str, dict[str, Any]] = {}
+        for requested, flag in requests:
+            session.reset()
+            readings[requested] = source_bits_in_return(call(entry.name, jd, flag))
+        out[entry.name] = readings
+    return out
+
+
+def returns_ephemeris_flag(entry_point: str, readings: dict[str, dict[str, Any]]) -> bool:
+    """Whether the entry point's return carries a flag naming an ephemeris source.
+
+    ⭐ **Returning a flag is not reporting one.** The echoing entry point returns a flag under
+    every request — the request, handed back — so it is ``True`` here, and the separate
+    question of whether that flag can report a substitution stays where the table puts it.
+
+    ⛔ **All or nothing, and a mixture is refused.** ``True`` only where every request's
+    return carried an integer naming a source; ``False`` only where none did. An entry point
+    that returned a flag under one request and not under another has not answered the
+    question, and choosing either side would publish a guess with a measurement's spelling.
+    """
+    if not readings:
+        raise SurveyRefusal(f"{entry_point}: no return was read, so nothing can be said of it")
+    carried = [bool(reading["carries_a_source"]) for reading in readings.values()]
+    if all(carried):
+        return True
+    if not any(carried):
+        return False
+    raise SurveyRefusal(
+        f"{entry_point}: a flag naming a source came back under "
+        f"{sorted(k for k, v in readings.items() if v['carries_a_source'])} and not under "
+        f"{sorted(k for k, v in readings.items() if not v['carries_a_source'])}. Refusing to "
+        "say whether it returns one."
+    )
+
+
+def _library_state_names() -> frozenset[str]:
+    """The states the library-state record names. ⚠ Deferred: that module imports this one."""
+    from .conventions import GLOBAL_STATE
+
+    return frozenset(state.name for state in GLOBAL_STATE)
+
+
+def state_mediation_measured(
+    entry: EntryPoint,
+    *,
+    readings: dict[str, dict[str, Any]],
+    offset_rows: Iterable[dict[str, Any]],
+    entries: Iterable[EntryPoint] = ENTRY_POINTS,
+) -> dict[str, Any]:
+    """What this run measured of the three clauses that make a quantity state-mediated.
+
+    The three, in plain words: **(a)** the entry point returns no statement of source — no
+    flag and no code; **(b)** no ephemeris answers the quantity — what an ephemeris
+    contributes enters only through library state; **(c)** that state is read back after
+    the call.
+
+    * **(a)** — from :func:`returns_read_blind`: no integer at all in the return, under any
+      request. ⚠ Stricter than "no flag": the rise/set code is an integer, and a code is a
+      statement of something.
+    * **(c)** — every survey reading of this entry point carries the state read back after
+      its call, as bits: today the tidal-acceleration constant, which is
+      :data:`OFFSET_READ_BACK_STATE` in the library-state record's spelling.
+    * **(b)** — over every reading of the same QUANTITY (the offset is returned by two entry
+      points), three things together, each bit-exact:
+      ① at each epoch, readings that read back one state carry one value;
+      ② ⭐ that is not vacuous — some reading of this entry point shares its state with
+      another reading taken under a different condition (another flag, another data-file
+      regime, another entry point), so the ephemeris condition changed and the value did not;
+      ③ the state is not idle — at some epoch two readings of this entry point with different
+      states carry different values.
+
+    ⚠ **(b) is a measured correlation over the conditions this survey took, and nothing
+    more.** That forcing the state moves the value as predicted is a separate control, owed
+    separately; this function never claims it.
+
+    ⛔ ``None`` for (b) and (c) means NOT MEASURED — no reading of this entry point carries a
+    read-back state — and is never published as ``False``.
+    """
+    entries = list(entries)
+    quantity = {e.name: e.quantity for e in entries}
+    rows = [
+        r for r in offset_rows
+        if r.get("row") in ("per_flag", "unflagged") and "entry_point" in r
+    ]
+    peers = [r for r in rows if quantity.get(str(r["entry_point"])) == entry.quantity]
+    own = [r for r in peers if r["entry_point"] == entry.name]
+
+    no_integer = all(not reading["integers_in_return"] for reading in readings.values())
+
+    read_back: str | None = None
+    if own and all("tidal_constant_in_force_bits" in r for r in own):
+        if OFFSET_READ_BACK_STATE not in _library_state_names():
+            raise SurveyRefusal(
+                f"{OFFSET_READ_BACK_STATE!r} is not a state the library-state record names "
+                f"({sorted(_library_state_names())}). Refusing to publish a read-back of a "
+                "state nobody measured."
+            )
+        read_back = OFFSET_READ_BACK_STATE
+
+    follows: bool | None = None
+    sharing = 0
+    moved: list[str] = []
+    if read_back is not None:
+        values_by_state: dict[tuple[str, str], set[str]] = {}
+        readers_by_state: dict[tuple[str, str], int] = {}
+        for r in peers:
+            key = (str(r["epoch_id"]), str(r["tidal_constant_in_force_bits"]))
+            values_by_state.setdefault(key, set()).add(str(r["offset_days_bits"]))
+            readers_by_state[key] = readers_by_state.get(key, 0) + 1
+        one_value_per_state = all(
+            len(values_by_state[(str(r["epoch_id"]), str(r["tidal_constant_in_force_bits"]))]) == 1
+            for r in own
+        )
+        sharing = sum(
+            1
+            for r in own
+            if readers_by_state[(str(r["epoch_id"]), str(r["tidal_constant_in_force_bits"]))] > 1
+        )
+        for epoch_id in sorted({str(r["epoch_id"]) for r in own}):
+            at = [r for r in own if str(r["epoch_id"]) == epoch_id]
+            if any(
+                a["tidal_constant_in_force_bits"] != b["tidal_constant_in_force_bits"]
+                and a["offset_days_bits"] != b["offset_days_bits"]
+                for a in at
+                for b in at
+            ):
+                moved.append(epoch_id)
+        follows = one_value_per_state and sharing > 0 and bool(moved)
+
+    return {
+        "a_returns_no_flag_and_no_code": no_integer,
+        "b_value_follows_the_read_back_state": follows,
+        "b_readings_sharing_a_state_under_another_condition": sharing,
+        "b_epochs_where_the_state_moved_the_value": moved,
+        "c_read_back_state": read_back,
+    }
+
+
+def state_mediation(measured: dict[str, Any]) -> dict[str, Any] | None:
+    """The membership field, or ``None`` — ⛔ written ONLY where all three were measured.
+
+    ⭐ ``answering_ephemeris`` is the literal ``none``: the claim is that no ephemeris answers
+    the quantity, which is clause (b), and a field that could hold a source name here would
+    be the attribution this survey refuses everywhere else.
+    """
+    if (
+        measured["a_returns_no_flag_and_no_code"] is True
+        and measured["b_value_follows_the_read_back_state"] is True
+        and measured["c_read_back_state"] is not None
+    ):
+        return {"answering_ephemeris": "none", "read_back_state": measured["c_read_back_state"]}
+    return None
+
+
+def measured_entry_point_records(
+    *,
+    readings: dict[str, dict[str, dict[str, Any]]],
+    offset_rows: Iterable[dict[str, Any]],
+    entries: Iterable[EntryPoint] = ENTRY_POINTS,
+) -> list[dict[str, Any]]:
+    """The audit table's rows, each carrying what this run MEASURED beside what it declares.
+
+    ⛔ **The table is checked against the measurement, not copied into it.** An entry point
+    declared to report its source whose return carried no flag is a contradiction between the
+    table and the library, and it is refused rather than published with one side chosen.
+    """
+    entries = list(entries)
+    offset_rows = list(offset_rows)
+    rows = entry_point_records(entries)
+    for entry, row in zip(entries, rows):
+        if entry.name not in readings:
+            raise SurveyRefusal(f"{entry.name}: its return was never read")
+        returns = returns_ephemeris_flag(entry.name, readings[entry.name])
+        if entry.reports_source and not returns:
+            raise EntryPointDeclarationError(
+                f"{entry.name}: declared to report its source, and its return carried no flag "
+                "under any request. The table and the library disagree."
+            )
+        measured = state_mediation_measured(
+            entry, readings=readings[entry.name], offset_rows=offset_rows, entries=entries
+        )
+        row["returns_ephemeris_flag"] = returns
+        row["returns_read_blind"] = readings[entry.name]
+        row["state_mediation_measured"] = measured
+        mediation = state_mediation(measured)
+        if mediation is not None:
+            row["state_mediation"] = mediation
     return rows
 
 

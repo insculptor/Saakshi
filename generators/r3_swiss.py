@@ -61,9 +61,10 @@ from saakshi.swiss import (  # noqa: E402
     calendar_ut,
     coverage_edges,
     assert_library_state_returned,
-    entry_point_records,
     ephe_set_identity,
+    measured_entry_point_records,
     offset_attribution,
+    returns_read_blind,
     state_dependence,
     verify_ephe_set,
 )
@@ -803,6 +804,7 @@ def write_mode_fixture(
 
 def write_audit_fixture(
     *,
+    audit_rows: list[dict[str, Any]],
     edges: dict[str, Any],
     demonstration: list[dict[str, Any]],
     state_rows: list[dict[str, Any]],
@@ -818,7 +820,7 @@ def write_audit_fixture(
     rather than comparing a value against a reference, and the contract's own kind
     discipline is what keeps the two from being confused.
     """
-    rows: list[dict[str, Any]] = entry_point_records()
+    rows: list[dict[str, Any]] = list(audit_rows)
     rows.append(
         {
             "finding": "coverage_edge",
@@ -929,6 +931,40 @@ def write_audit_fixture(
                 "⭐ the only channel that carries anything at all about what the time "
                 "offset was computed from. It is read AFTER the call, from the library"
             ),
+            "tidal_constant_in_force_bits": (
+                "⭐ the same reading as a bit pattern, which is the value; the decimal "
+                "beside it is display. A consumer comparing constants compares these"
+            ),
+            "returns_ephemeris_flag": (
+                "⭐ MEASURED, not declared: true only where the entry point's return carried "
+                "an integer naming an ephemeris source under EVERY request it was called "
+                "with, false only where it carried none under any; a mixture is refused. "
+                "⚠ Returning a flag is not reporting one -- the echoing entry point is true "
+                "here and false in `reports_answering_ephemeris`"
+            ),
+            "returns_read_blind": (
+                "what the blind reader of the harness control found in the entry point's "
+                "whole return under each request (or under `no_flag_accepted` where it "
+                "takes none), at one instant inside the data files' coverage, each call "
+                "from a reset state"
+            ),
+            "state_mediation_measured": (
+                "what this run measured of three clauses: (a) no flag and no code in the "
+                "return under any request; (b) at each epoch one value per read-back "
+                "state across every reading of the same quantity, shared across a "
+                "different condition at least once, and moved by the state at least once; "
+                "(c) the library state read back after every reading. ⛔ null means NOT "
+                "MEASURED and is never a false. ⚠ (b) is a correlation over the "
+                "conditions surveyed; that forcing the state moves the value is a "
+                "separate control"
+            ),
+            "state_mediation": (
+                "⭐ PRESENT ONLY WHERE ALL THREE CLAUSES WERE MEASURED TRUE. "
+                "`answering_ephemeris` is the literal `none` -- no ephemeris answers the "
+                "quantity -- and `read_back_state` names the state read back, spelled as "
+                "the library-state record spells it. ⛔ Absent everywhere else, and its "
+                "absence is not a claim that the clauses fail"
+            ),
             "library_names_for_that_constant": (
                 "every name the library itself gives that number, read out of the library "
                 "rather than typed here"
@@ -1007,6 +1043,12 @@ def write_audit_fixture(
             "over a return known to carry a flag, over one carrying an integer that is not "
             "a flag, and over the two bare floats; the survey refuses a grid on which the "
             "ephemeris flag changes nothing, AND refuses one on which it always does.",
+            "⭐ THREE ANSWERS A CONSUMER CAN TEST WITHOUT READING PROSE, EACH READ OFF A "
+            "CALL IN THIS RUN: whether each entry point returns a flag, which entry points "
+            "return a quantity no ephemeris answers and the state it rides on, and the "
+            "tidal constant in force as bits. The table above is CHECKED against the first "
+            "rather than copied into it, and the second is written only where all three of "
+            "its clauses were measured; which rows carry it is the measurement's to say.",
             "⚠ Dated and versioned deliberately. This is an observation of one release "
             "through one binding, not a claim about the software in general.",
         ],
@@ -1305,6 +1347,18 @@ def main() -> int:
         "the same substituted ephemeris"
     )
 
+    # ⭐ LAST among the measurements, after every row the survey already carried. Each call
+    #    is taken from a reset state, and nothing measured before it can depend on it -- so
+    #    every row this survey published before these keys existed is re-measured exactly
+    #    as it was, which is the control on this addition.
+    readings = returns_read_blind(session)
+    audit_rows = measured_entry_point_records(readings=readings, offset_rows=offset_rows)
+    for row in audit_rows:
+        print(
+            f"    {row['entry_point']}: returns a flag={row['returns_ephemeris_flag']} "
+            f"state_mediation={'yes' if 'state_mediation' in row else 'no'}"
+        )
+
     for mode_id, result in sampled.items():
         mode = MODES[mode_id]
         path, written = write_mode_fixture(
@@ -1321,6 +1375,7 @@ def main() -> int:
         print(f"wrote {written} rows -> {path}")
 
     path, written = write_audit_fixture(
+        audit_rows=audit_rows,
         edges=edges,
         demonstration=demonstration,
         state_rows=state_rows,
