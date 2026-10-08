@@ -212,7 +212,10 @@ and every row records which one it relied on:
   tidal-acceleration constant), which every such row reads back instead. ⛔ Not a weaker
   proxy — a position call under the same flag answers a different quantity, so none is
   asserted. Each such section declares its whole configuration (the data directory and
-  every process-wide state), one entry point under one request per section.
+  every process-wide state), one entry point under one request per section, and the one
+  section classified for comparison has its two controls in a provenance record of their
+  own: the state forced to another constant moves the value, and the section regenerated
+  under other call histories does not.
 
 ⭐ **A row whose source cannot be established is not written.** It is listed in the header
 as a substitution. That exclusion is the mechanism: it is what keeps an uncovered epoch

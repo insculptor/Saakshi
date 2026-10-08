@@ -37,6 +37,7 @@ from saakshi.conventions import (  # noqa: E402
     NOT_REPORTED,
     BracketIncomplete,
     ConfigurationIncomplete,
+    ControlNotPlaceable,
     DeltaTChildFailed,
     DeltaTReading,
     DeltaTSection,
@@ -46,15 +47,18 @@ from saakshi.conventions import (  # noqa: E402
     bits_of,
     configuration_sha256,
     delta_t_basis,
+    delta_t_cause_controls,
     delta_t_classification,
     delta_t_configuration,
     delta_t_flag_rows,
     delta_t_library_state,
     delta_t_rows,
+    delta_t_sufficiency_controls,
     measure_delta_t,
     run_delta_t_child,
 )
 from saakshi.fixture import _scan_keys  # noqa: E402
+from saakshi.swiss import offset_epochs  # noqa: E402
 
 JD_1900 = float(swe.julday(1900, 1, 1, 0.0))
 JD_2000 = float(swe.julday(2000, 1, 1, 0.0))
@@ -422,3 +426,231 @@ def test_an_epoch_with_no_reading_of_the_unflagged_entry_point_is_refused():
     readings = [r for r in _readings() if not (r.section.flag is None and r.epoch_id == "e2")]
     with pytest.raises(BracketIncomplete, match="e2"):
         delta_t_flag_rows(readings)
+
+
+# --------------------------------------------------------------------------------------
+# The controls — cause and sufficiency on the compared section's configuration
+# --------------------------------------------------------------------------------------
+
+OWN, FILE_CONSTANT, DEFAULT_CONSTANT = -25.58, -25.936, -25.8
+SECTION = {s.name: s for s in DELTA_T_SECTIONS}
+BASIS = delta_t_basis(ephe=EPHE, sidereal_mode=1, **LIBRARY)
+SURVEY = [("year_1900", JD_1900), ("year_2000", JD_2000)]
+JD_1955 = float(swe.julday(1955, 1, 1, 0.0))
+
+
+def _grid() -> list[DeltaTReading]:
+    """The compared section reads its own constant back; the others put two other constants
+    in force. At 1900 and at a non-survey epoch the value moves with the constant; at 2000
+    every configuration returns one value."""
+    constant = {
+        "delta_t_moshier": OWN,
+        "delta_t_swiss_file": FILE_CONSTANT,
+        "delta_t_jpl_file": DEFAULT_CONSTANT,
+        "delta_t_unflagged": FILE_CONSTANT,
+    }
+    moved = {OWN: -1.0, FILE_CONSTANT: -2.0, DEFAULT_CONSTANT: -3.0}
+    out = []
+    for section in DELTA_T_SECTIONS:
+        c = constant[section.name]
+        for eid, jd, value in (
+            ("year_1900", JD_1900, moved[c]),
+            ("year_2000", JD_2000, 7.0),
+            ("not_surveyed", JD_1955, moved[c] * 10),
+        ):
+            out.append(DeltaTReading(section, eid, "s", jd, value, c))
+    return out
+
+
+class _Child:
+    """Records every plan; answers each reading with a value of its own and, for a forced
+    reading, the read-back it is told to (the forced value unless `void`)."""
+
+    def __init__(self, *, void: bool = False, unmoved: bool = False):
+        self.plans: list[dict] = []
+        self.void, self.unmoved = void, unmoved
+
+    def __call__(self, plan):
+        self.plans.append(plan)
+        out = []
+        for i, step in enumerate(plan["readings"]):
+            forced = step["forced_tidal_bits"]
+            value = 100.0 + len(self.plans) + i / 100
+            if forced is not None and self.unmoved:
+                value = -1.0  # the compared section's own baseline at 1900
+            back = forced if forced is not None and not self.void else bits_of(OWN)
+            out.append({"returned_type": "float", "value_bits": bits_of(value),
+                        "read_back_bits": back})
+        return out
+
+
+def _cause(readings, child, survey=SURVEY):
+    return delta_t_cause_controls(
+        readings, compared=DELTA_T_COMPARED_SECTION, basis=BASIS, survey_epochs=survey,
+        ephe_path="d", sidereal_mode=1, child=child,
+    )
+
+
+def test_a_cause_control_is_placed_only_where_the_survey_read_and_the_value_can_move():
+    child = _Child()
+    rows, skipped = _cause(_grid(), child)
+    # ⭐ at 1900, one per OTHER constant; ⛔ not at the epoch no survey read; ⛔ not at 2000
+    assert [(r["epoch_id"], r["forced_value_bits"]) for r in rows] == sorted(
+        [("year_1900", bits_of(DEFAULT_CONSTANT)), ("year_1900", bits_of(FILE_CONSTANT))],
+        key=lambda p: p[1],
+    )
+    assert {(s["epoch_id"], s["constant_bits"]) for s in skipped} == {
+        ("year_2000", bits_of(DEFAULT_CONSTANT)), ("year_2000", bits_of(FILE_CONSTANT))}
+    assert all("cannot move" in s["why"] for s in skipped)
+    # ⭐ each in a process of its own, forcing the constant, through the compared section's call
+    assert [len(p["readings"]) for p in child.plans] == [1, 1]
+    for plan, row in zip(child.plans, rows):
+        (step,) = plan["readings"]
+        assert step["forced_tidal_bits"] == row["forced_value_bits"]
+        assert step["flag"] == SECTION[DELTA_T_COMPARED_SECTION].flag
+        assert step["jd_bits"] == bits_of(JD_1900)
+    for row in rows:
+        assert row["state"] == DELTA_T_READ_BACK_STATE
+        assert row["baseline_value_bits"] == bits_of(-1.0)
+        assert row["read_back_after_call_bits"] == row["forced_value_bits"]
+        assert row["value_bits"] not in (bits_of(-1.0),)
+        _scan_keys(row, where="t", path="row")
+    # ⭐ the value is the child's, as read
+    assert [r["value"] for r in rows] == [101.0, 102.0]
+
+
+def test_a_cause_control_never_forces_the_sections_own_constant():
+    """⛔ Forcing the value already in force cannot fail, and is not a control."""
+    grid = [
+        DeltaTReading(r.section, r.epoch_id, r.stratum, r.jd, r.value, OWN) for r in _grid()
+    ]
+    child = _Child()
+    rows, skipped = _cause(grid, child)
+    assert rows == [] and child.plans == []
+    assert {s["epoch_id"] for s in skipped} == {"year_1900", "year_2000"}
+    assert all("no other configuration" in s["why"] for s in skipped)
+
+
+def test_a_void_or_unmoved_cause_control_is_written_as_measured():
+    """⛔ Measured, never declared: a call that overwrote the forced constant, or a value that
+    did not move, is the finding — and is written, not filtered."""
+    rows, _ = _cause(_grid(), _Child(void=True, unmoved=True))
+    assert len(rows) == 2
+    for row in rows:
+        assert row["read_back_after_call_bits"] == bits_of(OWN) != row["forced_value_bits"]
+        assert row["value_bits"] == row["baseline_value_bits"]
+
+
+def test_a_survey_epoch_that_is_another_instant_under_the_same_name_is_refused():
+    with pytest.raises(ControlNotPlaceable, match="year_1900"):
+        _cause(_grid(), _Child(), survey=[("year_1900", JD_1900 + 1.0)])
+
+
+def test_a_survey_epoch_the_section_did_not_read_is_refused():
+    """⛔ Dropping it would leave the survey's discriminating epoch uncontrolled, silently."""
+    with pytest.raises(ControlNotPlaceable, match="year_1950"):
+        _cause(_grid(), _Child(), survey=SURVEY + [("year_1950", JD_1955)])
+
+
+def test_the_survey_reads_the_offset_at_instants_the_time_offset_grid_also_reads():
+    """⭐ The cause control stands on the survey's epochs, so they must be epochs of the
+    time-offset grid by name AND by instant — held against the generator's own grid."""
+    import importlib.util
+
+    path = Path(__file__).resolve().parents[1] / "generators" / "convention_probes.py"
+    spec = importlib.util.spec_from_file_location("_convention_probes", path)
+    assert spec and spec.loader
+    probes = importlib.util.module_from_spec(spec)
+    sys.modules["_convention_probes"] = probes
+    spec.loader.exec_module(probes)
+    grid = {eid: bits_of(jd) for eid, _stratum, jd in probes._epochs(probes.DELTA_T_EPOCHS)}
+    survey = offset_epochs()
+    assert survey, "⛔ an empty survey would make this pass vacuously"
+    for epoch_id, jd in survey:
+        assert grid.get(epoch_id) == bits_of(jd), epoch_id
+
+
+def test_every_control_names_the_compared_sections_configuration():
+    rows, _ = _cause(_grid(), _Child())
+    sufficiency = delta_t_sufficiency_controls(
+        _grid(), compared=DELTA_T_COMPARED_SECTION, basis=BASIS, ephe_path="d",
+        sidereal_mode=1, child=_Child(),
+    )
+    # ⭐ the identity of the analytical section under sidereal mode 1 — a published vector
+    expected = "aa366175f15d303f64fa1728d72e32dd99016a11c1179b839d1cf6026bdf1c57"
+    assert {r["configuration_sha256"] for r in rows + sufficiency} == {expected}
+    assert {r["entry_point"] for r in rows + sufficiency} == {"deltat_ex"}
+    assert {r["finding"] for r in rows + sufficiency} == {"configuration_control"}
+
+
+def test_sufficiency_regenerates_the_section_under_two_other_call_histories():
+    child = _Child()
+    grid = _grid()
+    rows = delta_t_sufficiency_controls(
+        grid, compared=DELTA_T_COMPARED_SECTION, basis=BASIS, ephe_path="d", sidereal_mode=1,
+        child=child,
+    )
+    mine = [r for r in grid if r.section.name == DELTA_T_COMPARED_SECTION]
+    row_order = [r.epoch_id for r in mine]
+    # ⭐ one process holding EVERY reading of the file, in reverse ...
+    permuted_plan, *cold_plans = child.plans
+    assert [(s["flag"], s["jd_bits"]) for s in permuted_plan["readings"]] == [
+        (r.section.flag, bits_of(r.jd)) for r in reversed(grid)
+    ]
+    # ... then one process per row of the section, each holding that row alone
+    assert [[(s["flag"], s["jd_bits"]) for s in p["readings"]] for p in cold_plans] == [
+        [(r.section.flag, bits_of(r.jd))] for r in mine
+    ]
+    permuted = [r for r in rows if r["call_history"] == "permuted"]
+    cold = [r for r in rows if r["call_history"] == "cold_process_per_row"]
+    assert {r["epoch_id"] for r in permuted} == {r["epoch_id"] for r in cold} == set(row_order)
+    for r in permuted:
+        assert sorted(r["call_order"]) == sorted(row_order)
+        assert r["call_order"] != row_order, "⛔ the same order is not another call history"
+    assert all("call_order" not in r for r in cold)
+    # ⭐ every value is the regeneration's own — never copied from the section
+    section_values = {bits_of(r.value) for r in mine}
+    assert not {b for r in rows for b in r["values_bits"]} & section_values
+    for r in rows:
+        _scan_keys(r, where="t", path="row")
+
+
+def test_a_one_row_section_is_regenerated_only_in_cold_processes():
+    """⛔ A permutation of one row is the same order."""
+    one = [r for r in _grid() if r.epoch_id == "year_1900"]
+    rows = delta_t_sufficiency_controls(
+        one, compared=DELTA_T_COMPARED_SECTION, basis=BASIS, ephe_path="d", sidereal_mode=1,
+        child=_Child(),
+    )
+    assert [r["call_history"] for r in rows] == ["cold_process_per_row"]
+
+
+def test_the_controls_against_the_library_itself_with_no_data_files(tmp_path):
+    """⭐ End to end in an empty directory: the readings, then both controls, from real child
+    processes. With no files the three other configurations hold the library's default
+    constant, so one cause control is placed at 1900 and none at 2000."""
+    epochs = [("year_1900", "s", JD_1900), ("year_2000", "s", JD_2000)]
+    readings = measure_delta_t(epochs, ephe_path=str(tmp_path), sidereal_mode=1)
+    basis = delta_t_basis(ephe=EPHE, sidereal_mode=1, **LIBRARY)
+    cause, skipped = delta_t_cause_controls(
+        readings, compared=DELTA_T_COMPARED_SECTION, basis=basis, survey_epochs=SURVEY,
+        ephe_path=str(tmp_path), sidereal_mode=1,
+    )
+    (row,) = cause
+    assert row["epoch_id"] == "year_1900"
+    assert row["forced_value_bits"] == bits_of(DEFAULT_CONSTANT)
+    assert row["read_back_after_call_bits"] == row["forced_value_bits"]
+    siblings = {bits_of(r.value) for r in readings
+                if r.epoch_id == "year_1900" and r.section.name != DELTA_T_COMPARED_SECTION}
+    assert {row["value_bits"]} == siblings != {row["baseline_value_bits"]}
+    assert [s["epoch_id"] for s in skipped] == ["year_2000"]
+
+    sufficiency = delta_t_sufficiency_controls(
+        readings, compared=DELTA_T_COMPARED_SECTION, basis=basis, ephe_path=str(tmp_path),
+        sidereal_mode=1,
+    )
+    section = {r.epoch_id: [bits_of(r.value)] for r in readings
+               if r.section.name == DELTA_T_COMPARED_SECTION}
+    assert len(sufficiency) == 4
+    for r in sufficiency:
+        assert r["values_bits"] == section[r["epoch_id"]]

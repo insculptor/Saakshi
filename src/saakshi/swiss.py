@@ -913,6 +913,26 @@ def assert_library_state_returned(
     )
 
 
+#: The epochs the offset survey runs on, by calendar year. ⛔ **Both are load-bearing and
+#: for opposite reasons.** Before the modern record the offset is extrapolated from a
+#: tidal-acceleration constant, so the ephemeris flag moves it; at a tabulated instant all
+#: three flags return one number. A survey confined to the second kind would report no
+#: dependence and would be indistinguishable from one that looked and found none, so the
+#: grid carries a case of each and `offset_attribution` refuses a grid that does not.
+OFFSET_EPOCH_YEARS: tuple[int, ...] = (1900, 2000)
+
+
+def offset_epochs() -> list[tuple[str, float]]:
+    """The survey's offset epochs, as (epoch id, Julian day UT).
+
+    ⭐ **One definition, read by the survey and by the control that tests its prediction.**
+    The cause control on the offset predicts a forced value from the survey's readings, so
+    it can only be placed where the survey read; a second list of the same epochs would be
+    free to drift from the first.
+    """
+    return [(f"year_{year}", float(swe.julday(year, 1, 1, 0.0))) for year in OFFSET_EPOCH_YEARS]
+
+
 def offset_attribution(
     *,
     epochs: Iterable[tuple[str, float]],

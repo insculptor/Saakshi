@@ -661,6 +661,194 @@ def delta_t_basis(
     }
 
 
+# ======================================================================================
+# 1b. The controls on a configuration — what the readings follow, and that nothing else moves them
+# ======================================================================================
+
+#: The finding every control row carries.
+CONFIGURATION_CONTROL = "configuration_control"
+
+
+class ControlNotPlaceable(Exception):
+    """A control asked for where it cannot be taken — refused, never quietly skipped."""
+
+
+def _identity_of(section: DeltaTSection, basis: Mapping[str, Any]) -> str:
+    declared = basis["sections"][section.name]
+    return configuration_sha256(
+        entry_point=declared["entry_point"],
+        requested=declared["requested"],
+        library_version=basis["library_version"],
+        binding=basis["called_via"]["binding"],
+        binding_version=basis["called_via"]["version"],
+        configuration=declared["configuration"],
+    )
+
+
+def delta_t_cause_controls(
+    readings: Sequence[DeltaTReading],
+    *,
+    compared: str,
+    basis: Mapping[str, Any],
+    survey_epochs: Sequence[tuple[str, float]],
+    ephe_path: str,
+    sidereal_mode: int,
+    child: Callable[[Mapping[str, Any]], list[dict[str, Any]]] = run_delta_t_child,
+) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+    """⭐ **Cause**: force the state to another constant, call, read it back, record what moved.
+
+    Placed only where it can fail in both directions:
+
+    * at an epoch the offset survey read — its readings are the prediction a consumer checks
+      the moved value against, so a control anywhere else predicts nothing;
+    * forcing a constant ANOTHER configuration of this file put in force there — ⛔ never the
+      section's own, because forcing the value already in force cannot fail;
+    * ⛔ and not where every configuration holding that constant returned the baseline: the
+      value cannot move there, and a control that cannot pass is not a control either.
+
+    Each in its own fresh process. ⚠ **Every measured control is written as measured** — a
+    read-back the call overwrote (void) or a value that did not move as predicted is the
+    finding, and is never filtered out here.
+
+    Returns (control rows, the epochs and constants not controlled, each with why).
+    """
+    section = next(r.section for r in readings if r.section.name == compared)
+    identity = _identity_of(section, basis)
+    survey = {epoch_id: jd for epoch_id, jd in survey_epochs}
+    unread = sorted(set(survey) - {r.epoch_id for r in readings if r.section.name == compared})
+    if unread:
+        raise ControlNotPlaceable(
+            f"the survey read {unread} and the compared section did not: the control has "
+            "nowhere to stand at an epoch the section lacks, and dropping it would leave the "
+            "survey's discriminating epoch uncontrolled without a word"
+        )
+    rows: list[dict[str, Any]] = []
+    skipped: list[dict[str, Any]] = []
+    for reading in (r for r in readings if r.section.name == compared):
+        if reading.epoch_id not in survey:
+            continue
+        if bits_of(survey[reading.epoch_id]) != bits_of(reading.jd):
+            raise ControlNotPlaceable(
+                f"{reading.epoch_id}: the survey's instant and this file's are different "
+                "instants under one name, so the survey predicts nothing about this one"
+            )
+        own = bits_of(reading.read_back)
+        siblings = [
+            r for r in readings if r.epoch_id == reading.epoch_id and r.section.name != compared
+        ]
+        constants = sorted({bits_of(r.read_back) for r in siblings} - {own})
+        if not constants:
+            skipped.append(
+                {
+                    "epoch_id": reading.epoch_id,
+                    "why": "no other configuration put a different constant in force here",
+                }
+            )
+            continue
+        for constant in constants:
+            predicted = {bits_of(r.value) for r in siblings if bits_of(r.read_back) == constant}
+            if predicted == {bits_of(reading.value)}:
+                skipped.append(
+                    {
+                        "epoch_id": reading.epoch_id,
+                        "constant": _from_bits(constant),
+                        "constant_bits": constant,
+                        "why": (
+                            "every configuration holding this constant returned the baseline "
+                            "here, so forcing it cannot move the value — a control that cannot "
+                            "pass is not a control"
+                        ),
+                    }
+                )
+                continue
+            (taken,) = child(
+                {
+                    "ephe_path": ephe_path,
+                    "sidereal_mode": sidereal_mode,
+                    "readings": [
+                        _step(section, reading.jd, forced=_from_bits(constant))
+                    ],
+                }
+            )
+            value, after = _taken(taken, where=f"cause/{reading.epoch_id}")
+            forced = _from_bits(constant)
+            rows.append(
+                {
+                    "finding": CONFIGURATION_CONTROL,
+                    "control": "cause",
+                    "entry_point": section.entry_point,
+                    "configuration_sha256": identity,
+                    "epoch_id": reading.epoch_id,
+                    "state": DELTA_T_READ_BACK_STATE,
+                    "forced_value": forced,
+                    "forced_value_bits": constant,
+                    "read_back_after_call": after,
+                    "read_back_after_call_bits": bits_of(after),
+                    "baseline_value": reading.value,
+                    "baseline_value_bits": bits_of(reading.value),
+                    "value": value,
+                    "value_bits": bits_of(value),
+                }
+            )
+    return rows, skipped
+
+
+def delta_t_sufficiency_controls(
+    readings: Sequence[DeltaTReading],
+    *,
+    compared: str,
+    basis: Mapping[str, Any],
+    ephe_path: str,
+    sidereal_mode: int,
+    child: Callable[[Mapping[str, Any]], list[dict[str, Any]]] = run_delta_t_child,
+) -> list[dict[str, Any]]:
+    """⭐ **Sufficiency**: the compared section regenerated under two other call histories.
+
+    * ``permuted`` — every reading of the file, every section, taken again in REVERSE in one
+      fresh process; the compared section's epochs are recorded in the order they were called.
+      ⛔ Not for a one-row section: a permutation of one row is the same order.
+    * ``cold_process_per_row`` — each of the compared section's readings alone in a process of
+      its own, so nothing the file's other readings set can reach it.
+
+    ⛔ **A same-order re-run is not one of them.** This file's regeneration is already byte for
+    byte identical, and that is exactly the run that cannot see a state an earlier call sets.
+    ⚠ Every value is the child's, as read — the comparison with the section is a consumer's.
+    """
+    section = next(r.section for r in readings if r.section.name == compared)
+    identity = _identity_of(section, basis)
+    mine = [r for r in readings if r.section.name == compared]
+    plan = {"ephe_path": ephe_path, "sidereal_mode": sidereal_mode}
+
+    def row(history: str, epoch_id: str, value: float, **extra: Any) -> dict[str, Any]:
+        return {
+            "finding": CONFIGURATION_CONTROL,
+            "control": "sufficiency",
+            "entry_point": section.entry_point,
+            "configuration_sha256": identity,
+            "call_history": history,
+            **extra,
+            "epoch_id": epoch_id,
+            "values": [value],
+            "values_bits": [bits_of(value)],
+        }
+
+    rows: list[dict[str, Any]] = []
+    if len(mine) > 1:
+        reversed_readings = list(reversed(readings))
+        raw = child({**plan, "readings": [_step(r.section, r.jd) for r in reversed_readings]})
+        call_order = [r.epoch_id for r in reversed_readings if r.section.name == compared]
+        for r, taken in zip(reversed_readings, raw, strict=True):
+            if r.section.name != compared:
+                continue
+            value, _after = _taken(taken, where=f"permuted/{r.epoch_id}")
+            rows.append(row("permuted", r.epoch_id, value, call_order=call_order))
+    for r in mine:
+        (taken,) = child({**plan, "readings": [_step(section, r.jd)]})
+        value, _after = _taken(taken, where=f"cold/{r.epoch_id}")
+        rows.append(row("cold_process_per_row", r.epoch_id, value))
+    return rows
+
+
 def _from_bits(pattern: str) -> float:
     import struct
 

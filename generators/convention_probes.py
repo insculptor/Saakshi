@@ -50,12 +50,15 @@ from saakshi.conventions import (  # noqa: E402
     atmosphere_equivalence,
     bracket_epochs,
     classify_boundaries,
+    CONFIGURATION_CONTROL,
     DELTA_T_COMPARED_SECTION,
     DELTA_T_SECTIONS,
     DeltaTReading,
     boundary_character,
     delta_t_basis,
+    delta_t_cause_controls,
     delta_t_classification,
+    delta_t_sufficiency_controls,
     delta_t_flag_rows,
     delta_t_rows,
     delta_t_session_identity,
@@ -82,6 +85,7 @@ from saakshi.swiss import (  # noqa: E402
     Mode,
     Session,
     ephe_set_identity,
+    offset_epochs,
     verify_ephe_set,
 )
 
@@ -340,7 +344,7 @@ def _measure(epochs: list[tuple[str, str, float]], session: Session) -> list[Del
 
 def write_delta_t(
     *, session: Session, ephe: dict[str, Any], out_dir: Path, script: Path
-) -> tuple[Path, int]:
+) -> list[tuple[Path, int]]:
     # ⭐ Two stages, because the second grid is a function of what the first measured. The
     #   century pins and the brackets are taken together; only then is it known which
     #   disputed dates are real, and therefore which intervals need a reading of their own.
@@ -370,7 +374,7 @@ def write_delta_t(
             sidereal_mode=session.sidereal_mode,
         ),
     }
-    return _write(
+    written = _write(
         name="time-offset",
         title="What the library adds to a civil instant to reach the dynamical scale",
         rows=rows,
@@ -507,6 +511,133 @@ def write_delta_t(
         out_dir=out_dir,
         script=script,
     )
+    controls = write_delta_t_controls(
+        readings=readings, basis=oracle["ephemeris_basis"], session=session, ephe=ephe,
+        out_dir=out_dir, script=script,
+    )
+    return [written, controls]
+
+
+def write_delta_t_controls(
+    *,
+    readings: list[DeltaTReading],
+    basis: dict[str, Any],
+    session: Session,
+    ephe: dict[str, Any],
+    out_dir: Path,
+    script: Path,
+) -> tuple[Path, int]:
+    """The two controls on the compared section's configuration, as a provenance record."""
+    cause, not_controlled = delta_t_cause_controls(
+        readings,
+        compared=DELTA_T_COMPARED_SECTION,
+        basis=basis,
+        survey_epochs=offset_epochs(),
+        ephe_path=session.ephe_path,
+        sidereal_mode=session.sidereal_mode,
+    )
+    sufficiency = delta_t_sufficiency_controls(
+        readings,
+        compared=DELTA_T_COMPARED_SECTION,
+        basis=basis,
+        ephe_path=session.ephe_path,
+        sidereal_mode=session.sidereal_mode,
+    )
+    rows = cause + sufficiency
+    identity = rows[0]["configuration_sha256"] if rows else None
+    header = Header(
+        fixture_kind="provenance_record",
+        reference="R3",
+        generator=generator_for(script),
+        generated=today(),
+        title=(
+            "Whether the time offset follows the one state it is said to follow, and "
+            "nothing else"
+        ),
+        oracle={
+            **_oracle(None, ephe, session),
+            "session": delta_t_session_identity(sidereal_mode=session.sidereal_mode),
+            "method": (
+                "the compared section of the time-offset file, under its declared "
+                "configuration: the tidal-acceleration constant forced to another constant "
+                "this file measured in force and the call made, in a fresh process each; and "
+                "the section regenerated in a fresh process with every reading of the file "
+                "taken in reverse, and again with each of its readings alone in a process of "
+                "its own"
+            ),
+        },
+        attests=(
+            "two controls on one declared configuration of the time offset: that forcing the "
+            "state its value is said to follow moves the value, and that regenerating the "
+            "section under other call histories does not"
+        ),
+        authority={
+            "held_by": "the library itself, as observed",
+            "kind": (
+                "direct observation under a forced state, and under permuted and isolated "
+                "call histories"
+            ),
+            "scope": (
+                "⚠ this version of the library and this binding, and only the one "
+                "configuration every row names by its identity"
+            ),
+        },
+        record_date=today(),
+        row_schema={
+            "finding": CONFIGURATION_CONTROL,
+            "control": "cause | sufficiency",
+            "entry_point": "the entry point of the controlled section",
+            "configuration_sha256": (
+                "⭐ the controlled section's configuration identity, computed from its "
+                "declared configuration and never typed"
+            ),
+            "epoch_id": "the controlled section's epoch the row speaks for",
+            "state": "cause: the state forced — the one the section reads back",
+            "forced_value": "cause: the constant forced; `forced_value_bits` is the value",
+            "read_back_after_call": (
+                "cause: the constant read back after the call. ⛔ Where it differs from the "
+                "forced value the call overwrote it, and the control is void — written as "
+                "measured"
+            ),
+            "baseline_value": "cause: the section's own value at that epoch",
+            "value": "cause: what the call returned with the constant forced",
+            "call_history": "sufficiency: permuted | cold_process_per_row",
+            "call_order": "sufficiency, permuted: the section's epochs in the order called",
+            "values": "sufficiency: what the regeneration returned; `values_bits` is the value",
+        },
+        summary={
+            "controlled_section": DELTA_T_COMPARED_SECTION,
+            "controlled_file": "conventions/time-offset.jsonl",
+            "configuration_sha256": identity,
+            "cause": {"rows": len(cause), "not_controlled": not_controlled},
+            "sufficiency": {
+                "rows": len(sufficiency),
+                "call_histories": sorted({row["call_history"] for row in sufficiency}),
+            },
+        },
+        notes=[
+            "⭐ CAUSE. The section reads its constant back on every row; forcing ANOTHER "
+            "constant and seeing the value move is what shows the value follows it. It is "
+            "placed only where it can fail both ways: at an epoch the offset survey read, so "
+            "the survey's readings under the forced constant predict the moved value; with a "
+            "constant another configuration of the time-offset file put in force there; and "
+            "never where every configuration holding that constant returned the baseline, "
+            "because a value that cannot move cannot show anything. `summary.cause."
+            "not_controlled` lists what was left out and why.",
+            "⭐ SUFFICIENCY. A state nobody has measured would move a value only when the "
+            "calls before it change, so the section is regenerated under two other call "
+            "histories: every reading of the file in reverse in one fresh process, and each "
+            "of the section's readings alone in a process of its own. ⛔ A same-order re-run "
+            "is not one of them — this file's byte-identical regeneration is exactly the run "
+            "that cannot see such a state.",
+            "⛔ MEASURED, NEVER DECLARED. Every control taken is written as taken — a void one, "
+            "an unmoved one or a mismatched one included. Whether each passes is decided by "
+            "a consumer against the section and the survey, not here.",
+            _BITS_NOTE,
+        ],
+    )
+    path = out_dir / "conventions" / "time-offset-controls.jsonl"
+    return path, write_jsonl(path, header, rows)
 
 
 # --------------------------------------------------------------------------------------
@@ -1221,9 +1352,10 @@ def main() -> int:
         ("library state", lambda: write_state_audit(
             session=session, ephe=ephe, out_dir=args.out, script=script)),
     ):
-        path, count = call()
-        written.append((path, count))
-        print(f"{label}: wrote {count} rows -> {path}")
+        result = call()
+        for path, count in result if isinstance(result, list) else [result]:
+            written.append((path, count))
+            print(f"{label}: wrote {count} rows -> {path}")
 
     print(f"{len(written)} file(s), {sum(count for _, count in written)} rows")
     return 0

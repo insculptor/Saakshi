@@ -64,6 +64,7 @@ from saakshi.swiss import (  # noqa: E402
     ephe_set_identity,
     measured_entry_point_records,
     offset_attribution,
+    offset_epochs,
     returns_read_blind,
     state_dependence,
     verify_ephe_set,
@@ -1161,13 +1162,8 @@ def substitution_demonstration(
 # ⛔ The time offset: the two entry points the survey did not reach
 # --------------------------------------------------------------------------------------
 
-#: The epochs the offset survey runs on, by calendar year. ⛔ **Both are load-bearing and
-#: for opposite reasons.** Before the modern record the offset is extrapolated from a
-#: tidal-acceleration constant, so the ephemeris flag moves it; at a tabulated instant all
-#: three flags return one number. A survey confined to the second kind would report no
-#: dependence and would be indistinguishable from one that looked and found none, so the
-#: grid carries a case of each and `offset_attribution` refuses a grid that does not.
-OFFSET_EPOCH_YEARS: tuple[int, ...] = (1900, 2000)
+#: ⭐ The epochs the offset survey runs on are `saakshi.swiss.offset_epochs` — shared with the
+#: control that tests the survey's prediction, which can only be placed where the survey read.
 
 
 def _library_state(session: Session) -> tuple[float, int]:
@@ -1208,9 +1204,7 @@ def offset_survey(
     fires only on a real divergence. ⚠ A guard nothing can be shown to catch is a guard
     nobody has measured.
     """
-    epochs = [
-        (f"year_{year}", float(swe.julday(year, 1, 1, 0.0))) for year in OFFSET_EPOCH_YEARS
-    ]
+    epochs = offset_epochs()
     before_constant, before_flag = read_state(session)
     with tempfile.TemporaryDirectory() as empty:
         rows = offset_attribution(
