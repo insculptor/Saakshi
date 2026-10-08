@@ -28,15 +28,18 @@ answer is right — only that it is what this library, at this version, returned
 
 from __future__ import annotations
 
+import hashlib
+import json
 import subprocess
 import sys
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, Callable, Mapping, Sequence
 
 import swisseph as swe
 
 from .fixture import redact_environment
 from .swiss import (
+    SOURCE_NAMES,
     EphemerisSubstitution,
     Mode,
     Session,
@@ -161,103 +164,507 @@ def global_state_records() -> list[dict[str, Any]]:
 DELTA_T_UNIT = "day"
 
 
-def delta_t_readings(
-    epochs: list[tuple[str, str, float]], mode: Mode, session: Session
-) -> list[dict[str, Any]]:
-    """The time offset the library applies, per epoch, under one requested ephemeris.
+#: ⭐ The declared absences, spelled as a consumer reads them. A call that accepts no flag
+#: requested none, and an entry point whose return carries no flag reported none — neither
+#: is a weaker flag, so neither is ever written as one.
+NO_FLAG_ACCEPTED = "no_flag_accepted"
+NOT_REPORTED = "not_reported"
 
-    ⭐ **The measurement worth having is not the value; it is that the value moves with the
-    ephemeris flag.** The entry point takes one, uses it, and reports nothing back — so a
-    caller who passes a different flag for an unrelated reason gets a different time scale
-    and no notice of it.
+#: The state through which an ephemeris reaches the offset: the tidal-acceleration constant
+#: in force after the call, read back on every reading. ⛔ Spelled as the library-state audit
+#: spells it, and checked against that audit on the call path.
+DELTA_T_READ_BACK_STATE = "tidal_acceleration"
 
-    ⛔ Every reading is taken from a reset state and carries a proxy source assertion,
-    because this entry point is another that consults an ephemeris and returns no statement
-    about which one answered.
+#: Why every offset row refuses a source. ⛔ A refusal, not a weaker attribution: the value is
+#: not read from an ephemeris, so there is no answering one to name.
+DELTA_T_NO_SOURCE = (
+    "no ephemeris answers the offset: the entry point returns a bare number with no statement "
+    "of source, and what an ephemeris contributes enters only through the tidal-acceleration "
+    "constant, which is read back after the call"
+)
+
+
+@dataclass(frozen=True)
+class DeltaTSection:
+    """One configuration of the offset — one entry point, one request — and one section.
+
+    ⛔ **One section per configuration, never two requests in one.** A row holding what two
+    requests returned cannot say which configuration it speaks for, so a section is the unit
+    a consumer may compare, and a comparison *between* configurations is a summary rather
+    than a row.
     """
+
+    name: str
+    entry_point: str
+    #: ``None``: the entry point accepts no flag at all.
+    flag: int | None
+
+    @property
+    def requested(self) -> str:
+        return NO_FLAG_ACCEPTED if self.flag is None else SOURCE_NAMES[self.flag]
+
+
+#: Every configuration the offset is read under. ⭐ The three requests through the entry
+#: point that takes a flag, and the one that takes none — the four whose disagreement is the
+#: finding this file exists for.
+DELTA_T_SECTIONS: tuple[DeltaTSection, ...] = (
+    DeltaTSection("delta_t_moshier", "deltat_ex", swe.FLG_MOSEPH),
+    DeltaTSection("delta_t_swiss_file", "deltat_ex", swe.FLG_SWIEPH),
+    DeltaTSection("delta_t_jpl_file", "deltat_ex", swe.FLG_JPLEPH),
+    DeltaTSection("delta_t_unflagged", "deltat", None),
+)
+
+#: ⭐ The one section classified for comparison, and the one the controls are run on. ⛔ Only
+#: one: a consumer that admits a comparison admits exactly one configuration per row it judges
+#: against, so a second comparable section would be a second configuration under one row.
+#: The analytical ephemeris, because it is the request a predecessor deployment was measured
+#: to make. Every other section is ``reference_only`` and declares its configuration anyway.
+DELTA_T_COMPARED_SECTION = "delta_t_moshier"
+
+
+class ConfigurationIncomplete(Exception):
+    """A configuration that does not cover every process-wide state the audit measured.
+
+    ⛔ Raised, never reported. A declaration that omits a state reads as complete, and the
+    omitted state is exactly the one nobody will think to ask about.
+    """
+
+
+#: ⭐ **How each process-wide state is put in place before EVERY reading of the offset**, as
+#: (discipline, how). ⛔ Keyed by the names the library-state audit measured and checked
+#: against them on the call path, so a state measured later and not listed here is a refusal
+#: rather than an omission. ``declared`` states take their value from the session.
+DELTA_T_STATE_DISCIPLINE: dict[str, tuple[str, str]] = {
+    "sidereal_mode": (
+        "declared",
+        "re-applied after the close, which drops it",
+    ),
+    "user_defined_delta_t": (
+        "reset",
+        "set back to automatic explicitly before every reading — a close does not put it back",
+    ),
+    "tidal_acceleration": (
+        "reset",
+        "put back to automatic before every reading — by the close, and measured to be put "
+        "back by setting the path as well, each alone — so the first ephemeris the call "
+        "consults puts its own constant in force; the constant is read back after every "
+        "reading",
+    ),
+    "leap_second_table": (
+        "reset",
+        "never read: every reading runs in a fresh process that converts no civil instant, "
+        "because a table that is never re-read cannot be put back by a close",
+    ),
+}
+
+
+def delta_t_library_state(*, sidereal_mode: int) -> dict[str, dict[str, str]]:
+    """The state discipline a configuration declares — complete over the audit, or refused."""
+    measured = [state.name for state in GLOBAL_STATE]
+    missing = sorted(set(measured) - set(DELTA_T_STATE_DISCIPLINE))
+    unmeasured = sorted(set(DELTA_T_STATE_DISCIPLINE) - set(measured))
+    if missing or unmeasured:
+        raise ConfigurationIncomplete(
+            f"the offset's state discipline names {sorted(DELTA_T_STATE_DISCIPLINE)} and the "
+            f"library-state audit measured {sorted(measured)}: missing {missing}, never "
+            f"measured {unmeasured}. ⛔ A configuration declares every state the audit "
+            "measured, and only those"
+        )
+    declared_values = {"sidereal_mode": str(sidereal_mode)}
+    out: dict[str, dict[str, str]] = {}
+    for name in measured:
+        discipline, _how = DELTA_T_STATE_DISCIPLINE[name]
+        if discipline == "declared":
+            out[name] = {"discipline": "declared", "value": declared_values[name]}
+        else:
+            out[name] = {"discipline": discipline}
+    return out
+
+
+def delta_t_session_identity(*, sidereal_mode: int) -> dict[str, Any]:
+    """The protocol every offset reading was taken under, said in the oracle block."""
+    return {
+        "isolation": (
+            "every reading is taken in a fresh process, and the library is closed and "
+            "re-established before each reading in it"
+        ),
+        "why": (
+            "⛔ two of the library's process-wide states survive a close and one of them is "
+            "never re-read, so only a fresh process starts from a state nothing has set"
+        ),
+        "state_discipline": {name: how for name, (_d, how) in DELTA_T_STATE_DISCIPLINE.items()},
+        "sidereal_mode_number": sidereal_mode,
+    }
+
+
+def delta_t_classification(
+    sections: Sequence[DeltaTSection] = DELTA_T_SECTIONS,
+    compared: str = DELTA_T_COMPARED_SECTION,
+) -> dict[str, dict[str, str]]:
+    """`exact` for the compared section, `reference_only` for every other — or a refusal."""
+    names = [section.name for section in sections]
+    if names.count(compared) != 1:
+        raise ConfigurationIncomplete(
+            f"the compared section {compared!r} occurs {names.count(compared)} times in "
+            f"{names}: exactly one section is classified for comparison, or none is"
+        )
+    return {
+        name: {"class": "exact" if name == compared else "reference_only"} for name in names
+    }
+
+
+def delta_t_configuration(ephe: Mapping[str, Any], *, sidereal_mode: int) -> dict[str, Any]:
+    """The configuration every offset section declares: the path, its contents, the state."""
+    return {
+        "ephemeris_path": {
+            "set": "explicit",
+            "resolved_contents": [
+                {"dataset": item["dataset"], "sha256": item["sha256"]} for item in ephe["files"]
+            ],
+            "directory_contents_verified": ephe["directory_contents_verified"],
+        },
+        "library_state": delta_t_library_state(sidereal_mode=sidereal_mode),
+    }
+
+
+class NotRenderable(Exception):
+    """A value that would forge a field boundary in the configuration identity."""
+
+
+def configuration_sha256(
+    *,
+    entry_point: str,
+    requested: str,
+    library_version: str,
+    binding: str,
+    binding_version: str,
+    configuration: Mapping[str, Any],
+) -> str:
+    """The configuration identity a consumer names a configuration by — computed, never typed.
+
+    ⭐ The SHA-256 of one record per line, each ended by a single line feed: the identity's
+    version, the entry point, the request, the library, the path state, one ``file`` line per
+    resolved data file (by dataset, then digest) and one ``state`` line per process-wide
+    state (by name) — both sorted by the byte order of their UTF-8 encoding. A declared
+    value is tagged ``value`` or ``bits`` as a field of its own, so a string cannot render
+    as a bit pattern.
+
+    ⛔ A ``|`` or a line break in any rendered name or value is refused, and so is a dataset
+    listed twice: either would let two different configurations render the same text.
+    """
+
+    def field(text: str) -> str:
+        if "|" in text or "\n" in text or "\r" in text:
+            raise NotRenderable(
+                f"{text!r} carries a '|' or a line break, which would forge a field boundary"
+            )
+        return text
+
+    path = configuration["ephemeris_path"]
+    lines = [
+        "configuration|1",
+        f"entry_point|{field(entry_point)}",
+        f"requested|{field(requested)}",
+        f"library|{field(library_version)}|{field(binding)}|{field(binding_version)}",
+        f"path|{field(path['set'])}",
+    ]
+    files = [(field(item["dataset"]), field(item["sha256"])) for item in path["resolved_contents"]]
+    datasets = [dataset for dataset, _sha in files]
+    if len(set(datasets)) != len(datasets):
+        raise NotRenderable(f"a dataset is listed twice in {sorted(datasets)}")
+    for dataset, sha in sorted(files, key=lambda f: (f[0].encode(), f[1].encode())):
+        lines.append(f"file|{dataset}|{sha}")
+    states = configuration["library_state"]
+    for name in sorted(states, key=lambda n: n.encode()):
+        entry = states[name]
+        if entry["discipline"] == "reset":
+            lines.append(f"state|{field(name)}|reset")
+        elif "value" in entry:
+            lines.append(f"state|{field(name)}|declared|value|{field(entry['value'])}")
+        else:
+            lines.append(f"state|{field(name)}|declared|bits|{field(entry['value_bits'])}")
+    text = "".join(line + "\n" for line in lines)
+    return hashlib.sha256(text.encode("utf-8")).hexdigest()
+
+
+#: ⭐ **The child program every offset reading is taken in.** ⛔ A fresh process, always, and
+#: the reason is the leap-second table: it is read once and never re-read, so a process that
+#: had converted any civil instant would carry that conversion's table into every reading
+#: after it, and no close could put it back. A child that converts nothing has never read it.
+#:
+#: Each reading: (optional contamination — the suite's seam, never a generator's), then the
+#: reset in `DELTA_T_STATE_DISCIPLINE`'s order, then (optional) the forced constant, then the
+#: call, then the constant read back. The return is recorded by its TYPE as well as its
+#: value, so "returns no flag" is read off the call rather than assumed.
+_DELTA_T_CHILD = r"""
+import json
+import struct
+import sys
+
+import swisseph as swe
+
+def bits(x):
+    return struct.pack(">d", x).hex()
+
+def value(h):
+    return struct.unpack(">d", bytes.fromhex(h))[0]
+
+plan = json.loads(sys.stdin.read())
+out = []
+for step in plan["readings"]:
+    dirty = step.get("contaminate")
+    if dirty is not None:
+        swe.set_delta_t_userdef(dirty["user_defined_delta_t"])
+        swe.set_tid_acc(dirty["tidal_acceleration"])
+    swe.close()
+    swe.set_ephe_path(plan["ephe_path"])
+    swe.set_sid_mode(plan["sidereal_mode"], 0, 0)
+    swe.set_delta_t_userdef(swe.DELTAT_AUTOMATIC)
+    if step.get("forced_tidal_bits") is not None:
+        swe.set_tid_acc(value(step["forced_tidal_bits"]))
+    jd = value(step["jd_bits"])
+    if step["flag"] is None:
+        returned = swe.deltat(jd)
+    else:
+        returned = swe.deltat_ex(jd, step["flag"])
+    is_number = isinstance(returned, float)
+    out.append({
+        "returned_type": type(returned).__name__,
+        "value_bits": bits(returned) if is_number else None,
+        "read_back_bits": bits(float(swe.get_tid_acc())),
+    })
+print(json.dumps(out))
+"""
+
+
+class DeltaTChildFailed(Exception):
+    """A child reading process failed, or returned something that is not a bare number."""
+
+
+def run_delta_t_child(plan: Mapping[str, Any]) -> list[dict[str, Any]]:
+    """Run one fresh process over a plan of readings, and return what it read.
+
+    ⭐ The working directory is the data directory: whatever the library could find relative
+    to where it runs is then inside the set whose contents were verified.
+    """
+    result = subprocess.run(
+        [sys.executable, "-B", "-c", _DELTA_T_CHILD],
+        input=json.dumps(plan),
+        capture_output=True,
+        text=True,
+        cwd=plan["ephe_path"],
+        check=False,
+    )
+    if result.returncode != 0:
+        raise DeltaTChildFailed(redact_environment(result.stderr.strip())[-600:])
+    readings = json.loads(result.stdout)
+    if len(readings) != len(plan["readings"]):
+        raise DeltaTChildFailed(
+            f"the child returned {len(readings)} readings for a plan of "
+            f"{len(plan['readings'])}"
+        )
+    return readings
+
+
+@dataclass(frozen=True)
+class DeltaTReading:
+    """One reading of the offset: what one configuration returned at one epoch."""
+
+    section: DeltaTSection
+    epoch_id: str
+    stratum: str
+    jd: float
+    value: float
+    read_back: float
+
+
+def _step(section: DeltaTSection, jd: float, *, forced: float | None = None) -> dict[str, Any]:
+    return {
+        "flag": section.flag,
+        "jd_bits": bits_of(jd),
+        "forced_tidal_bits": None if forced is None else bits_of(forced),
+    }
+
+
+def _plan(
+    steps: Sequence[Mapping[str, Any]], *, ephe_path: str, sidereal_mode: int
+) -> dict[str, Any]:
+    return {"ephe_path": ephe_path, "sidereal_mode": sidereal_mode, "readings": list(steps)}
+
+
+def _taken(raw: Mapping[str, Any], *, where: str) -> tuple[float, float]:
+    """A child's reading as (value, read-back), or a refusal naming what came back instead."""
+    if raw["returned_type"] != "float":
+        raise DeltaTChildFailed(
+            f"{where}: the entry point returned a {raw['returned_type']!r}, not a bare number. "
+            f"⛔ `{NOT_REPORTED}` is written because the return carries no flag; a return that "
+            "is not a bare number has to be read again before anything is written about it"
+        )
+    return _from_bits(raw["value_bits"]), _from_bits(raw["read_back_bits"])
+
+
+def measure_delta_t(
+    epochs: Sequence[tuple[str, str, float]],
+    *,
+    ephe_path: str,
+    sidereal_mode: int,
+    sections: Sequence[DeltaTSection] = DELTA_T_SECTIONS,
+    child: Callable[[Mapping[str, Any]], list[dict[str, Any]]] = run_delta_t_child,
+) -> list[DeltaTReading]:
+    """Every configuration at every epoch, in ONE fresh process, section by section.
+
+    ⭐ **The order is part of what is recorded**: section by section, epoch by epoch, each
+    reading from the full reset. The sufficiency control re-takes the compared section under
+    a different call history, and only a stated order can be shown to differ from another.
+    """
+    order = [(section, eid, stratum, jd) for section in sections for eid, stratum, jd in epochs]
+    raw = child(
+        _plan(
+            [_step(section, jd) for section, _eid, _stratum, jd in order],
+            ephe_path=ephe_path,
+            sidereal_mode=sidereal_mode,
+        )
+    )
+    readings: list[DeltaTReading] = []
+    for (section, eid, stratum, jd), taken in zip(order, raw, strict=True):
+        value, read_back = _taken(taken, where=f"{section.name}/{eid}")
+        readings.append(DeltaTReading(section, eid, stratum, jd, value, read_back))
+    return readings
+
+
+class ReadBackDisagrees(Exception):
+    """One configuration read back two different constants.
+
+    ⛔ Raised, never averaged. A configuration whose readings disagree on the state it
+    declares did not determine that state, and its rows cannot claim it did.
+    """
+
+
+def delta_t_rows(readings: Sequence[DeltaTReading]) -> list[dict[str, Any]]:
+    """The offset rows: one per reading, each refusing a source and reading the state back.
+
+    ⛔ Every row of a section must read back ONE constant — checked here, before anything is
+    written, because a consumer will refuse the whole file for it and the refusal belongs at
+    the instrument that took the readings.
+    """
+    seen: dict[str, set[str]] = {}
+    for reading in readings:
+        seen.setdefault(reading.section.name, set()).add(bits_of(reading.read_back))
+    for name, constants in seen.items():
+        if len(constants) != 1:
+            raise ReadBackDisagrees(
+                f"section {name!r} read back {sorted(constants)}: one configuration, two "
+                "states in force"
+            )
     rows: list[dict[str, Any]] = []
-    for epoch_id, stratum, jd in epochs:
-        where = f"{mode.id}/delta_t/{epoch_id}"
-        session.reset()
-        try:
-            assertion = assert_window(mode, body=swe.SUN, jd_start=jd, jd_end=jd, where=where)
-        except EphemerisSubstitution:
-            continue
-        value_days = float(swe.deltat_ex(jd, mode.flag))
-        tid_acc = float(swe.get_tid_acc())
-        rows.append(
+    for reading in readings:
+        section = reading.section
+        row: dict[str, Any] = {
+            "section": section.name,
+            "epoch_id": reading.epoch_id,
+            "stratum": reading.stratum,
+            "jd_ut": reading.jd,
+            "jd_ut_bits": bits_of(reading.jd),
+            "utc": calendar_ut(reading.jd),
+        }
+        if section.flag is not None:
+            row["ephemeris_requested"] = section.requested
+        row.update(
             {
-                "section": "delta_t",
-                "epoch_id": epoch_id,
-                "stratum": stratum,
-                "jd_ut": jd,
-                "jd_ut_bits": bits_of(jd),
-                "utc": calendar_ut(jd),
-                "ephemeris_requested": mode.source,
                 "unit": DELTA_T_UNIT,
-                "values": [value_days],
-                "values_bits": [bits_of(value_days)],
-                "seconds": value_days * SECONDS_PER_DAY,
-                "tidal_acceleration_in_force": tid_acc,
-                "source_assertion": assertion,
-                "reported_by_entry_point": (
-                    "⛔ nothing. This entry point accepts an ephemeris flag, uses it, and "
-                    "returns no statement of which ephemeris supplied the constants behind "
-                    "the answer"
-                ),
+                "values": [reading.value],
+                "values_bits": [bits_of(reading.value)],
+                "seconds": reading.value * SECONDS_PER_DAY,
+                "state_read_back": {
+                    "state": DELTA_T_READ_BACK_STATE,
+                    "value": reading.read_back,
+                    "value_bits": bits_of(reading.read_back),
+                },
+                "source_assertion": {"kind": "none", "reason": DELTA_T_NO_SOURCE},
             }
         )
+        rows.append(row)
     return rows
 
 
-def delta_t_flag_dependence(
-    epochs: list[tuple[str, str, float]], modes: dict[str, Mode], session: Session
-) -> list[dict[str, Any]]:
-    """The same instant, the same entry point, one argument changed — and the answer moves.
+def delta_t_flag_rows(readings: Sequence[DeltaTReading]) -> list[dict[str, Any]]:
+    """Per epoch, the flagged answers side by side and which one the unflagged call equals.
 
-    ⭐ The unflagged entry point is called too, so the file records **which flagged answer
-    the unflagged one silently equals**. A caller who never passes a flag has still chosen
-    one.
+    ⚠ **Derived from the section readings, and never written as rows.** A row holding three
+    requests' answers has no configuration to declare; this shape exists for the switchover
+    test and the summary, which compare configurations and are not themselves values.
     """
-    rows: list[dict[str, Any]] = []
-    for epoch_id, stratum, jd in epochs:
-        session.reset()
-        readings: dict[str, float] = {}
-        for label, flag in (
-            ("moshier", swe.FLG_MOSEPH),
-            ("swiss_file", swe.FLG_SWIEPH),
-            ("jpl_file", swe.FLG_JPLEPH),
-        ):
-            session.reset()
-            readings[label] = float(swe.deltat_ex(jd, flag))
-        session.reset()
-        unflagged = float(swe.deltat(jd))
-        matches = sorted(k for k, v in readings.items() if v == unflagged)
-        spread = (max(readings.values()) - min(readings.values())) * SECONDS_PER_DAY
-        rows.append(
+    by_epoch: dict[str, list[DeltaTReading]] = {}
+    for reading in readings:
+        by_epoch.setdefault(reading.epoch_id, []).append(reading)
+    out: list[dict[str, Any]] = []
+    for epoch_id, group in by_epoch.items():
+        flagged = {r.section.requested: r.value for r in group if r.section.flag is not None}
+        unflagged = [r.value for r in group if r.section.flag is None]
+        if len(unflagged) != 1:
+            raise BracketIncomplete(
+                f"{epoch_id}: {len(unflagged)} readings of the entry point that takes no flag"
+            )
+        labels = sorted(flagged)
+        out.append(
             {
                 "section": "flag_dependence",
                 "epoch_id": epoch_id,
-                "stratum": stratum,
-                "jd_ut": jd,
-                "jd_ut_bits": bits_of(jd),
-                "utc": calendar_ut(jd),
-                "unit": DELTA_T_UNIT,
-                "values": [readings[k] for k in sorted(readings)],
-                "values_bits": [bits_of(readings[k]) for k in sorted(readings)],
-                "value_labels": sorted(readings),
-                "unflagged_entry_point": unflagged,
-                "unflagged_entry_point_bits": bits_of(unflagged),
-                "unflagged_equals": matches,
-                "spread_seconds": spread,
-                "meaning": (
-                    "⭐ where the spread is non-zero, an argument naming a source of "
-                    "positions has changed a quantity that is not a position. Where it is "
-                    "zero the three agree, which is a measurement and not a guarantee"
-                ),
+                "stratum": group[0].stratum,
+                "jd_ut": group[0].jd,
+                "values": [flagged[k] for k in labels],
+                "values_bits": [bits_of(flagged[k]) for k in labels],
+                "value_labels": labels,
+                "unflagged_entry_point": unflagged[0],
+                "unflagged_entry_point_bits": bits_of(unflagged[0]),
+                "unflagged_equals": sorted(k for k in labels if flagged[k] == unflagged[0]),
+                "spread_seconds": (max(flagged.values()) - min(flagged.values()))
+                * SECONDS_PER_DAY,
             }
         )
-    return rows
+    return out
+
+
+def delta_t_basis(
+    *,
+    ephe: Mapping[str, Any],
+    library_version: str,
+    binding: str,
+    binding_version: str,
+    sidereal_mode: int,
+    sections: Sequence[DeltaTSection] = DELTA_T_SECTIONS,
+) -> dict[str, Any]:
+    """The file's ephemeris basis: the library's identity, and one basis per section.
+
+    ⭐ Every section returns ``not_reported`` because every reading's return was a bare
+    number (`_taken` refuses anything else), and every section declares the same complete
+    configuration; only the entry point and the request differ between them.
+    """
+    configuration = delta_t_configuration(ephe, sidereal_mode=sidereal_mode)
+    return {
+        "library_version": library_version,
+        "called_via": {"binding": binding, "version": binding_version},
+        "data_files": {
+            "files": [
+                {"dataset": item["dataset"], "sha256": item["sha256"]} for item in ephe["files"]
+            ]
+        },
+        "sections": {
+            section.name: {
+                "entry_point": section.entry_point,
+                "requested": section.requested,
+                "returned": NOT_REPORTED,
+                "configuration": configuration,
+            }
+            for section in sections
+        },
+    }
+
+
+def _from_bits(pattern: str) -> float:
+    import struct
+
+    return float(struct.unpack(">d", bytes.fromhex(pattern))[0])
 
 
 # ======================================================================================

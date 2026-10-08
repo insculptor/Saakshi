@@ -46,13 +46,20 @@ from saakshi.conventions import (  # noqa: E402
     SURVIVAL_LIMIT,
     SURVIVAL_TEST,
     Boundary,
-    BracketIncomplete,
     apparent_variants,
     atmosphere_equivalence,
     bracket_epochs,
     classify_boundaries,
-    delta_t_flag_dependence,
-    delta_t_readings,
+    DELTA_T_COMPARED_SECTION,
+    DELTA_T_SECTIONS,
+    DeltaTReading,
+    boundary_character,
+    delta_t_basis,
+    delta_t_classification,
+    delta_t_flag_rows,
+    delta_t_rows,
+    delta_t_session_identity,
+    measure_delta_t,
     mid_interval_epochs,
     unbounded_interval_coverage,
     global_state_records,
@@ -250,6 +257,8 @@ def _write(
     summary: dict[str, Any],
     out_dir: Path,
     script: Path,
+    classification: dict[str, dict[str, str]] | None = None,
+    budget_row: str = BUDGET_ROW,
 ) -> tuple[Path, int]:
     sections = sorted({str(row["section"]) for row in rows})
     header = Header(
@@ -260,8 +269,10 @@ def _write(
         title=title,
         oracle=oracle,
         request=request,
-        classification=_classification(sections),
-        budget_row=BUDGET_ROW,
+        classification=(
+            classification if classification is not None else _classification(sections)
+        ),
+        budget_row=budget_row,
         row_schema=row_schema,
         summary={
             **summary,
@@ -314,45 +325,17 @@ _REFERENCE_ONLY_NOTE = (
 # --------------------------------------------------------------------------------------
 
 
-#: The two entry points the offset is read through, on every epoch in the grid. ⛔ Both, not
-#: whichever is convenient: they were measured to disagree, so a grid taken through one of
-#: them records half of what it looks like it records.
-DELTA_T_ENTRY_POINTS = ("deltat_ex", "deltat")
+#: ⭐ The budget row the compared section names. ⛔ Not the convention row every other file here
+#: shares: a configuration admitted for comparison is judged against a row that names exactly
+#: one configuration, and the consumer that judges it mints that row. This name is this file's
+#: proposal for it, and nothing here asserts the row exists.
+DELTA_T_BUDGET_ROW = "delta-t-continuity"
 
-DELTA_T_MODES = ("moshier", "swiss_file")
 
-
-def _delta_t_rows(
-    epochs: list[tuple[str, str, float]], session: Session
-) -> list[dict[str, Any]]:
-    """Every epoch, through both entry points, or a refusal naming what is missing.
-
-    ⛔ **The completeness check is not belt-and-braces.** `delta_t_readings` drops an epoch
-    whose ephemeris it cannot assert, which is right — an unattributable reading must not be
-    written. But a *dropped* row and a row that was never asked for are indistinguishable
-    downstream, and the boundary verdicts below are comparisons between two epochs: lose one
-    silently and the verdict becomes a statement about nothing while still looking like a
-    verdict.
-    """
-    rows: list[dict[str, Any]] = []
-    for mode_id in DELTA_T_MODES:
-        rows.extend(delta_t_readings(epochs, MODES[mode_id], session))
-    rows.extend(delta_t_flag_dependence(epochs, MODES, session))
-
-    expected = {eid for eid, _stratum, _jd in epochs}
-    for section, per_epoch in (("delta_t", len(DELTA_T_MODES)), ("flag_dependence", 1)):
-        seen: dict[str, int] = {}
-        for row in rows:
-            if row["section"] == section:
-                seen[row["epoch_id"]] = seen.get(row["epoch_id"], 0) + 1
-        short = sorted(e for e in expected if seen.get(e, 0) != per_epoch)
-        if short:
-            raise BracketIncomplete(
-                f"section {section!r} is missing readings at {short} — expected "
-                f"{per_epoch} per epoch. An epoch whose source could not be asserted is "
-                "dropped by design, and a grid built on comparisons cannot tolerate it"
-            )
-    return rows
+def _measure(epochs: list[tuple[str, str, float]], session: Session) -> list[DeltaTReading]:
+    return measure_delta_t(
+        epochs, ephe_path=session.ephe_path, sidereal_mode=session.sidereal_mode
+    )
 
 
 def write_delta_t(
@@ -361,30 +344,44 @@ def write_delta_t(
     # ⭐ Two stages, because the second grid is a function of what the first measured. The
     #   century pins and the brackets are taken together; only then is it known which
     #   disputed dates are real, and therefore which intervals need a reading of their own.
+    #   ⚠ Each stage is one fresh process, so a stage-two reading follows no stage-one call.
     century = _epochs(DELTA_T_EPOCHS)
     brackets = bracket_epochs(DELTA_T_BOUNDARIES)
-    rows = _delta_t_rows(century + brackets, session)
+    readings = _measure(century + brackets, session)
 
-    verdicts = classify_boundaries(
-        DELTA_T_BOUNDARIES, [r for r in rows if r["section"] == "flag_dependence"]
-    )
+    verdicts = classify_boundaries(DELTA_T_BOUNDARIES, delta_t_flag_rows(readings))
     intervals = mid_interval_epochs(DELTA_T_BOUNDARIES, verdicts)
     coverage = unbounded_interval_coverage(DELTA_T_BOUNDARIES, verdicts, century)
-    rows.extend(_delta_t_rows(intervals, session))
+    if intervals:
+        readings = readings + _measure(intervals, session)
 
     epochs = century + brackets + intervals
-    spread = [row for row in rows if row["section"] == "flag_dependence"]
-    moved = [row for row in spread if row["spread_seconds"] != 0.0]
+    rows = delta_t_rows(readings)
+    flag_rows = delta_t_flag_rows(readings)
+    moved = [row for row in flag_rows if row["spread_seconds"] != 0.0]
+    oracle = {
+        **_oracle(None, ephe, session),
+        "session": delta_t_session_identity(sidereal_mode=session.sidereal_mode),
+        "ephemeris_basis": delta_t_basis(
+            ephe=ephe,
+            library_version=swe.version,
+            binding="pyswisseph",
+            binding_version=BINDING_VERSION,
+            sidereal_mode=session.sidereal_mode,
+        ),
+    }
     return _write(
         name="time-offset",
         title="What the library adds to a civil instant to reach the dynamical scale",
         rows=rows,
+        classification=delta_t_classification(),
+        budget_row=DELTA_T_BUDGET_ROW,
         request={
             "epochs": [
                 {"epoch_id": eid, "stratum": stratum, "jd_ut": jd, "jd_ut_bits": bits(jd)}
                 for eid, stratum, jd in epochs
             ],
-            "entry_points": list(DELTA_T_ENTRY_POINTS),
+            "entry_points": sorted({section.entry_point for section in DELTA_T_SECTIONS}),
             "disputed_switchovers": [
                 {
                     "boundary_id": b.boundary_id,
@@ -402,32 +399,55 @@ def write_delta_t(
             ),
             "regenerate": "generators/convention_probes.py --ephe-path <dir> --out <dir>",
         },
-        oracle=_oracle(None, ephe, session),
+        oracle=oracle,
         row_schema={
             **_COMMON_SCHEMA,
-            "section": "delta_t | flag_dependence",
-            "ephemeris_requested": "the source named in the call's flag",
+            "section": (
+                "one configuration — one entry point under one request: "
+                + " | ".join(section.name for section in DELTA_T_SECTIONS)
+            ),
+            "ephemeris_requested": (
+                "the source named in the call's flag — on the sections whose entry point "
+                "takes one, and equal to that section's request"
+            ),
             "seconds": "the same offset in seconds, for reading; the day value is the value",
-            "tidal_acceleration_in_force": (
-                "⚠ the constant the library held when the reading was taken. It is an input "
-                "to the historical part of the conversion, and a close changes it"
+            "state_read_back": (
+                "⭐ the tidal-acceleration constant in force after the call, read back on "
+                "every reading; `value_bits` is the value. It is the state through which an "
+                "ephemeris reaches this quantity, and one configuration reads back one "
+                "constant"
             ),
-            "unflagged_entry_point": "what the entry point that takes no flag returned",
-            "unflagged_equals": (
-                "⭐ which of the flagged answers the unflagged one is identical to — a "
-                "caller who passes no flag has still chosen one"
-            ),
-            "spread_seconds": "the largest disagreement between the three flagged answers",
-            "reported_by_entry_point": (
-                "⛔ what the call itself said about which ephemeris supplied its constants"
+            "source_assertion": (
+                "⛔ `none` on every row: a refusal to name a source, because no ephemeris "
+                "answers this quantity — its `reason` says why"
             ),
         },
         notes=[
             "⭐ THE POINT OF THIS FILE. The entry point takes an argument naming a source of "
             "**positions**, and returns a quantity that is not a position — and at one of "
-            "the three epochs here the answer moves with it. So two callers converting the "
-            "same civil instant, differing only in an ephemeris flag chosen for unrelated "
-            "reasons, get two different instants and no notice of it.",
+            "the three century epochs here the answer moves with it. So two callers "
+            "converting the same civil instant, differing only in an ephemeris flag chosen "
+            "for unrelated reasons, get two different instants and no notice of it.",
+            "⭐ ONE SECTION PER CONFIGURATION. Each section is one entry point under one "
+            "request, and declares its basis and its whole configuration: the data "
+            "directory and every file in it, and the discipline for every process-wide "
+            "state the library-state audit measured. ⛔ A row holding several requests' "
+            "answers could declare none of them, so the comparison between configurations "
+            "is in `summary.flag_dependence`, derived from the sections and never written "
+            "as rows.",
+            "⛔ NO ROW NAMES A SOURCE. The offset is not read from an ephemeris: the entry "
+            "point returns a bare number with no statement of source, and an ephemeris "
+            "reaches the value only through the tidal-acceleration constant, which every "
+            "row reads back. A position call under the same flag says which ephemeris "
+            "answered THAT call, which is a different quantity — so no proxy is asserted, "
+            "and none is called.",
+            "⚠ ONE SECTION IS CLASSIFIED FOR COMPARISON, AND THE REST ARE NOT. "
+            f"`{DELTA_T_COMPARED_SECTION}` is `exact`: what this library returned under that "
+            "declared configuration, bit for bit — a statement about the configuration, "
+            "never about the Earth and never about which ephemeris the value came from. "
+            "⛔ Classifying it does not make it comparable on its own: a consumer that "
+            "admits it needs this configuration's controls and a row that names this "
+            "configuration, and neither is in this file.",
             "⚠ The entry point returns DAYS. A duration recorded in the wrong unit is the "
             "easiest reproduction failure to make and the hardest to see in a table, so both "
             "forms are written and the day value is the authoritative one.",
@@ -450,7 +470,6 @@ def write_delta_t(
             + ". ⚠ So `survives = false` bounds what this instrument can see, and says "
             "nothing about what the library does.",
             _BITS_NOTE,
-            _REFERENCE_ONLY_NOTE,
         ],
         summary={
             "switchovers": {
@@ -464,6 +483,14 @@ def write_delta_t(
                 "intervals_sampled_in_the_middle": [eid for eid, _s, _jd in intervals],
                 "unbounded_intervals": coverage,
             },
+            "flag_dependence": [
+                {
+                    "epoch_id": row["epoch_id"],
+                    **boundary_character(row),
+                    "spread_seconds": row["spread_seconds"],
+                }
+                for row in flag_rows
+            ],
             "epochs_where_the_flag_changed_the_answer": [
                 {
                     "epoch_id": row["epoch_id"],

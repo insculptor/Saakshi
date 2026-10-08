@@ -207,6 +207,12 @@ and every row records which one it relied on:
 * `proxy_window` — it said nothing, so the source was established at **both ends** of the
   interval the call may read, using an entry point that does report. ⚠ Bounded, not sound,
   and weaker than a report; rows say so rather than presenting the two as equivalent.
+* `none` — a refusal, for a quantity **no ephemeris answers**: the time offset is not read from
+  an ephemeris at all, and what one contributes enters only through a library state (the
+  tidal-acceleration constant), which every such row reads back instead. ⛔ Not a weaker
+  proxy — a position call under the same flag answers a different quantity, so none is
+  asserted. Each such section declares its whole configuration (the data directory and
+  every process-wide state), one entry point under one request per section.
 
 ⭐ **A row whose source cannot be established is not written.** It is listed in the header
 as a substitution. That exclusion is the mechanism: it is what keeps an uncovered epoch
