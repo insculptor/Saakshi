@@ -43,9 +43,12 @@ from saakshi.conventions import (  # noqa: E402
     HOUSE_SYSTEM_LETTERS,
     LEAP_SECOND_ENTRY_POINT,
     RISE_DEFINITIONS,
+    NU_DOT_ADJUSTMENT_ENDS,
     SURVIVAL_LIMIT,
     SURVIVAL_TEST,
+    TABULATED_SOURCE_CHANGES,
     Boundary,
+    interval_edges,
     apparent_variants,
     atmosphere_equivalence,
     bracket_epochs,
@@ -115,11 +118,15 @@ DELTA_T_EPOCHS: tuple[tuple[str, str, int, int, int], ...] = (
 #:
 #: ⛔ These are the dates the *documentation* disputes, not dates this repository asserts are
 #: real. Whether any of them is observable at all is the measurement.
+#:
+#: ⭐ Each carries what the documentation says changes there. Three are three statements of
+#: ONE date — where the tidal-acceleration adjustment of earlier values stops — and 1974 is a
+#: separate change of the tabulated values' source, which the survival test cannot see.
 DELTA_T_BOUNDARIES: tuple[Boundary, ...] = (
-    Boundary("switch_1948_01_01", 1948, 1, 1),
-    Boundary("switch_1955_01_01", 1955, 1, 1),
-    Boundary("switch_1955_12_01", 1955, 12, 1),
-    Boundary("switch_1974_01_01", 1974, 1, 1),
+    Boundary("switch_1948_01_01", 1948, 1, 1, NU_DOT_ADJUSTMENT_ENDS),
+    Boundary("switch_1955_01_01", 1955, 1, 1, NU_DOT_ADJUSTMENT_ENDS),
+    Boundary("switch_1955_12_01", 1955, 12, 1, NU_DOT_ADJUSTMENT_ENDS),
+    Boundary("switch_1974_01_01", 1974, 1, 1, TABULATED_SOURCE_CHANGES),
 )
 
 #: Epochs for the position and house questions. ⚠ **Not J2000 alone**: at the reference
@@ -333,7 +340,11 @@ _REFERENCE_ONLY_NOTE = (
 #: shares: a configuration admitted for comparison is judged against a row that names exactly
 #: one configuration, and the consumer that judges it mints that row. This name is this file's
 #: proposal for it, and nothing here asserts the row exists.
-DELTA_T_BUDGET_ROW = "delta-t-continuity"
+#:
+#: ⚠ Named for the registry entry it verifies, not for its role: a role name ("the continuity
+#: row") is a referent that moves the day a second continuity target arrives, and a row id is
+#: permanent. It replaces the earlier proposal `delta-t-continuity` at the consumer's request.
+DELTA_T_BUDGET_ROW = "swiss-ephemeris-match-1"
 
 
 def _measure(epochs: list[tuple[str, str, float]], session: Session) -> list[DeltaTReading]:
@@ -396,9 +407,11 @@ def write_delta_t(
                 for b in DELTA_T_BOUNDARIES
             ],
             "grid_derivation": (
-                "⚠ the mid-interval epochs are DERIVED, not declared: which of the disputed "
-                "dates is real is measured first, and only the intervals real ones enclose "
-                "are sampled. The rule is in `summary.switchovers.test` and the epochs it "
+                "⚠ the mid-interval epochs are DERIVED, not declared: the disputed dates are "
+                "bracketed first, and a date bounds an interval if the test observed a change "
+                "across it, or if the change its documentation names is one the test cannot "
+                "observe — its silence refutes nothing. Only the intervals those dates "
+                "enclose are sampled. The rule is in `summary.switchovers` and the epochs it "
                 "produced are all listed above"
             ),
             "regenerate": "generators/convention_probes.py --ephe-path <dir> --out <dir>",
@@ -465,8 +478,9 @@ def write_delta_t(
             "of them is consistent with every conflicting account of where the switchovers "
             "are. A reading consistent with both sides of a disputed question has not "
             "discriminated between them. Each disputed date is therefore measured one day "
-            "before and one day after, and every interval the real ones enclose is measured "
-            "in its middle.",
+            "before and one day after, and every interval the bounding dates enclose is "
+            "measured in its middle — a date bounds one if a change was observed across it, "
+            "or if its documented change is one the test cannot see.",
             "⛔ THE DATE ITSELF IS NOT MEASURED, DELIBERATELY. What is in question is which "
             "side of the date a behaviour lies on, and a reading taken on the date answers "
             "that for neither side.",
@@ -483,6 +497,15 @@ def write_delta_t(
                 "observed": sorted(v["boundary_id"] for v in verdicts if v["survives"]),
                 "not_observed": sorted(
                     v["boundary_id"] for v in verdicts if not v["survives"]
+                ),
+                "interval_edges": [
+                    b.boundary_id for b in interval_edges(DELTA_T_BOUNDARIES, verdicts)
+                ],
+                "interval_edge_rule": (
+                    "a date bounds an interval if a change was observed across it, or if its "
+                    "documented change is one this test cannot observe. ⛔ An unobserved date "
+                    "of the kind this test sees is refuted; one of a kind it cannot see is "
+                    "not, because its silence is the limit above and not a measurement"
                 ),
                 "intervals_sampled_in_the_middle": [eid for eid, _s, _jd in intervals],
                 "unbounded_intervals": coverage,

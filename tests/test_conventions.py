@@ -34,9 +34,13 @@ from saakshi.conventions import (  # noqa: E402
     BEFORE_STRATUM,
     Boundary,
     BracketIncomplete,
+    NU_DOT_ADJUSTMENT_ENDS,
+    SURVIVAL_TEST_SEES,
+    TABULATED_SOURCE_CHANGES,
     bracket_epochs,
     boundary_character,
     classify_boundaries,
+    interval_edges,
     mid_interval_epochs,
     unbounded_interval_coverage,
     HOUSE_SYSTEM_CONTROLS,
@@ -310,9 +314,9 @@ def test_a_key_of_the_shape_that_was_nearly_written_is_still_refused():
 # --------------------------------------------------------------------------------------
 
 BOUNDARIES = (
-    Boundary("switch_a", 1948, 1, 1),
-    Boundary("switch_b", 1955, 1, 1),
-    Boundary("switch_c", 1974, 1, 1),
+    Boundary("switch_a", 1948, 1, 1, NU_DOT_ADJUSTMENT_ENDS),
+    Boundary("switch_b", 1955, 1, 1, NU_DOT_ADJUSTMENT_ENDS),
+    Boundary("switch_c", 1974, 1, 1, TABULATED_SOURCE_CHANGES),
 )
 
 
@@ -347,7 +351,7 @@ DIFFERENT = (("moshier",), ("swiss_file",))
 
 def test_a_bracket_is_a_day_either_side_and_never_the_date_itself():
     """⚠ A reading taken ON the date says which side the behaviour is on for neither side."""
-    epochs = bracket_epochs((Boundary("switch_a", 1948, 1, 1),))
+    epochs = bracket_epochs((Boundary("switch_a", 1948, 1, 1, NU_DOT_ADJUSTMENT_ENDS),))
     assert [stratum for _e, stratum, _jd in epochs] == [BEFORE_STRATUM, AFTER_STRATUM]
     before, after = (jd for _e, _s, jd in epochs)
     date = swe.julday(1948, 1, 1, 0.0)
@@ -381,6 +385,50 @@ def test_only_the_intervals_real_switchovers_enclose_are_sampled():
     assert [eid for eid, _s, _jd in epochs] == ["mid_switch_b_to_switch_c"]
     midpoint = epochs[0][2]
     assert swe.julday(1955, 1, 1, 0.0) < midpoint < swe.julday(1974, 1, 1, 0.0)
+
+
+def test_a_date_whose_change_this_test_cannot_see_still_bounds_an_interval():
+    """⭐ `survives = false` means NOT OBSERVABLE, never NOT THERE. A date whose documented
+    change the test cannot see is not refuted by the test's silence, so the interval it closes
+    still owes a reading in its middle. ⛔ Dropping it would be the unbounded negative the limit
+    forbids — two edge points pressed against one end of an interval, and none in it."""
+    character = {f"{b.boundary_id}_{s}": SAME for b in BOUNDARIES for s in ("before", "after")}
+    character["switch_b_after"] = DIFFERENT
+    verdicts = classify_boundaries(BOUNDARIES, _rows(**character))
+    assert [v["survives"] for v in verdicts] == [False, True, False]
+
+    edges = [b.boundary_id for b in interval_edges(BOUNDARIES, verdicts)]
+    assert edges == ["switch_b", "switch_c"]
+    epochs = mid_interval_epochs(BOUNDARIES, verdicts)
+    assert [eid for eid, _s, _jd in epochs] == ["mid_switch_b_to_switch_c"]
+
+
+def test_an_unobserved_date_of_the_kind_this_test_sees_is_refuted():
+    """⛔ The test observes the tidal-acceleration adjustment. A date of that kind across which
+    nothing changed is one the test would have seen, so it bounds nothing — the grid would
+    otherwise sample an interval that does not exist."""
+    character = {f"{b.boundary_id}_{s}": SAME for b in BOUNDARIES for s in ("before", "after")}
+    character["switch_b_after"] = DIFFERENT
+    verdicts = classify_boundaries(BOUNDARIES, _rows(**character))
+    assert "switch_a" not in [b.boundary_id for b in interval_edges(BOUNDARIES, verdicts)]
+
+
+def test_every_verdict_says_what_changes_there_and_whether_this_test_can_see_it():
+    """⭐ What an unobserved verdict means turns on these two fields, so a reader gets both."""
+    character = {f"{b.boundary_id}_{s}": SAME for b in BOUNDARIES for s in ("before", "after")}
+    verdicts = classify_boundaries(BOUNDARIES, _rows(**character))
+    assert [(v["documented_change"], v["observable_by_this_test"]) for v in verdicts] == [
+        (NU_DOT_ADJUSTMENT_ENDS, True),
+        (NU_DOT_ADJUSTMENT_ENDS, True),
+        (TABULATED_SOURCE_CHANGES, False),
+    ]
+    assert SURVIVAL_TEST_SEES == NU_DOT_ADJUSTMENT_ENDS
+
+
+def test_a_boundary_naming_no_documented_change_is_refused():
+    """⛔ A date with no documented change has no verdict anyone could read."""
+    with pytest.raises(ValueError, match="switch_x"):
+        Boundary("switch_x", 1960, 1, 1, "a change nobody documented")
 
 
 def test_a_missing_bracket_is_refused_rather_than_judged():

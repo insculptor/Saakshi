@@ -867,7 +867,8 @@ def _from_bits(pattern: str) -> float:
 #: come out differently.
 #:
 #: So each disputed date is bracketed — one day before, one day after — and the intervals
-#: between the dates that turn out to be real get a measurement of their own.
+#: between the dates that turn out to bound one (`interval_edges`) get a measurement of
+#: their own.
 
 
 class BracketIncomplete(Exception):
@@ -880,14 +881,43 @@ class BracketIncomplete(Exception):
     """
 
 
+#: ⭐ **WHAT THE DOCUMENTATION SAYS CHANGES AT A DATE — a closed set of two.** The disputed
+#: dates are not four instances of one thing: three of them are three statements of ONE date,
+#: where the adjustment of earlier values to the ephemeris's tidal acceleration stops, and the
+#: fourth is a separate change of the tabulated values' source.
+NU_DOT_ADJUSTMENT_ENDS = (
+    "the adjustment of earlier values to the ephemeris's tidal acceleration stops"
+)
+TABULATED_SOURCE_CHANGES = "the tabulated values change source"
+DOCUMENTED_CHANGES = frozenset({NU_DOT_ADJUSTMENT_ENDS, TABULATED_SOURCE_CHANGES})
+
+#: ⭐ **THE ONE KIND OF CHANGE THE SURVIVAL TEST CAN SEE.** It observes which requested sources
+#: answer alike, and the sources differ only through the tidal acceleration each puts in force
+#: — so a change in that adjustment changes the character, and a change of tabulated source
+#: that leaves every source agreeing on both sides does not.
+SURVIVAL_TEST_SEES = NU_DOT_ADJUSTMENT_ENDS
+
+
 @dataclass(frozen=True)
 class Boundary:
-    """A date the predecessor's documentation makes conflicting statements about."""
+    """A date the predecessor's documentation makes conflicting statements about.
+
+    ⛔ `change` is what the documentation says happens there, never what this repository found:
+    whether the test below can see that kind of change decides what an unobserved verdict means.
+    """
 
     boundary_id: str
     year: int
     month: int
     day: int
+    change: str
+
+    def __post_init__(self) -> None:
+        if self.change not in DOCUMENTED_CHANGES:
+            raise ValueError(
+                f"{self.boundary_id}: {self.change!r} is not a documented change this "
+                "instrument knows how to read a verdict about"
+            )
 
     @property
     def jd(self) -> float:
@@ -904,7 +934,10 @@ class Boundary:
 
 BEFORE_STRATUM = "one day before a disputed switchover"
 AFTER_STRATUM = "one day after a disputed switchover"
-MID_STRATUM = "mid-interval between two switchovers that were observed to be real"
+MID_STRATUM = (
+    "mid-interval between two consecutive switchovers that were observed, or whose documented "
+    "change this test cannot observe"
+)
 
 #: ⭐ **THE SURVIVAL TEST, AND WHY IT IS DISCRETE.** The offset itself moves across every
 #: date in the calendar, so a rule cut from the value would report all four dates as
@@ -1006,6 +1039,8 @@ def classify_boundaries(
             {
                 "boundary_id": boundary.boundary_id,
                 "date": f"{boundary.year:04d}-{boundary.month:02d}-{boundary.day:02d}",
+                "documented_change": boundary.change,
+                "observable_by_this_test": boundary.change == SURVIVAL_TEST_SEES,
                 "bracketed_by": [boundary.before_id, boundary.after_id],
                 "character_before": before,
                 "character_after": after,
@@ -1018,17 +1053,36 @@ def classify_boundaries(
     return verdicts
 
 
+def interval_edges(
+    boundaries: tuple[Boundary, ...], verdicts: list[dict[str, Any]]
+) -> list[Boundary]:
+    """The dates that bound an interval: observed, or of a change this test cannot see.
+
+    ⭐ **What an unobserved verdict means depends on what the test can see.** A date whose
+    documented change is the kind the test observes, and across which nothing changed, is
+    refuted — the test would have seen it. ⛔ A date whose documented change the test cannot
+    observe is NOT refuted by the test's silence (`SURVIVAL_LIMIT`), so it still bounds an
+    interval, and that interval still owes a reading in its middle. ⚠ Dropping it would turn
+    the bounded negative into the unbounded one the limit forbids.
+    """
+    by_id = {v["boundary_id"]: v for v in verdicts}
+    return [
+        b
+        for b in boundaries
+        if by_id[b.boundary_id]["survives"] or b.change != SURVIVAL_TEST_SEES
+    ]
+
+
 def mid_interval_epochs(
     boundaries: tuple[Boundary, ...], verdicts: list[dict[str, Any]]
 ) -> list[tuple[str, str, float]]:
-    """One epoch in the middle of each interval two consecutive real switchovers enclose.
+    """One epoch in the middle of each interval two consecutive edges enclose.
 
     ⚠ **Derived, not declared.** Which epochs these are is a function of what the brackets
     measured, so the grid cannot be read off this file's constants — the file records the
-    rule and the resulting epochs both.
+    rule and the resulting epochs both. The edges are `interval_edges`'.
     """
-    survived = {v["boundary_id"] for v in verdicts if v["survives"]}
-    kept = [b for b in boundaries if b.boundary_id in survived]
+    kept = interval_edges(boundaries, verdicts)
     epochs: list[tuple[str, str, float]] = []
     for earlier, later in zip(kept, kept[1:]):
         midpoint = earlier.jd + (later.jd - earlier.jd) / 2.0
@@ -1050,8 +1104,7 @@ def unbounded_interval_coverage(
     something already measured lies inside them — a claim a reader can verify from the epoch
     list without trusting this sentence.
     """
-    survived = {v["boundary_id"] for v in verdicts if v["survives"]}
-    kept = [b for b in boundaries if b.boundary_id in survived]
+    kept = interval_edges(boundaries, verdicts)
     if not kept:
         return []
 
@@ -1063,7 +1116,7 @@ def unbounded_interval_coverage(
         found = [eid for eid, _stratum, jd in covering if inside(jd, edge.jd)]
         if not found:
             raise BracketIncomplete(
-                f"the interval {label} surviving boundary {edge.boundary_id} holds no "
+                f"the interval {label} edge {edge.boundary_id} holds no "
                 "measurement at all, and an interval with no reading in it is one this "
                 "grid has not covered"
             )

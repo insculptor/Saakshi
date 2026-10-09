@@ -570,6 +570,42 @@ def test_the_survey_reads_the_offset_at_instants_the_time_offset_grid_also_reads
         assert grid.get(epoch_id) == bits_of(jd), epoch_id
 
 
+def test_the_generators_dates_owe_a_reading_in_the_middle_of_1955_to_1974():
+    """⭐ Under the characters the brackets measured — a change across 1955-01-01 and across no
+    other date — the grid owes ONE mid-interval reading, at 1964-07-02: 1955-01-01 was observed,
+    and 1974-01-01 is a change of tabulated source this test cannot see. ⛔ 1948-01-01 and
+    1955-12-01 are statements of the same change 1955-01-01 is, and bound nothing."""
+    import importlib.util
+
+    from saakshi.conventions import classify_boundaries, mid_interval_epochs
+
+    path = Path(__file__).resolve().parents[1] / "generators" / "convention_probes.py"
+    spec = importlib.util.spec_from_file_location("_convention_probes", path)
+    assert spec and spec.loader
+    probes = importlib.util.module_from_spec(spec)
+    sys.modules["_convention_probes"] = probes
+    spec.loader.exec_module(probes)
+
+    labels = ["jpl_file", "moshier", "swiss_file"]
+    apart = {"values_bits": ["a1", "b2", "c3"], "unflagged_equals": ["swiss_file"]}
+    alike = {"values_bits": ["aa", "aa", "aa"], "unflagged_equals": labels}
+    # The measured shape: the sources disagree before 1955-01-01 and agree after it.
+    adjustment_ends = swe.julday(1955, 1, 1, 0.0)
+    rows = []
+    for boundary in probes.DELTA_T_BOUNDARIES:
+        for epoch_id, jd in ((boundary.before_id, boundary.jd - 1.0),
+                             (boundary.after_id, boundary.jd + 1.0)):
+            character = apart if jd < adjustment_ends else alike
+            rows.append({"epoch_id": epoch_id, "value_labels": labels, **character,
+                         "values": [0.0, 0.0, 0.0], "unflagged_entry_point": 0.0})
+    verdicts = classify_boundaries(probes.DELTA_T_BOUNDARIES, rows)
+    assert [v["boundary_id"] for v in verdicts if v["survives"]] == ["switch_1955_01_01"]
+
+    epochs = mid_interval_epochs(probes.DELTA_T_BOUNDARIES, verdicts)
+    assert [eid for eid, _s, _jd in epochs] == ["mid_switch_1955_01_01_to_switch_1974_01_01"]
+    assert swe.revjul(epochs[0][2]) == (1964, 7, 2, 0.0)
+
+
 def test_every_control_names_the_compared_sections_configuration():
     rows, _ = _cause(_grid(), _Child())
     sufficiency = delta_t_sufficiency_controls(
