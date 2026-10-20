@@ -66,6 +66,8 @@ generators/          one script per fixture set; each is a recorder
   publisher_testpo.py    the ephemeris publisher's own test-value set
   r3_swiss.py            the same grid under each ephemeris source, source asserted per row
   r5_continuity.py       what an earlier implementation answered, before it stops running
+  deployment_capture.py  what a deployment's library resolves, captured on its own host;
+                         ⛔ imports nothing from here and writes no fixture
   probe6b_ffi.py         what crossing into the ephemeris binding costs, as ratios
   r6_karaka_rules.py     what two located copies state, where they fork, and what neither says
   r6_reduction_fork.py   a rule one chapter disagrees with its own illustrations about
@@ -246,6 +248,31 @@ needs no timezone database, no place-name service, and nothing switched back on.
 ⛔ Every such fixture is `reference_only`. What an implementation answered is evidence about
 that implementation — never about the sky, and never a tolerance anyone may adopt without
 measuring it themselves.
+
+### Capturing a deployment, where the instrument is not installed
+
+`deployment_capture.py` is the one generator that runs **somewhere else**: on the host whose
+deployment it records, where this repository is not installed and must never be. So it imports
+nothing from here — the standard library and the binding only, which a test asserts — prints
+one JSON document and that document's SHA-256 on a second line, and writes nothing but a
+temporary directory it removes. A fixture is made from the observation afterwards, here.
+
+```bash
+python deployment_capture.py > observation.txt      # on the host; bring both lines back
+```
+
+* ⛔ **A reported data-file path is not resolution.** Measured here: with no data file on the
+  default path, a position call that requests one returns the analytical flag, and a file path
+  is still reported afterwards — a path that does not exist. The returned flag decides; every
+  reported path is checked on disk, and every file found is hashed.
+* ⚠ **The compiled default-path constant is not the list searched.** Measured here, a refusal
+  names a different one. Both are listed, with every data file and leap-second file in them.
+* ⭐ **The leap table is answered as a difference**: the deployment's default state against the
+  same build pointed at an empty directory, both returned values bit for bit at every half-year
+  boundary from 1972, each state in a fresh process. A planted table is the control that must
+  show up as one.
+* ⛔ **The environment is read through an allowlist** — `SE_` names and the host's commit
+  variable. A serving process's environment holds credentials.
 
 ### Timing a boundary, where the artifact cannot regenerate
 
