@@ -32,7 +32,10 @@ COVERAGE = 'declared_coverage = { start = "1849-12-26T00:00:00", end = "2150-01-
 #: ⭐ The scoping measurement of 2026-10-26 — two files, `se-mean-node.json` (sha256 391df9e4…) and
 #: `flag-control.json` (46d9f5a1…) — rendered over the readings it shares with this generator, which are
 #: all 973 of this generator's, digests to this. Pinned so that a reading that moves one bit, or an
-#: epoch derived one step differently, turns this red.
+#: epoch derived one step differently, turns this red. ⚠ On its 35 offset readings that measurement
+#: wrote the configuration's whole word as `requested` while its call received only the ephemeris
+#: bits (`flags & 7`); this generator records the word the call received, so its side is compared
+#: after that mapping, and the mapping is stated wherever the comparison is.
 REPRODUCTION_DIGEST = "581f9f4d307d578d057aac58db7bcc20cb122f85e7b5a817169ca7d9f856550b"
 
 
@@ -83,19 +86,28 @@ def test_the_interval_is_the_manifests_and_converts_back(tmp_path):
     assert ends == {"supported_start_1849_12_26": 2396752.5, "supported_end_2150_01_22": 2506352.5}
 
 
-def test_the_epochs_follow_the_manifest_and_not_a_number_written_here(tmp_path):
+def test_the_epochs_follow_the_manifest_and_not_a_number_written_here(tmp_path, monkeypatch):
     """⭐ The red control for the interval: the Julian days a first scoping run typed for the same
     interval were those of 1850-01-01 and 2150-01-01. A manifest declaring those dates must give exactly
-    those days, so what decides the epochs is the file, never a constant."""
+    those days at every place the interval reaches — both ends among the calc epochs and among the
+    universal-time ones, every in-interval flag, and the window searched for crossings — so what decides
+    them is the file, never a constant."""
     m = _module()
     planted = 'declared_coverage = { start = "1850-01-01T00:00:00", end = "2150-01-01T00:00:00", scale = "TDB" }'
-    (tmp_path / "planted").mkdir()
-    (tmp_path / "declared").mkdir()
-    interval = m.read_interval(str(_manifest(tmp_path / "planted", planted)))
-    assert (interval["start"], interval["end"]) == (2396758.5, 2506331.5)
-    epochs = m.build_epochs(interval)
-    declared = m.build_epochs(m.read_interval(str(_manifest(tmp_path / "declared"))))
-    assert {e["jd"] for e in epochs} != {e["jd"] for e in declared}
+    windows = []
+    search = m.crossings
+    monkeypatch.setattr(m, "crossings", lambda start, end: windows.append((start, end)) or search(start, end))
+    for name, coverage, (start, end) in (("planted", planted, (2396758.5, 2506331.5)),
+                                         ("declared", COVERAGE, (2396752.5, 2506352.5))):
+        (tmp_path / name).mkdir()
+        interval = m.read_interval(str(_manifest(tmp_path / name, coverage)))
+        assert (interval["start"], interval["end"]) == (start, end)
+        epochs = m.build_epochs(interval)
+        assert sorted(e["jd"] for e in epochs if e["epoch_id"].startswith("supported_")) == [start, end]
+        assert all(e["in_supported_interval"] == (start <= e["jd"] <= end) for e in epochs)
+        assert windows[-1] == (start, end)
+        universal = m.universal_epochs(interval)
+        assert (universal[0]["jd"], universal[-1]["jd"]) == (start, end)
 
 
 def test_a_julian_day_that_does_not_convert_back_is_refused(tmp_path, monkeypatch):
@@ -231,7 +243,9 @@ def test_the_record_is_an_r3_provenance_record_naming_its_commit_and_versions(em
     assert oracle["session"]["removed_environment_variables"] == ["SE_MARKER_FOR_TEST"]
     assert oracle["host"] == {"python": sys.version.split()[0], "platform": platform.platform(),
                               "machine": platform.machine()}
-    assert {r["finding"] for r in emission["rows"]} == {"mean_node_reading", "returned_flag_by_body"}
+    assert {r["finding"] for r in emission["rows"]} == {"mean_node_reading", "delta_t_reading",
+                                                       "returned_flag_by_body"}
+    assert all("body" in r for r in emission["rows"] if r["finding"] != "delta_t_reading")
     assert header["summary"]["readings"] == header["summary"]["children"] == len(emission["rows"]) == 973
 
 
@@ -352,7 +366,8 @@ def test_a_reading_taken_without_a_fresh_child_is_refused(tmp_path):
 def test_one_childs_reading_returned_twice_is_refused(tmp_path, monkeypatch):
     """⛔ A parent that handed one child's output to two readings would record one reading twice."""
     m = _module()
-    reply = json.dumps({"nonce": "0" * 32, "fresh_interpreter": True, "readings": [{"passed": 4}]})
+    reply = json.dumps({"nonce": "0" * 32, "fresh_interpreter": True, "calls": [{"flags": 4}],
+                        "readings": [{}]})
     monkeypatch.setattr(m.subprocess, "run",
                         lambda *a, **k: subprocess.CompletedProcess(a, 0, stdout=reply, stderr=""))
     children = m.Children(str(tmp_path))
@@ -361,12 +376,40 @@ def test_one_childs_reading_returned_twice_is_refused(tmp_path, monkeypatch):
         children.run([{}])
 
 
-def test_a_word_passed_other_than_the_one_recorded_is_refused(tmp_path, monkeypatch):
+def test_a_child_that_makes_two_reading_calls_is_refused(tmp_path, monkeypatch):
+    """⛔ MN-8 inside the child: a reading taken after another reading call is warm, however it is reported."""
+    m = _module()
+    call = {"entry_point": "calc", "jd_bits": "0" * 16, "body": 10, "flags": 4}
+    reply = json.dumps({"nonce": "1" * 32, "fresh_interpreter": True, "calls": [call, call], "readings": [{}]})
+    monkeypatch.setattr(m.subprocess, "run",
+                        lambda *a, **k: subprocess.CompletedProcess(a, 0, stdout=reply, stderr=""))
+    with pytest.raises(m.Refusal, match="made 2 calls to a reading entry point"):
+        m.Children(str(tmp_path)).run([{}])
+
+
+def test_a_call_other_than_the_one_its_row_records_is_refused(tmp_path, monkeypatch):
+    """⭐ The row says what was called; the child says what the library actually received. A parent that
+    recorded the NONUT word and passed the call without it would write a row false about its own call."""
     m = _module()
     children = m.Children(str(tmp_path))
-    monkeypatch.setattr(children, "run", lambda specs: [{"passed": specs[0]["flags"] & ~64}])
-    with pytest.raises(m.Refusal, match="the child passed 4, the record says 68"):
-        children.take_all([{"flags": 68}])
+    received = {"entry_point": "calc", "jd_bits": m.bits(2451545.0), "body": 10, "flags": 4}
+    monkeypatch.setattr(children, "run", lambda specs: [{"call": received}])
+    assert children.take_all([{}], [received]) == [{"call": received}]
+    with pytest.raises(m.Refusal, match="the row records"):
+        children.take_all([{}], [dict(received, flags=68)])
+
+
+def test_the_child_records_the_call_the_library_received(tmp_path):
+    """The same control against a real child: the word the library received is read inside the child."""
+    pytest.importorskip("swisseph", reason="the child calls the ephemeris library")
+    _pinned_files_or_skip()
+    m = _module()
+    spec = m.spec_for(path=str(EPHE), flags=4, entry_point="calc", jd=2451545.0, body=10)
+    row = {"entry_point": "calc", "jd_bits": m.bits(2451545.0), "body": 10, "requested": 4}
+    children = m.Children(str(tmp_path))
+    assert children.take_all([spec], [m.recorded_call(row)])[0]["call"] == m.recorded_call(row)
+    with pytest.raises(m.Refusal, match="the row records"):
+        children.take_all([spec], [m.recorded_call(dict(row, requested=68))])
 
 
 def test_a_reading_count_other_than_the_childrens_is_refused(emission):

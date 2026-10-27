@@ -23,17 +23,23 @@ Five parts, and ⛔ **every reading is one call in a fresh child process**:
 ⛔ **Recorder, never explainer.** Nothing here describes how the library computes anything. A
 relation between readings is recorded as numbers, never as a mechanism.
 
-⛔ **The epochs are derived from a data profile manifest's declared coverage**, read from the file
-given and converted back to the manifest's own strings before use — never a Julian day typed here.
-Only the instants where the node passes 0°/360° are located with a formula: the published IERS
-Conventions (2010) Eq. (5.43) row for the fifth Delaunay argument, used to FIND those instants and for
-nothing else.
+⛔ **The interval's ends are a data profile manifest's declared coverage**, read from the file given and
+converted back to the manifest's own strings before use — never a Julian day typed here. They set every
+epoch's in-interval flag, the window searched for crossings, and the two ends among the calc epochs and
+among the universal-time ones. ⚠ The other epochs are labelled instants and formulas written here: a grid
+every five years, J2000, four years outside the interval, four civil dates. The instants where the node
+passes 0°/360° are located with the published IERS Conventions (2010) Eq. (5.43) row for the fifth
+Delaunay argument, used to FIND those instants and for nothing else.
 
 ⛔ **Refusals, each before anything is written**: a dirty or commitless working tree; a data directory
 that is not exactly the pinned set; an "empty" directory that is not empty (both checked before and
-after the run); a child that took more than one reading or was not a fresh interpreter; a word
-passed to the library other than the one recorded; a NONUT request that moved no reading; the Moon
-control not firing.
+after the run); a child that did not start from an interpreter without the library loaded, or returned
+other than one reading, or whose output came back twice; ⭐ a child that made other than exactly one call
+to a reading entry point (``calc``, ``calc_ut``, ``deltat_ex`` — each call recorded INSIDE the child with
+the arguments it actually received), or whose one call's entry point, instant, body or whole flag word is
+not the row's recorded one; a NONUT request that moved no reading; the Moon control not firing. ⚠ Other
+library calls in a child are not counted: it makes only the declared ones — the path, a forced constant,
+the read-backs.
 
 The standard library and the binding only, as ``utc_conversion.py``; ``git`` is called to read the
 commit. Children run in an empty working directory of their own with every ``SE_`` environment
@@ -328,13 +334,27 @@ def _child(specs_json: str) -> None:
     fresh = "swisseph" not in sys.modules
     import swisseph as swe
 
+    # ⭐ Every call to a reading entry point is recorded with the arguments it ACTUALLY received, here, in
+    #    the child — so the parent can admit exactly one, and only with the arguments its row records.
+    calls: list[dict] = []
+
+    def recorded(name: str, function):
+        def call(*args):
+            calls.append({"entry_point": name, "jd_bits": bits(args[0]),
+                          "body": None if name == "deltat_ex" else args[1], "flags": args[-1]})
+            return function(*args)
+        return call
+
+    for name in ("calc", "calc_ut", "deltat_ex"):
+        setattr(swe, name, recorded(name, getattr(swe, name)))
+
     readings = []
     for spec in json.loads(specs_json):
         if spec["path"] is not None:
             swe.set_ephe_path(spec["path"])
         if spec["forced_bits"] is not None:
             swe.set_tid_acc(unbits(spec["forced_bits"]))
-        reading: dict = {"passed": spec["flags"]}
+        reading: dict = {}
         if spec["read_before"]:
             reading["tidal_constant_before_bits"] = bits(swe.get_tid_acc())
         if spec["entry_point"] == "deltat_ex":
@@ -353,7 +373,7 @@ def _child(specs_json: str) -> None:
         reading["current_file_data_after"] = files
         readings.append(reading)
     sys.stdout.write(json.dumps({"nonce": os.urandom(16).hex(), "fresh_interpreter": fresh,
-                                 "readings": readings}))
+                                 "calls": calls, "readings": readings}))
 
 
 def child_environment() -> dict[str, str]:
@@ -381,18 +401,28 @@ class Children:
             raise Refusal(f"a child took {len(result['readings'])} readings "
                           f"(fresh interpreter: {result['fresh_interpreter']}); every reading is one "
                           "call in a fresh child process")
+        if len(result["calls"]) != 1:
+            raise Refusal(f"a child made {len(result['calls'])} calls to a reading entry point; every reading "
+                          "is one call in a fresh child process")
         if result["nonce"] in self.nonces:
             raise Refusal("two readings came back from one child")
         self.nonces.add(result["nonce"])
-        return result["readings"]
+        return [{**result["readings"][0], "call": result["calls"][0]}]
 
-    def take_all(self, specs: list[dict]) -> list[dict]:
+    def take_all(self, specs: list[dict], recorded: list[dict]) -> list[dict]:
+        """One child per spec; each child's one call must be the call its row RECORDS."""
         batches = [[spec] for spec in specs]
         readings = [reading for batch in batches for reading in self.run(batch)]
-        for spec, reading in zip(specs, readings, strict=True):
-            if reading["passed"] != spec["flags"]:
-                raise Refusal(f"the child passed {reading['passed']}, the record says {spec['flags']}")
+        for want, reading in zip(recorded, readings, strict=True):
+            if reading["call"] != want:
+                raise Refusal(f"the child's one call was {reading['call']}; the row records {want}")
         return readings
+
+
+def recorded_call(row: dict) -> dict:
+    """The call a row says was made: its entry point, instant, body and whole flag word."""
+    return {"entry_point": row["entry_point"], "jd_bits": row["jd_bits"], "body": row.get("body"),
+            "flags": row["requested"]}
 
 
 # ======================================================================================
@@ -450,7 +480,8 @@ def measure(ephe_path: str, empty_dir: str, profile: str, work: str) -> tuple[li
         eph, state = configurations[configuration]
         spec = spec_for(path=paths[state], flags=requested, entry_point=entry_point, jd=epoch["jd"],
                         body=body, forced=None if forced is None else forced[1])
-        base: dict = {"finding": "mean_node_reading", "part": part, "configuration": configuration,
+        finding = "delta_t_reading" if entry_point == "deltat_ex" else "mean_node_reading"
+        base: dict = {"finding": finding, "part": part, "configuration": configuration,
                       "ephemeris_requested": eph, "path_state": state, "nutation": nutation,
                       "entry_point": entry_point}
         if body is not None:
@@ -467,7 +498,8 @@ def measure(ephe_path: str, empty_dir: str, profile: str, work: str) -> tuple[li
 
     def read(items: list[tuple[dict, dict]]) -> list[dict]:
         out = []
-        for (base, spec), reading in zip(items, children.take_all([s for _, s in items]), strict=True):
+        taken = children.take_all([s for _, s in items], [recorded_call(b) for b, _ in items])
+        for (base, spec), reading in zip(items, taken, strict=True):
             if spec["forced_bits"] is not None:
                 base["forced_held_after_call"] = reading["tidal_constant_after_bits"] == spec["forced_bits"]
             out.append(row_from(reading, base))
@@ -529,7 +561,8 @@ def measure(ephe_path: str, empty_dir: str, profile: str, work: str) -> tuple[li
                 spec = spec_for(path=paths[condition["path_state"]], flags=requested, entry_point=entry_point,
                                 jd=epoch["jd"], body=body, read_before=False)
                 flag_items.append((base, spec))
-    for (base, _spec), reading in zip(flag_items, children.take_all([s for _, s in flag_items]), strict=True):
+    taken = children.take_all([s for _, s in flag_items], [recorded_call(b) for b, _ in flag_items])
+    for (base, _spec), reading in zip(flag_items, taken, strict=True):
         returned = reading["returned"]
         rows.append({**base, "returned": returned,
                      "substitution_reported": (returned & EPHEMERIS_MASK) != (base["requested"] & EPHEMERIS_MASK),
@@ -549,7 +582,7 @@ def measure(ephe_path: str, empty_dir: str, profile: str, work: str) -> tuple[li
 def check(rows: list[dict], context: dict) -> dict:
     """The record's own controls. Returns the summary; raises Refusal on any that fails."""
     nonut = context["nonut"]
-    readings = [r for r in rows if r["finding"] == "mean_node_reading"]
+    readings = [r for r in rows if r["finding"] in ("mean_node_reading", "delta_t_reading")]
     flags = [r for r in rows if r["finding"] == "returned_flag_by_body"]
     if context["children"] != len(rows):
         raise Refusal(f"{len(rows)} readings from {context['children']} children")
@@ -672,7 +705,7 @@ def source_commit() -> str:
 
 
 ROW_SCHEMA = {
-    "finding": "mean_node_reading | returned_flag_by_body",
+    "finding": "mean_node_reading | delta_t_reading | returned_flag_by_body",
     "part": "mode_invariance | cause | universal_time | universal_time_cause",
     "configuration": "which ephemeris was requested and which directory was on the path",
     "ephemeris_requested": "moshier | swiss_file | jpl_file -- the source the request names",
@@ -680,13 +713,13 @@ ROW_SCHEMA = {
     "nutation": "default (no nutation bit requested) | nonut (FLG_NONUT requested) | ephemeris_bits_only "
                 "(deltat_ex: only the ephemeris bits of the configuration's NONUT word are passed)",
     "entry_point": "the library function called",
-    "body": "the library's own body integer",
+    "body": "the library's own body integer (a delta_t_reading has none)",
     "epoch_id": "which instant; the Julian day passed is `jd`, and `jd_bits` is that value",
     "in_supported_interval": "whether the instant lies inside the data profile's declared coverage",
     "requested": "⭐ the WHOLE flag word passed, nutation bit included",
     "returned": "the whole flag word the call returned",
     "forced_constant": "the library name of the tidal-acceleration constant forced before the call",
-    "forced_held_after_call": "⛔ whether the constant read back after the call is still the one forced. Where it is not, the call overwrote it and the reading says nothing about the forced value -- written as measured",
+    "forced_held_after_call": "⛔ whether the constant read back after the call is still the one forced. Where it is not, the reading says nothing about the forced value -- written as measured",
     "tidal_constant_before": "the tidal-acceleration constant in force before the call, read from the library",
     "tidal_constant_after": "the same, read after the call",
     "longitude": "the first returned value; `longitude_bits` is the value, the decimal is display",
@@ -723,12 +756,18 @@ def build_record(rows: list[dict], context: dict, summary: dict, commit: str) ->
             "library_version": swe.version,
             "called_via": {"binding": "pyswisseph", "version": binding_version},
             "session": {
-                "isolation": "⛔ every reading is one call in a fresh child interpreter (-I), in an empty "
-                             "working directory of its own; the parent takes none",
+                "isolation": "⛔ every reading is one call in a fresh child interpreter (-I); the children run "
+                             "in an empty working directory that is not the parent's, verified empty after the "
+                             "run; the parent takes no reading",
                 "why": "the library keeps process-wide state, and a reading taken after another call "
                        "reports that call's state as well as its own",
-                "checked": "each child returned exactly one reading from an interpreter that had not loaded "
-                           "the library, and no two readings came from one child",
+                "checked": "each child made exactly one call to a reading entry point (calc, calc_ut or "
+                           "deltat_ex), recorded inside the child with the arguments it actually received, and "
+                           "those arguments are the row's own: entry point, instant, body and whole flag word; "
+                           "each child started from an interpreter that had not loaded the library and returned "
+                           "one reading, and no two readings came from one child. ⚠ Other library calls are "
+                           "not counted: each child makes only the declared ones -- the path, a forced "
+                           "constant, the read-backs",
                 "removed_environment_variables": sorted(k for k in os.environ if k.startswith("SE_")),
             },
             "licence": "the library is AGPL-3.0; it is called here, never redistributed by this repository",
@@ -746,8 +785,9 @@ def build_record(rows: list[dict], context: dict, summary: dict, commit: str) ->
                       "returned values and the whole returned word, the tidal-acceleration constant before "
                       "and after the call, and the library's report of its open files",
         },
-        "title": "What one release of the ephemeris library returns for its mean lunar node, under every "
-                 "ephemeris request, data-file state and nutation setting",
+        "title": "What one release of the ephemeris library returns for its mean lunar node under three "
+                 "ephemeris requests, two data-file states and both nutation settings, and what its returned "
+                 "word says beside the Moon's",
         "attests": "a vendor_convention attestation: what this release of the ephemeris library returned for its "
                    "mean lunar node through calc and calc_ut, under three ephemeris requests, two data-file "
                    "states and both nutation settings, with the whole requested and returned words, the "
@@ -756,8 +796,8 @@ def build_record(rows: list[dict], context: dict, summary: dict, commit: str) ->
                    "requested ephemeris cannot answer",
         "authority": {
             "held_by": "the library itself, as observed",
-            "kind": "direct observation of return values under declared configurations, every reading in a "
-                    "fresh process",
+            "kind": "black-box observation of return values under declared configurations, every reading in "
+                    "a fresh process",
             "scope": "⚠ this version of the library and this binding only, run on the recorded host. A "
                      "later version, or the same version built for another machine, may return different "
                      "bits, which is why the observation is dated, versioned and placed rather than stated "
@@ -767,8 +807,11 @@ def build_record(rows: list[dict], context: dict, summary: dict, commit: str) ->
         "row_schema": ROW_SCHEMA,
         "summary": {
             "epochs": {
-                "source": "a data profile manifest's declared coverage, read from the file given and "
-                          "converted back to its own strings before use -- never typed",
+                "source": "the interval's ends: a data profile manifest's declared coverage, read from the "
+                          "file given and converted back to its own strings before use -- never a typed "
+                          "Julian day. They set every epoch's in-interval flag, the crossing search window "
+                          "and the two ends among the calc and the universal-time epochs; the other epochs "
+                          "are labelled instants and formulas written in the generator",
                 "profile": interval["profile"],
                 "manifest_sha256": interval["manifest_sha256"],
                 "dataset": interval["dataset"],
@@ -800,13 +843,15 @@ def build_record(rows: list[dict], context: dict, summary: dict, commit: str) ->
             "THROUGH calc_ut IT DID, by small amounts, and calc_ut was bit-identical to calc at the universal "
             "day plus deltat_ex's offset under the same ephemeris bits in every unforced reading "
             "(summary.universal_time) -- recorded as numbers, ⛔ not as a mechanism.",
-            "⚠ NONUT DECIDES THE VALUE. Every nonut reading has a default-nutation twin under the same "
-            "configuration and instant; the record refuses to exist if any pair agrees, because a NONUT request "
-            "that moves nothing was not applied.",
+            "⚠ NONUT DECIDES THE VALUE. Every nonut reading of the first part has a default-nutation twin under "
+            "the same configuration and instant, and the record refuses to exist if any pair agrees, because a "
+            "NONUT request that moves nothing was not applied; and in every part the whole flag word each call "
+            "actually received is recorded inside the child and must be the row's own, so a bit dropped at any "
+            "call is refused.",
             "⚠ Not measured: sidereal mode, FLG_SPEED, any body but these two, any other entry point, any "
             "other library version or host. The warm, many-readings-per-process sweeps of the first scoping run "
-            "are deliberately absent: this generator takes every reading in a fresh process and refuses "
-            "otherwise.",
+            "are deliberately absent: this generator takes every reading in a fresh process, and refuses a child "
+            "that makes more than one call to a reading entry point.",
             "⚠ Dated, versioned and placed deliberately. This is an observation of one release through one "
             "binding on one machine, not a claim about the software in general.",
         ],
