@@ -35,11 +35,14 @@ Delaunay argument, used to FIND those instants and for nothing else.
 ⛔ **Refusals, each before anything is written**: a dirty or commitless working tree; a data directory
 that is not exactly the pinned set; an "empty" directory that is not empty (both checked before and
 after the run); a child that did not start from an interpreter without the library loaded, or returned
-other than one reading, or whose output came back twice; ⭐ a child whose calls into the library — EVERY
-call, recorded inside the child with the arguments it actually received — are not exactly the sequence its
-row declares (the directory for its path state, its forced constant, the constant read, one reading call
-with its entry point, instant, body and whole flag word, the read-backs); a row whose ephemeris label is
-not its word's; a NONUT request that moved no reading; the Moon control not firing.
+other than one reading, or whose output came back twice; ⭐ a child whose calls into the library — every
+call made through the library module's attributes and its submodule's after they are wrapped, recorded
+inside the child with the arguments it actually received — are not exactly the sequence its FINISHED row
+declares (the directory for its path state, its forced constant, the constant read, one reading call with
+its entry point, instant, body and whole flag word, the read-backs); a row whose name is not what it names
+(ephemeris, configuration, condition, nutation, forced constant, body, epoch); a NONUT request that moved no
+reading; the Moon control not firing. ⚠ These guard honest error, ⛔ not forgery: a reference to the library
+bound before the wrapping, or its compiled extension reached another way, is outside them.
 
 The standard library and the binding only, as ``utc_conversion.py``; ``git`` is called to read the
 commit. Children run in an empty working directory that is not the parent's, with every ``SE_``
@@ -65,6 +68,7 @@ import subprocess
 import sys
 import tempfile
 import tomllib
+import types
 from importlib.metadata import PackageNotFoundError, version as _distribution_version
 
 #: Where the generator lives — `generator.repo` and `generator.script`.
@@ -347,10 +351,20 @@ def _child(specs_json: str) -> None:
             return function(*args, **keywords)
         return call
 
-    for name in dir(swe):
-        member = getattr(swe, name)
-        if not name.startswith("_") and callable(member) and not isinstance(member, type):
-            setattr(swe, name, recorded(name, member))
+    def wrap(module, prefix: str) -> None:
+        for name in dir(module):
+            member = getattr(module, name)
+            if name.startswith("_") or isinstance(member, type):
+                continue
+            if isinstance(member, types.ModuleType):
+                # ⚠ The library's own submodules (``swisseph.contrib``) are wrapped too; any other module is not
+                #   the library.
+                if member.__name__.startswith(swe.__name__ + "."):
+                    wrap(member, f"{prefix}{name}.")
+            elif callable(member):
+                setattr(module, name, recorded(prefix + name, member))
+
+    wrap(swe, "")
 
     readings = []
     for spec in json.loads(specs_json):
@@ -410,15 +424,20 @@ class Children:
         self.nonces.add(result["nonce"])
         return [{**result["readings"][0], "calls": result["calls"]}]
 
-    def take_all(self, specs: list[dict], declared: list[list[dict]]) -> list[dict]:
-        """One child per spec; each child's whole call sequence must be the one its ROW declares."""
+    def take_all(self, specs: list[dict]) -> list[dict]:
+        """One child per spec; what each child's calls were is judged against its finished row (`admit`)."""
         batches = [[spec] for spec in specs]
-        readings = [reading for batch in batches for reading in self.run(batch)]
-        for want, reading in zip(declared, readings, strict=True):
-            if reading["calls"] != want:
-                made = [c["function"] for c in reading["calls"]]
-                raise Refusal(f"the child's calls were {made} {reading['calls']}; the row declares {want}")
-        return readings
+        return [reading for batch in batches for reading in self.run(batch)]
+
+
+def admit(row: dict, calls: list[dict], paths: dict[str, str | None]) -> dict:
+    """⛔ The FINISHED row's declared sequence against the calls its child made — after the row is built, so a
+    defect in building it is judged too."""
+    want = declared_calls(row, paths)
+    if calls != want:
+        made = [c["function"] for c in calls]
+        raise Refusal(f"the child's calls were {made} {calls}; the row declares {want}")
+    return row
 
 
 def _call(function: str, *args) -> dict:
@@ -516,11 +535,11 @@ def measure(ephe_path: str, empty_dir: str, profile: str, work: str) -> tuple[li
 
     def read(items: list[tuple[dict, dict]]) -> list[dict]:
         out = []
-        taken = children.take_all([s for _, s in items], [declared_calls(b, paths) for b, _ in items])
+        taken = children.take_all([s for _, s in items])
         for (base, spec), reading in zip(items, taken, strict=True):
             if spec["forced_bits"] is not None:
                 base["forced_held_after_call"] = reading["tidal_constant_after_bits"] == spec["forced_bits"]
-            out.append(row_from(reading, base))
+            out.append(admit(row_from(reading, base), reading["calls"], paths))
         return out
 
     # ---- 1. mode_invariance
@@ -579,16 +598,19 @@ def measure(ephe_path: str, empty_dir: str, profile: str, work: str) -> tuple[li
                 spec = spec_for(path=paths[condition["path_state"]], flags=requested, entry_point=entry_point,
                                 jd=epoch["jd"], body=body, read_before=False)
                 flag_items.append((base, spec))
-    taken = children.take_all([s for _, s in flag_items], [declared_calls(b, paths) for b, _ in flag_items])
+    taken = children.take_all([s for _, s in flag_items])
     for (base, _spec), reading in zip(flag_items, taken, strict=True):
         returned = reading["returned"]
-        rows.append({**base, "returned": returned,
-                     "substitution_reported": (returned & EPHEMERIS_MASK) != (base["requested"] & EPHEMERIS_MASK),
-                     **patterned("longitude", unbits(reading["longitude_bits"])),
-                     **patterned("tidal_constant_after", unbits(reading["tidal_constant_after_bits"]))})
+        rows.append(admit({**base, "returned": returned,
+                           "substitution_reported": (returned & EPHEMERIS_MASK) != (base["requested"] & EPHEMERIS_MASK),
+                           **patterned("longitude", unbits(reading["longitude_bits"])),
+                           **patterned("tidal_constant_after", unbits(reading["tidal_constant_after_bits"]))},
+                          reading["calls"], paths))
 
     context = {"interval": interval, "epochs": epochs, "universal": universal, "nonut": nonut,
-               "children": len(children.nonces), "conditions": CONDITIONS, "flag": flag}
+               "children": len(children.nonces), "conditions": CONDITIONS, "flag": flag,
+               "forced": {name: bits(getattr(swe, name)) for name, _label in FORCED},
+               "bodies": {label: body for body, label in bodies}}
     return rows, context
 
 
@@ -605,15 +627,43 @@ def check(rows: list[dict], context: dict) -> dict:
     if context["children"] != len(rows):
         raise Refusal(f"{len(rows)} readings from {context['children']} children")
 
-    # ⛔ A row's label is its word: the ephemeris it names is the one its requested word's bits name.
+    # ⛔ Every name is held to what it names: a row's ephemeris label to its word's bits; its configuration or
+    #    condition to the table that defines it; its nutation label to its word's nutation bit; a forced
+    #    constant's name to the library's value of that name; a body label to the body; an epoch to its instant.
+    configurations = {name: (eph, state) for name, eph, state in CONFIGURATIONS}
+    conditions = {c["condition"]: c for c in context["conditions"]}
+    instants = {e["epoch_id"]: e for e in [*context["epochs"], *context["universal"]]}
+    offsets = {(r["configuration"], r["epoch_id"]): r for r in readings if r["entry_point"] == "deltat_ex"}
     for row in rows:
         if context["flag"][row["ephemeris_requested"]] != row["requested"] & EPHEMERIS_MASK:
             raise Refusal(f"a row labelled {row['ephemeris_requested']} requested {row['requested']}")
+        if row["finding"] == "returned_flag_by_body":
+            condition = conditions[row["condition"]]
+            named = (condition["ephemeris"], condition["path_state"], condition["epoch"], condition["built_to_substitute"])
+            if named != (row["ephemeris_requested"], row["path_state"], row["epoch_id"], row["built_to_substitute"]):
+                raise Refusal(f"a row named {row['condition']} is not that condition")
+            if context["bodies"][row["body_label"]] != row["body"]:
+                raise Refusal(f"a row labelled {row['body_label']} read body {row['body']}")
+        elif configurations[row["configuration"]] != (row["ephemeris_requested"], row["path_state"]):
+            raise Refusal(f"a row named {row['configuration']} is not that configuration")
+        if row["finding"] != "returned_flag_by_body":
+            word, label = row["requested"], row["nutation"]
+            if (label, bool(word & nonut), word == word & EPHEMERIS_MASK) not in (
+                    ("default", False, True), ("nonut", True, False), ("ephemeris_bits_only", False, True)) or (
+                    label != "ephemeris_bits_only") == (row["entry_point"] == "deltat_ex"):
+                raise Refusal(f"a row labelled {label} through {row['entry_point']} requested {word}")
+            if "forced_constant" in row and context["forced"][row["forced_constant"]] != row["forced_tidal_constant_bits"]:
+                raise Refusal(f"a row naming {row['forced_constant']} forced {row['forced_tidal_constant_bits']}")
+        epoch = instants.get(row["epoch_id"])
+        if epoch is None:
+            ut = instants[row["epoch_id"].removesuffix("_plus_delta_t")]
+            offset = offsets[(row["configuration"], ut["epoch_id"])]["delta_t_days"]
+            epoch = {"jd": ut["jd"] + offset}
+        if bits(epoch["jd"]) != row["jd_bits"] or row.get("in_supported_interval",
+                                                           epoch.get("in_supported_interval")) != epoch.get("in_supported_interval"):
+            raise Refusal(f"a row named {row['epoch_id']} is not that instant")
 
-    # ⛔ NONUT, as a word and as a measurement.
-    for row in readings:
-        if row["nutation"] == "nonut" and not row["requested"] & nonut:
-            raise Refusal(f"a row labelled nonut requested {row['requested']}")
+    # ⛔ NONUT, measured.
     modes = [r for r in readings if r["part"] == "mode_invariance"]
     pairs: dict[tuple[str, str], dict[str, dict]] = {}
     for row in modes:
@@ -784,13 +834,16 @@ def build_record(rows: list[dict], context: dict, summary: dict, commit: str) ->
                              "run; the parent takes no reading",
                 "why": "the library keeps process-wide state, and a reading taken after another call "
                        "reports that call's state as well as its own",
-                "checked": "every call each child made into the library was recorded inside the child with "
-                           "the arguments it actually received, and the whole sequence is the one its row "
+                "checked": "every call each child made through the library module's attributes and its "
+                           "submodule's, after they were wrapped, was recorded inside the child with the "
+                           "arguments it actually received, and the whole sequence is the one its finished row "
                            "declares: the directory for its path state (none where no path is set), the forced "
                            "constant it records, the constant read, exactly one reading call with the row's "
                            "entry point, instant, body and whole flag word, and the read-backs -- nothing else; "
-                           "each child started from an interpreter that had not loaded the library and returned "
-                           "one reading, and no two readings came from one child",
+                           "every name in a row is what it names; each child started from an interpreter that "
+                           "had not loaded the library and returned one reading, and no two readings came from "
+                           "one child. \u26a0 Honest error, not forgery: a reference to the library bound before "
+                           "the wrapping is outside the record",
                 "removed_environment_variables": sorted(k for k in os.environ if k.startswith("SE_")),
             },
             "licence": "the library is AGPL-3.0; it is called here, never redistributed by this repository",
@@ -875,7 +928,7 @@ def build_record(rows: list[dict], context: dict, summary: dict, commit: str) ->
             "⚠ Not measured: sidereal mode, FLG_SPEED, any body but these two, any other entry point, any "
             "other library version or host. The warm, many-readings-per-process sweeps of the first scoping run "
             "are deliberately absent: this generator takes every reading in a fresh process, and refuses a child "
-            "that makes more than one call to a reading entry point.",
+            "whose recorded library calls are other than its row declares.",
             "⚠ Dated, versioned and placed deliberately. This is an observation of one release through one "
             "binding on one machine, not a claim about the software in general.",
         ],

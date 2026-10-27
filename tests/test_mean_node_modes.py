@@ -143,6 +143,25 @@ def test_a_manifest_that_does_not_declare_one_coverage_is_refused(tmp_path):
         m.read_interval(str(_manifest(tmp_path / "bare", 'declared_coverage = { start = "1849-12-26T00:00:00" }')))
 
 
+def test_the_tables_names_say_what_they_define():
+    """⛔ `check()` holds every row's configuration and condition name to the table that defines it, so the table
+    itself is held to its own words: a name that says "empty" is the empty directory, and so on."""
+    m = _module()
+    prefixes = {"moshier": "moshier_", "swiss_file": "swiss_file_", "jpl_file": "jpl_"}
+    for name, ephemeris, state in m.CONFIGURATIONS:
+        assert name.startswith(prefixes[ephemeris]), name
+        assert ("empty" in name) == (state == "empty_directory"), name
+    outside = {"swiss_file_outside_coverage_1500": "outside_1500", "swiss_file_outside_coverage_3000": "outside_3000"}
+    for condition in m.CONDITIONS:
+        name = condition["condition"]
+        assert name.startswith(prefixes[condition["ephemeris"]]), name
+        assert ("empty_directory" in name) == (condition["path_state"] == "empty_directory"), name
+        assert ("no_path" in name) == (condition["path_state"] == "no_path_set"), name
+        assert condition["epoch"] == outside.get(name, "j2000"), name
+        assert condition["built_to_substitute"] == (
+            name not in ("swiss_file_inside_coverage", "moshier_files_present")), name
+
+
 # ---------------------------------------------------------------------------------------
 # Running it — from a commit of its own
 # ---------------------------------------------------------------------------------------
@@ -359,10 +378,15 @@ def _context(m, emission) -> dict:
     epochs = [{"epoch_id": r["epoch_id"], "jd": r["jd"], "in_supported_interval": r["in_supported_interval"]}
               for r in emission["rows"] if r.get("part") == "mode_invariance"
               and r["configuration"] == "moshier_files_present" and r["nutation"] == "default"]
-    universal = [{"epoch_id": e, "jd": None} for e in summary["epochs"]["universal_time_epochs"]]
+    universal = [{"epoch_id": r["epoch_id"], "jd": r["jd"]} for r in emission["rows"]
+                 if r.get("part") == "universal_time" and r["entry_point"] == "calc_ut"
+                 and r["configuration"] == "moshier_files_present"]
+    assert [u["epoch_id"] for u in universal] == summary["epochs"]["universal_time_epochs"]
     return {"epochs": epochs, "universal": universal, "nonut": swe.FLG_NONUT, "children": summary["children"],
             "conditions": m.CONDITIONS, "interval": None,
-            "flag": {"moshier": swe.FLG_MOSEPH, "swiss_file": swe.FLG_SWIEPH, "jpl_file": swe.FLG_JPLEPH}}
+            "flag": {"moshier": swe.FLG_MOSEPH, "swiss_file": swe.FLG_SWIEPH, "jpl_file": swe.FLG_JPLEPH},
+            "forced": {name: m.bits(getattr(swe, name)) for name, _ in m.FORCED},
+            "bodies": {"moon": swe.MOON, "mean_node": swe.MEAN_NODE}}
 
 
 def test_the_controls_pass_on_the_record_as_written(emission):
@@ -397,9 +421,9 @@ def test_one_childs_reading_returned_twice_is_refused(tmp_path, monkeypatch):
         children.run([{}])
 
 
-def test_a_call_sequence_other_than_the_rows_is_refused(tmp_path, monkeypatch):
-    """⭐ The row declares every call its child made; the child records every call the library received. One
-    extra call — a warm reading through ANY entry point — or one argument other than the row's is refused."""
+def test_a_call_sequence_other_than_the_rows_is_refused():
+    """⭐ The finished row declares every call its child made; the child records every call the library received.
+    One extra call — a warm reading through ANY entry point — or one argument other than the row's is refused."""
     m = _module()
     row = {"finding": "mean_node_reading", "path_state": "data_files", "entry_point": "calc",
            "jd_bits": m.bits(2451545.0), "body": 10, "requested": 68}
@@ -407,17 +431,12 @@ def test_a_call_sequence_other_than_the_rows_is_refused(tmp_path, monkeypatch):
     declared = m.declared_calls(row, paths)
     assert [c["function"] for c in declared] == ["set_ephe_path", "get_tid_acc", "calc", "get_tid_acc",
                                                  "get_current_file_data", "get_current_file_data"]
-    children = m.Children(str(tmp_path))
-    made: list[list[dict]] = []
-    monkeypatch.setattr(children, "run", lambda specs: [{"calls": made[-1]}])
-    made.append(declared)
-    assert children.take_all([{}], [declared]) == [{"calls": declared}]
-    for planted in (declared[:2] + [m._call("pheno_ut", m.bits(2451545.0), 1, 68)] + declared[2:],
+    assert m.admit(row, declared, paths) is row
+    for planted in (declared[:2] + [m._call("contrib.calc_ut", m.bits(2451545.0), 1, 68)] + declared[2:],
                     [dict(c, args=[c["args"][0], 10, 4]) if c["function"] == "calc" else c for c in declared],
                     [dict(c, args=["/e"]) if c["function"] == "set_ephe_path" else c for c in declared]):
-        made.append(planted)
         with pytest.raises(m.Refusal, match="the row declares"):
-            children.take_all([{}], [declared])
+            m.admit(row, planted, paths)
 
 
 def _planted(tmp_path: Path, anchor: str, replacement: str):
@@ -432,39 +451,68 @@ def _planted(tmp_path: Path, anchor: str, replacement: str):
     return module
 
 
-@pytest.mark.parametrize("defect", ["nonut_dropped_at_the_call", "a_warm_call_first", "the_wrong_directory"])
+@pytest.mark.parametrize("defect", ["nonut_dropped_at_the_call", "a_warm_call_first",
+                                    "a_warm_call_through_the_submodule", "the_wrong_directory",
+                                    "a_row_built_wrong_after_the_call"])
 def test_a_child_that_did_other_than_its_row_declares_is_refused(tmp_path, defect):
-    """⭐ The same control against real children carrying the defect, so the recorder itself is under test."""
+    """⭐ The same control against real children, so the recorder itself is under test — and against a row
+    built wrong after its call, because the finished row is what is judged."""
     pytest.importorskip("swisseph", reason="the child calls the ephemeris library")
     _pinned_files_or_skip()
     call = 'values, returned = call(unbits(spec["jd_bits"]), spec["body"], spec["flags"])'
     plants = {
         "nonut_dropped_at_the_call": (call, call.replace('spec["flags"])', 'spec["flags"] & ~swe.FLG_NONUT)')),
         "a_warm_call_first": (call, 'swe.pheno_ut(unbits(spec["jd_bits"]), 1, spec["flags"])\n            ' + call),
+        "a_warm_call_through_the_submodule": (
+            call, 'swe.contrib.calc_ut(unbits(spec["jd_bits"]), 1, spec["flags"])\n            ' + call),
         "the_wrong_directory": ('            swe.set_ephe_path(spec["path"])',
                                 f'            swe.set_ephe_path({str(EPHE)!r})'),
+        "a_row_built_wrong_after_the_call": ('    row = dict(base)\n', '    row = dict(base, requested=base["requested"] ^ 64)\n'),
     }
     m = _planted(tmp_path, *plants[defect])
     empty = tmp_path / "empty"
     empty.mkdir()
     paths = {"data_files": str(EPHE), "empty_directory": str(empty), "no_path_set": None}
-    row = {"finding": "mean_node_reading", "path_state": "empty_directory", "entry_point": "calc",
-           "jd_bits": m.bits(2451545.0), "body": 10, "requested": 66}
+    base = {"finding": "mean_node_reading", "path_state": "empty_directory", "entry_point": "calc",
+            "jd_bits": m.bits(2451545.0), "body": 10, "requested": 66}
     spec = m.spec_for(path=str(empty), flags=66, entry_point="calc", jd=2451545.0, body=10)
     work = tmp_path / "work"
     work.mkdir()
     honest = _module()
-    assert honest.Children(str(work)).take_all([spec], [honest.declared_calls(row, paths)])
+    reading = honest.Children(str(work)).take_all([spec])[0]
+    assert honest.admit(honest.row_from(reading, base), reading["calls"], paths)
+    reading = m.Children(str(work)).take_all([spec])[0]
     with pytest.raises(m.Refusal, match="the row declares"):
-        m.Children(str(work)).take_all([spec], [m.declared_calls(row, paths)])
+        m.admit(m.row_from(reading, base), reading["calls"], paths)
 
 
-def test_a_row_whose_label_is_not_its_word_is_refused(emission):
+NAME_PLANTS = {
+    "an_ephemeris_label_not_its_word": (lambda r: r.get("ephemeris_requested") == "swiss_file"
+                                        and r["finding"] == "mean_node_reading",
+                                        {"ephemeris_requested": "jpl_file"}, "labelled jpl_file"),
+    "a_configuration_name_not_its_path": (lambda r: r.get("configuration") == "swiss_file_present",
+                                          {"configuration": "swiss_file_dir_empty"}, "is not that configuration"),
+    "a_condition_name_not_its_path": (lambda r: r.get("condition") == "swiss_file_empty_directory",
+                                      {"condition": "swiss_file_inside_coverage"}, "is not that condition"),
+    "a_forced_constant_misnamed": (lambda r: r.get("forced_constant") == "TIDAL_DE200",
+                                   {"forced_constant": "TIDAL_26"}, "naming TIDAL_26"),
+    "an_offset_labelled_nonut": (lambda r: r["finding"] == "delta_t_reading", {"nutation": "nonut"},
+                                 "labelled nonut through deltat_ex"),
+    "a_body_label_not_its_body": (lambda r: r.get("body_label") == "moon", {"body_label": "mean_node"},
+                                  "labelled mean_node read body 1"),
+    "an_epoch_name_not_its_instant": (lambda r: r.get("epoch_id") == "grid_1900", {"epoch_id": "grid_1905"},
+                                      "is not that instant"),
+}
+
+
+@pytest.mark.parametrize("plant", sorted(NAME_PLANTS))
+def test_a_row_whose_name_is_not_what_it_names_is_refused(emission, plant):
+    """⛔ Every name a row carries is held to what it names — a label is a claim like any other."""
     m = _module()
+    select, change, message = NAME_PLANTS[plant]
     rows = copy.deepcopy(emission["rows"])
-    row = next(r for r in rows if r.get("ephemeris_requested") == "swiss_file")
-    row["ephemeris_requested"] = "jpl_file"
-    with pytest.raises(m.Refusal, match="labelled jpl_file"):
+    next(r for r in rows if select(r)).update(change)
+    with pytest.raises(m.Refusal, match=message):
         m.check(rows, _context(m, emission))
 
 
