@@ -38,6 +38,11 @@ COVERAGE = 'declared_coverage = { start = "1849-12-26T00:00:00", end = "2150-01-
 #: after that mapping, and the mapping is stated wherever the comparison is.
 REPRODUCTION_DIGEST = "581f9f4d307d578d057aac58db7bcc20cb122f85e7b5a817169ca7d9f856550b"
 
+#: ⭐ Every row of the record, every field — the 56 values of the control rows the scoping measurement never
+#: recorded (each body's longitude and the constant read back) among them — pinned so that nothing in the
+#: record is compared with nothing. ⚠ Host-bound, as the pin above.
+READINGS_DIGEST = "8cf244f33ab864e9bf6440b55d0526c66362803ebf0371b080e4286d547b3b51"
+
 
 def _module():
     spec = importlib.util.spec_from_file_location("mean_node_modes", SCRIPT)
@@ -108,6 +113,16 @@ def test_the_epochs_follow_the_manifest_and_not_a_number_written_here(tmp_path, 
         assert windows[-1] == (start, end)
         universal = m.universal_epochs(interval)
         assert (universal[0]["jd"], universal[-1]["jd"]) == (start, end)
+        ids = {e["epoch_id"] for e in epochs} | {e["epoch_id"] for e in universal}
+        stamps = [s.split('"')[1][:10].replace("-", "_") for s in coverage.split("=")[2:4]]
+        assert {f"supported_start_{stamps[0]}", f"supported_end_{stamps[1]}",
+                f"ut_{stamps[0]}", f"ut_{stamps[1]}"} <= ids
+    # ⭐ The grid's extent is the manifest's too: a coverage of 1855 … 2145 grids exactly those years.
+    (tmp_path / "narrow").mkdir()
+    narrow = 'declared_coverage = { start = "1855-01-01T00:00:00", end = "2145-01-01T00:00:00", scale = "TDB" }'
+    grid = [e["epoch_id"] for e in m.build_epochs(m.read_interval(str(_manifest(tmp_path / "narrow", narrow))))
+            if e["epoch_id"].startswith("grid_")]
+    assert grid == [f"grid_{year}" for year in range(1855, 2146, 5)]
 
 
 def test_a_julian_day_that_does_not_convert_back_is_refused(tmp_path, monkeypatch):
@@ -305,6 +320,11 @@ def test_it_reproduces_the_scoping_measurement_bit_for_bit(emission):
     assert shared_rendering(emission["rows"]) == REPRODUCTION_DIGEST
 
 
+def test_every_row_of_the_record_is_pinned(emission):
+    canonical = "".join(json.dumps(r, sort_keys=True, ensure_ascii=True) + "\n" for r in emission["rows"])
+    assert hashlib.sha256(canonical.encode()).hexdigest() == READINGS_DIGEST
+
+
 def test_the_node_echoes_where_the_moon_reports(emission):
     flags = [r for r in emission["rows"] if r["finding"] == "returned_flag_by_body"]
     assert len(flags) == 28
@@ -341,7 +361,8 @@ def _context(m, emission) -> dict:
               and r["configuration"] == "moshier_files_present" and r["nutation"] == "default"]
     universal = [{"epoch_id": e, "jd": None} for e in summary["epochs"]["universal_time_epochs"]]
     return {"epochs": epochs, "universal": universal, "nonut": swe.FLG_NONUT, "children": summary["children"],
-            "conditions": m.CONDITIONS, "interval": None}
+            "conditions": m.CONDITIONS, "interval": None,
+            "flag": {"moshier": swe.FLG_MOSEPH, "swiss_file": swe.FLG_SWIEPH, "jpl_file": swe.FLG_JPLEPH}}
 
 
 def test_the_controls_pass_on_the_record_as_written(emission):
@@ -376,40 +397,75 @@ def test_one_childs_reading_returned_twice_is_refused(tmp_path, monkeypatch):
         children.run([{}])
 
 
-def test_a_child_that_makes_two_reading_calls_is_refused(tmp_path, monkeypatch):
-    """⛔ MN-8 inside the child: a reading taken after another reading call is warm, however it is reported."""
+def test_a_call_sequence_other_than_the_rows_is_refused(tmp_path, monkeypatch):
+    """⭐ The row declares every call its child made; the child records every call the library received. One
+    extra call — a warm reading through ANY entry point — or one argument other than the row's is refused."""
     m = _module()
-    call = {"entry_point": "calc", "jd_bits": "0" * 16, "body": 10, "flags": 4}
-    reply = json.dumps({"nonce": "1" * 32, "fresh_interpreter": True, "calls": [call, call], "readings": [{}]})
-    monkeypatch.setattr(m.subprocess, "run",
-                        lambda *a, **k: subprocess.CompletedProcess(a, 0, stdout=reply, stderr=""))
-    with pytest.raises(m.Refusal, match="made 2 calls to a reading entry point"):
-        m.Children(str(tmp_path)).run([{}])
-
-
-def test_a_call_other_than_the_one_its_row_records_is_refused(tmp_path, monkeypatch):
-    """⭐ The row says what was called; the child says what the library actually received. A parent that
-    recorded the NONUT word and passed the call without it would write a row false about its own call."""
-    m = _module()
+    row = {"finding": "mean_node_reading", "path_state": "data_files", "entry_point": "calc",
+           "jd_bits": m.bits(2451545.0), "body": 10, "requested": 68}
+    paths = {"data_files": "/d", "empty_directory": "/e", "no_path_set": None}
+    declared = m.declared_calls(row, paths)
+    assert [c["function"] for c in declared] == ["set_ephe_path", "get_tid_acc", "calc", "get_tid_acc",
+                                                 "get_current_file_data", "get_current_file_data"]
     children = m.Children(str(tmp_path))
-    received = {"entry_point": "calc", "jd_bits": m.bits(2451545.0), "body": 10, "flags": 4}
-    monkeypatch.setattr(children, "run", lambda specs: [{"call": received}])
-    assert children.take_all([{}], [received]) == [{"call": received}]
-    with pytest.raises(m.Refusal, match="the row records"):
-        children.take_all([{}], [dict(received, flags=68)])
+    made: list[list[dict]] = []
+    monkeypatch.setattr(children, "run", lambda specs: [{"calls": made[-1]}])
+    made.append(declared)
+    assert children.take_all([{}], [declared]) == [{"calls": declared}]
+    for planted in (declared[:2] + [m._call("pheno_ut", m.bits(2451545.0), 1, 68)] + declared[2:],
+                    [dict(c, args=[c["args"][0], 10, 4]) if c["function"] == "calc" else c for c in declared],
+                    [dict(c, args=["/e"]) if c["function"] == "set_ephe_path" else c for c in declared]):
+        made.append(planted)
+        with pytest.raises(m.Refusal, match="the row declares"):
+            children.take_all([{}], [declared])
 
 
-def test_the_child_records_the_call_the_library_received(tmp_path):
-    """The same control against a real child: the word the library received is read inside the child."""
+def _planted(tmp_path: Path, anchor: str, replacement: str):
+    """A copy of the generator carrying one defect, imported from its own file so its children run it."""
+    text = SCRIPT.read_text(encoding="utf-8")
+    assert text.count(anchor) == 1, anchor
+    path = tmp_path / "planted.py"
+    path.write_text(text.replace(anchor, replacement), encoding="utf-8")
+    spec = importlib.util.spec_from_file_location("planted", path)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+@pytest.mark.parametrize("defect", ["nonut_dropped_at_the_call", "a_warm_call_first", "the_wrong_directory"])
+def test_a_child_that_did_other_than_its_row_declares_is_refused(tmp_path, defect):
+    """⭐ The same control against real children carrying the defect, so the recorder itself is under test."""
     pytest.importorskip("swisseph", reason="the child calls the ephemeris library")
     _pinned_files_or_skip()
+    call = 'values, returned = call(unbits(spec["jd_bits"]), spec["body"], spec["flags"])'
+    plants = {
+        "nonut_dropped_at_the_call": (call, call.replace('spec["flags"])', 'spec["flags"] & ~swe.FLG_NONUT)')),
+        "a_warm_call_first": (call, 'swe.pheno_ut(unbits(spec["jd_bits"]), 1, spec["flags"])\n            ' + call),
+        "the_wrong_directory": ('            swe.set_ephe_path(spec["path"])',
+                                f'            swe.set_ephe_path({str(EPHE)!r})'),
+    }
+    m = _planted(tmp_path, *plants[defect])
+    empty = tmp_path / "empty"
+    empty.mkdir()
+    paths = {"data_files": str(EPHE), "empty_directory": str(empty), "no_path_set": None}
+    row = {"finding": "mean_node_reading", "path_state": "empty_directory", "entry_point": "calc",
+           "jd_bits": m.bits(2451545.0), "body": 10, "requested": 66}
+    spec = m.spec_for(path=str(empty), flags=66, entry_point="calc", jd=2451545.0, body=10)
+    work = tmp_path / "work"
+    work.mkdir()
+    honest = _module()
+    assert honest.Children(str(work)).take_all([spec], [honest.declared_calls(row, paths)])
+    with pytest.raises(m.Refusal, match="the row declares"):
+        m.Children(str(work)).take_all([spec], [m.declared_calls(row, paths)])
+
+
+def test_a_row_whose_label_is_not_its_word_is_refused(emission):
     m = _module()
-    spec = m.spec_for(path=str(EPHE), flags=4, entry_point="calc", jd=2451545.0, body=10)
-    row = {"entry_point": "calc", "jd_bits": m.bits(2451545.0), "body": 10, "requested": 4}
-    children = m.Children(str(tmp_path))
-    assert children.take_all([spec], [m.recorded_call(row)])[0]["call"] == m.recorded_call(row)
-    with pytest.raises(m.Refusal, match="the row records"):
-        children.take_all([spec], [m.recorded_call(dict(row, requested=68))])
+    rows = copy.deepcopy(emission["rows"])
+    row = next(r for r in rows if r.get("ephemeris_requested") == "swiss_file")
+    row["ephemeris_requested"] = "jpl_file"
+    with pytest.raises(m.Refusal, match="labelled jpl_file"):
+        m.check(rows, _context(m, emission))
 
 
 def test_a_reading_count_other_than_the_childrens_is_refused(emission):
