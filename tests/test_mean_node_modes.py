@@ -172,6 +172,36 @@ def test_the_tables_names_say_what_they_define():
             name not in ("swiss_file_inside_coverage", "moshier_files_present")), name
 
 
+def test_every_epoch_label_is_its_instant(tmp_path):
+    """⛔ Epoch labels are the generator's own table, so each is held to its instant by a rule written here, not
+    read from it: a grid year to 1 January of that year (within three days: the grid steps in Julian years
+    of 365.25 days, which drift from the civil calendar), J2000 to its definition, an outside
+    year to its formula, an interval end or a universal-time date to the civil date it spells, a crossing tag to
+    its offset from the crossing — which the published F5 row puts at 0°/360°."""
+    m = _module()
+    interval = m.read_interval(str(_manifest(tmp_path)))
+    epochs = m.build_epochs(interval)
+    jd_of = {e["epoch_id"]: e["jd"] for e in epochs}
+    offsets = {"at": 0.0, "minus_6h": -0.25, "plus_6h": 0.25}
+    for epoch in epochs + m.universal_epochs(interval):
+        label, jd = epoch["epoch_id"], epoch["jd"]
+        head, _, rest = label.partition("_")
+        if label in ("j2000", "ut_j2000"):
+            assert jd == 2451545.0, label
+        elif head == "grid":
+            assert abs(jd - m.julian_day(f"{rest}-01-01T00:00:00")) < 3.0, label
+        elif head == "outside":
+            assert jd == m.year_epoch(int(rest)) and not epoch["in_supported_interval"], label
+        elif head in ("supported", "ut"):
+            assert m.civil(jd)[:10] == label.rsplit("_", 3)[-3:][0] + "-" + "-".join(label.rsplit("_", 2)[-2:]), label
+        elif head.startswith("wrap"):
+            assert jd - jd_of[f"{head}_at"] == offsets[rest], label
+            if rest == "at":
+                assert abs((m.f5_degrees(jd) + 180.0) % 360.0 - 180.0) < 1e-3, label
+        else:
+            raise AssertionError(f"an epoch label no rule reads: {label}")
+
+
 # ---------------------------------------------------------------------------------------
 # Running it — from a commit of its own
 # ---------------------------------------------------------------------------------------
@@ -521,12 +551,18 @@ NAME_PLANTS = {
                                        "a mean_node_reading read body 1"),
     "a_body_name_not_its_body": (lambda r: r.get("body_label") == "moon", {"body_name": "mean Node"},
                                  "naming body 1"),
+    "a_cause_reading_filed_as_mode_invariance": (lambda r: r.get("part") == "cause", {"part": "mode_invariance"},
+                                                 "is not that part's"),
+    "a_forced_universal_reading_filed_unforced": (lambda r: r.get("part") == "universal_time_cause",
+                                                  {"part": "universal_time"}, "is not that part's"),
+    "an_offset_reading_with_a_body": (lambda r: r["finding"] == "delta_t_reading", {"body": 10},
+                                      "a delta_t_reading carries body 10"),
 }
 
 
 @pytest.mark.parametrize("plant", sorted(NAME_PLANTS))
 def test_a_row_whose_name_is_not_what_it_names_is_refused(emission, plant):
-    """⛔ Every name a row carries is held to what it names — a label is a claim like any other."""
+    """⛔ Each pair `check()` holds — a name to what it names — refuses a row that breaks it: a label is a claim."""
     m = _module()
     select, change, message = NAME_PLANTS[plant]
     rows = copy.deepcopy(emission["rows"])

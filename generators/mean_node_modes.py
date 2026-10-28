@@ -39,10 +39,12 @@ other than one reading, or whose output came back twice; ⭐ a child whose calls
 call made through the library module's callables and its submodule's after they are wrapped, recorded
 inside the child with the arguments it actually received — are not exactly the sequence its FINISHED row
 declares (the directory for its path state, its forced constant, the constant read, one reading call with
-its entry point, instant, body and whole flag word, the read-backs); a row whose finding, part, ephemeris
-label, configuration, condition, nutation label, forced constant's name, body, body label, body name, epoch
-name or in-interval flag is not what it names; a NONUT request that moved no reading; the Moon control not
-firing. ⚠ These guard honest error, ⛔ not forgery: a reference to the library bound before the wrapping, its
+its entry point, instant, body and whole flag word, the read-backs); a row that breaks one of these pairs — a
+reading's finding and part to its entry point, its part to its forced constant and epochs, its ephemeris label
+to its word's bits, its configuration or condition to the table defining it, its nutation label to its word's
+nutation bit, a forced constant's name to the library's value of that name, a node reading's body to the node
+and an offset reading to no body, a body label and name to the body, an epoch name to its instant and
+in-interval flag; a NONUT request that moved no reading; the Moon control not firing. ⚠ These guard honest error, ⛔ not forgery: a reference to the library bound before the wrapping, its
 compiled extension reached another way, or a call through one of its classes (which are not wrapped) is outside
 them; and a row field its call sequence does not derive from is judged only by the name checks above.
 
@@ -434,7 +436,7 @@ class Children:
 
 def admit(row: dict, calls: list[dict], paths: dict[str, str | None]) -> dict:
     """⛔ The FINISHED row's declared sequence against the calls its child made — after the row is built, so a
-    defect in building it is judged too."""
+    defect in building one of the fields the sequence derives from is judged too."""
     want = declared_calls(row, paths)
     if calls != want:
         made = [c["function"] for c in calls]
@@ -630,10 +632,11 @@ def check(rows: list[dict], context: dict) -> dict:
     if context["children"] != len(rows):
         raise Refusal(f"{len(rows)} readings from {context['children']} children")
 
-    # ⛔ These names are held to what they name: a row's finding and part to its entry point; its ephemeris label
-    #    to its word's bits; its configuration or condition to the table that defines it; its nutation label to
-    #    its word's nutation bit; a forced constant's name to the library's value of that name; a body, a body
-    #    label and a body name to one another; an epoch to its instant and in-interval flag.
+    # ⛔ Held, each to what it names: a reading's finding and part to its entry point; its part to its forced
+    #    constant and its epochs; its ephemeris label to its word's bits; its configuration or condition to the
+    #    table that defines it; its nutation label to its word's nutation bit; a forced constant's name to the
+    #    library's value of that name; a node reading's body to the node, and an offset reading to no body; a
+    #    body label and a body name to the body; an epoch name to its instant and in-interval flag.
     parts = {"mode_invariance": ("calc",), "cause": ("calc",), "universal_time": ("calc_ut", "deltat_ex", "calc"),
              "universal_time_cause": ("calc_ut",)}
     configurations = {name: (eph, state) for name, eph, state in CONFIGURATIONS}
@@ -649,6 +652,17 @@ def check(rows: list[dict], context: dict) -> dict:
                 raise Refusal(f"a {row['entry_point']} reading filed as {row['finding']} in part {row['part']}")
             if filed == "mean_node_reading" and row["body"] != context["bodies"]["mean_node"]:
                 raise Refusal(f"a mean_node_reading read body {row['body']}")
+            if filed == "delta_t_reading" and "body" in row:
+                raise Refusal(f"a delta_t_reading carries body {row['body']}")
+            # ⭐ a part is its forced constant (present in the two cause parts alone) and its epochs (the calc
+            #    epochs for the first two parts, the universal ones, or one shifted by an offset, for the others)
+            universal_part = row["part"] in ("universal_time", "universal_time_cause")
+            family = ({e["epoch_id"] for e in context["universal"]} if universal_part
+                      else {e["epoch_id"] for e in context["epochs"]})
+            if ("forced_constant" in row) != (row["part"] in ("cause", "universal_time_cause")) or (
+                    row["epoch_id"].removesuffix("_plus_delta_t") not in family) or (
+                    row["epoch_id"].endswith("_plus_delta_t") and row["entry_point"] != "calc"):
+                raise Refusal(f"a reading in part {row['part']} at {row['epoch_id']} is not that part's")
         elif row["body_name"] != context["body_names"][row["body"]]:
             raise Refusal(f"a row naming body {row['body']} {row['body_name']!r}")
         if row["finding"] == "returned_flag_by_body":
@@ -854,13 +868,17 @@ def build_record(rows: list[dict], context: dict, summary: dict, commit: str) ->
                            "its finished row declares: the directory for its path state (none where no path is "
                            "set), the forced constant it records, the constant read, exactly one reading call "
                            "with the row's entry point, instant, body and whole flag word, and the read-backs -- "
-                           "nothing else; a row's finding, part, ephemeris label, configuration, condition, "
-                           "nutation label, forced constant's name, body, body label, body name, epoch name and "
-                           "in-interval flag are each what they name; each child started from an interpreter "
-                           "that had not loaded the library and returned one reading, and no two readings came "
-                           "from one child. \u26a0 Honest error, not forgery: a reference to the library bound "
-                           "before the wrapping, its compiled extension reached another way, or a call through "
-                           "one of its classes is outside the record",
+                           "nothing else; held, each to what it names: a reading's finding and part to its entry "
+                           "point, its part to its forced constant and epochs, its ephemeris label to its word's "
+                           "bits, its configuration or condition to the table defining it, its nutation label to "
+                           "its word's nutation bit, a forced constant's name to the library's value of that name, "
+                           "a node reading's body to the node and an offset reading to no body, a body label and "
+                           "name to the body, an epoch name to its instant and in-interval flag; each child "
+                           "started from an interpreter that had not loaded the library and returned one reading, "
+                           "and no two readings came from one child. \u26a0 Honest error, not forgery: a reference "
+                           "to the library bound before the wrapping, its compiled extension reached another way, "
+                           "or a call through one of its classes is outside the record; and a row field neither "
+                           "the call sequence nor these pairs read is held by nothing here",
                 "removed_environment_variables": sorted(k for k in os.environ if k.startswith("SE_")),
             },
             "licence": "the library is AGPL-3.0; it is called here, never redistributed by this repository",
