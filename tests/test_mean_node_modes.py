@@ -144,19 +144,29 @@ def test_a_manifest_that_does_not_declare_one_coverage_is_refused(tmp_path):
 
 
 def test_the_tables_names_say_what_they_define():
-    """⛔ `check()` holds every row's configuration and condition name to the table that defines it, so the table
-    itself is held to its own words: a name that says "empty" is the empty directory, and so on."""
+    """⛔ `check()` holds every row's configuration and condition name to the table that defines it, so each
+    table is held to its own names' words: the ephemeris a name begins with, and every word that names a
+    directory — present, files_present, inside or outside coverage, no_jpl_file, empty, empty_directory,
+    no_path — to the path state it names."""
     m = _module()
     prefixes = {"moshier": "moshier_", "swiss_file": "swiss_file_", "jpl_file": "jpl_"}
+    words = {"files_present": "data_files", "file_present": "data_files", "no_jpl_file": "data_files",
+             "inside_coverage": "data_files", "outside_coverage": "data_files", "dir_empty": "empty_directory",
+             "empty_directory": "empty_directory", "no_path_set": "no_path_set"}
+
+    def state_of(name: str) -> str:
+        named = {state for word, state in words.items() if word in name}
+        assert len(named) == 1, f"{name}: its words name {sorted(named) or 'no'} directory state"
+        return named.pop()
+
     for name, ephemeris, state in m.CONFIGURATIONS:
         assert name.startswith(prefixes[ephemeris]), name
-        assert ("empty" in name) == (state == "empty_directory"), name
+        assert state_of(name) == state, name
     outside = {"swiss_file_outside_coverage_1500": "outside_1500", "swiss_file_outside_coverage_3000": "outside_3000"}
     for condition in m.CONDITIONS:
         name = condition["condition"]
         assert name.startswith(prefixes[condition["ephemeris"]]), name
-        assert ("empty_directory" in name) == (condition["path_state"] == "empty_directory"), name
-        assert ("no_path" in name) == (condition["path_state"] == "no_path_set"), name
+        assert state_of(name) == condition["path_state"], name
         assert condition["epoch"] == outside.get(name, "j2000"), name
         assert condition["built_to_substitute"] == (
             name not in ("swiss_file_inside_coverage", "moshier_files_present")), name
@@ -386,7 +396,8 @@ def _context(m, emission) -> dict:
             "conditions": m.CONDITIONS, "interval": None,
             "flag": {"moshier": swe.FLG_MOSEPH, "swiss_file": swe.FLG_SWIEPH, "jpl_file": swe.FLG_JPLEPH},
             "forced": {name: m.bits(getattr(swe, name)) for name, _ in m.FORCED},
-            "bodies": {"moon": swe.MOON, "mean_node": swe.MEAN_NODE}}
+            "bodies": {"moon": swe.MOON, "mean_node": swe.MEAN_NODE},
+            "body_names": {b: swe.get_planet_name(b) for b in (swe.MOON, swe.MEAN_NODE)}}
 
 
 def test_the_controls_pass_on_the_record_as_written(emission):
@@ -502,6 +513,14 @@ NAME_PLANTS = {
                                   "labelled mean_node read body 1"),
     "an_epoch_name_not_its_instant": (lambda r: r.get("epoch_id") == "grid_1900", {"epoch_id": "grid_1905"},
                                       "is not that instant"),
+    "an_offset_filed_as_a_node_reading": (lambda r: r["finding"] == "delta_t_reading",
+                                          {"finding": "mean_node_reading"}, "filed as mean_node_reading"),
+    "a_reading_in_another_part": (lambda r: r.get("part") == "cause", {"part": "universal_time_cause"},
+                                  "in part universal_time_cause"),
+    "a_node_reading_of_another_body": (lambda r: r["finding"] == "mean_node_reading", {"body": 1},
+                                       "a mean_node_reading read body 1"),
+    "a_body_name_not_its_body": (lambda r: r.get("body_label") == "moon", {"body_name": "mean Node"},
+                                 "naming body 1"),
 }
 
 

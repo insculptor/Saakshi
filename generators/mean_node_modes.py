@@ -36,13 +36,15 @@ Delaunay argument, used to FIND those instants and for nothing else.
 that is not exactly the pinned set; an "empty" directory that is not empty (both checked before and
 after the run); a child that did not start from an interpreter without the library loaded, or returned
 other than one reading, or whose output came back twice; ⭐ a child whose calls into the library — every
-call made through the library module's attributes and its submodule's after they are wrapped, recorded
+call made through the library module's callables and its submodule's after they are wrapped, recorded
 inside the child with the arguments it actually received — are not exactly the sequence its FINISHED row
 declares (the directory for its path state, its forced constant, the constant read, one reading call with
-its entry point, instant, body and whole flag word, the read-backs); a row whose name is not what it names
-(ephemeris, configuration, condition, nutation, forced constant, body, epoch); a NONUT request that moved no
-reading; the Moon control not firing. ⚠ These guard honest error, ⛔ not forgery: a reference to the library
-bound before the wrapping, or its compiled extension reached another way, is outside them.
+its entry point, instant, body and whole flag word, the read-backs); a row whose finding, part, ephemeris
+label, configuration, condition, nutation label, forced constant's name, body, body label, body name, epoch
+name or in-interval flag is not what it names; a NONUT request that moved no reading; the Moon control not
+firing. ⚠ These guard honest error, ⛔ not forgery: a reference to the library bound before the wrapping, its
+compiled extension reached another way, or a call through one of its classes (which are not wrapped) is outside
+them; and a row field its call sequence does not derive from is judged only by the name checks above.
 
 The standard library and the binding only, as ``utc_conversion.py``; ``git`` is called to read the
 commit. Children run in an empty working directory that is not the parent's, with every ``SE_``
@@ -610,7 +612,8 @@ def measure(ephe_path: str, empty_dir: str, profile: str, work: str) -> tuple[li
     context = {"interval": interval, "epochs": epochs, "universal": universal, "nonut": nonut,
                "children": len(children.nonces), "conditions": CONDITIONS, "flag": flag,
                "forced": {name: bits(getattr(swe, name)) for name, _label in FORCED},
-               "bodies": {label: body for body, label in bodies}}
+               "bodies": {label: body for body, label in bodies},
+               "body_names": {body: swe.get_planet_name(body) for body, _label in bodies}}
     return rows, context
 
 
@@ -627,9 +630,12 @@ def check(rows: list[dict], context: dict) -> dict:
     if context["children"] != len(rows):
         raise Refusal(f"{len(rows)} readings from {context['children']} children")
 
-    # ⛔ Every name is held to what it names: a row's ephemeris label to its word's bits; its configuration or
-    #    condition to the table that defines it; its nutation label to its word's nutation bit; a forced
-    #    constant's name to the library's value of that name; a body label to the body; an epoch to its instant.
+    # ⛔ These names are held to what they name: a row's finding and part to its entry point; its ephemeris label
+    #    to its word's bits; its configuration or condition to the table that defines it; its nutation label to
+    #    its word's nutation bit; a forced constant's name to the library's value of that name; a body, a body
+    #    label and a body name to one another; an epoch to its instant and in-interval flag.
+    parts = {"mode_invariance": ("calc",), "cause": ("calc",), "universal_time": ("calc_ut", "deltat_ex", "calc"),
+             "universal_time_cause": ("calc_ut",)}
     configurations = {name: (eph, state) for name, eph, state in CONFIGURATIONS}
     conditions = {c["condition"]: c for c in context["conditions"]}
     instants = {e["epoch_id"]: e for e in [*context["epochs"], *context["universal"]]}
@@ -637,6 +643,14 @@ def check(rows: list[dict], context: dict) -> dict:
     for row in rows:
         if context["flag"][row["ephemeris_requested"]] != row["requested"] & EPHEMERIS_MASK:
             raise Refusal(f"a row labelled {row['ephemeris_requested']} requested {row['requested']}")
+        if row["finding"] != "returned_flag_by_body":
+            filed = "delta_t_reading" if row["entry_point"] == "deltat_ex" else "mean_node_reading"
+            if row["finding"] != filed or row["entry_point"] not in parts[row["part"]]:
+                raise Refusal(f"a {row['entry_point']} reading filed as {row['finding']} in part {row['part']}")
+            if filed == "mean_node_reading" and row["body"] != context["bodies"]["mean_node"]:
+                raise Refusal(f"a mean_node_reading read body {row['body']}")
+        elif row["body_name"] != context["body_names"][row["body"]]:
+            raise Refusal(f"a row naming body {row['body']} {row['body_name']!r}")
         if row["finding"] == "returned_flag_by_body":
             condition = conditions[row["condition"]]
             named = (condition["ephemeris"], condition["path_state"], condition["epoch"], condition["built_to_substitute"])
@@ -834,16 +848,19 @@ def build_record(rows: list[dict], context: dict, summary: dict, commit: str) ->
                              "run; the parent takes no reading",
                 "why": "the library keeps process-wide state, and a reading taken after another call "
                        "reports that call's state as well as its own",
-                "checked": "every call each child made through the library module's attributes and its "
-                           "submodule's, after they were wrapped, was recorded inside the child with the "
-                           "arguments it actually received, and the whole sequence is the one its finished row "
-                           "declares: the directory for its path state (none where no path is set), the forced "
-                           "constant it records, the constant read, exactly one reading call with the row's "
-                           "entry point, instant, body and whole flag word, and the read-backs -- nothing else; "
-                           "every name in a row is what it names; each child started from an interpreter that "
-                           "had not loaded the library and returned one reading, and no two readings came from "
-                           "one child. \u26a0 Honest error, not forgery: a reference to the library bound before "
-                           "the wrapping is outside the record",
+                "checked": "every call each child made through the callables of the library module and of its "
+                           "submodule (its classes are not wrapped), after they were wrapped, was recorded inside "
+                           "the child with the arguments it actually received, and the whole sequence is the one "
+                           "its finished row declares: the directory for its path state (none where no path is "
+                           "set), the forced constant it records, the constant read, exactly one reading call "
+                           "with the row's entry point, instant, body and whole flag word, and the read-backs -- "
+                           "nothing else; a row's finding, part, ephemeris label, configuration, condition, "
+                           "nutation label, forced constant's name, body, body label, body name, epoch name and "
+                           "in-interval flag are each what they name; each child started from an interpreter "
+                           "that had not loaded the library and returned one reading, and no two readings came "
+                           "from one child. \u26a0 Honest error, not forgery: a reference to the library bound "
+                           "before the wrapping, its compiled extension reached another way, or a call through "
+                           "one of its classes is outside the record",
                 "removed_environment_variables": sorted(k for k in os.environ if k.startswith("SE_")),
             },
             "licence": "the library is AGPL-3.0; it is called here, never redistributed by this repository",
