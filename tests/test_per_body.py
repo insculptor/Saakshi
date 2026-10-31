@@ -278,8 +278,10 @@ def test_an_outside_reading_is_filed_outside_only_where_its_body_has_an_edge():
     rows = _readings({(SUN, 0): EDGE, (NODE, 0): None}, bodies=(SUN, NODE), run=_Children(echo_bodies={NODE}))
     sun = [r["condition"] for r in rows if r["body"] == SUN]
     node = [r["condition"] for r in rows if r["body"] == NODE]
-    assert sun == ["empty_directory", "no_jpl_file", "outside_coverage", "outside_coverage"]
-    assert node == ["empty_directory", "no_jpl_file", "no_measured_edge", "no_measured_edge"]
+    assert sun == ["empty_directory", "no_jpl_file", "outside_coverage", "outside_coverage",
+                   "analytical_request"]
+    assert node == ["empty_directory", "no_jpl_file", "no_measured_edge", "no_measured_edge",
+                    "analytical_request"]
     verdicts = reporting_by_body(rows)
     assert verdicts[("calc_ut", SUN, 0)] == REPORTS and verdicts[("calc_ut", NODE, 0)] == ECHOES
 
@@ -353,6 +355,30 @@ def test_a_value_row_of_the_node_is_never_labelled_reported(tmp_path, node_verdi
         assert len(node_rows) == 2 and sampled["unattested"] == []
 
 
+def test_a_survey_returning_a_word_none_of_its_readings_requested_is_refused():
+    """⛔ Measured on the first re-emit: the default-word readings returned the analytical word,
+    which nothing had requested, and a reader of words by their requests refused every body
+    over it. ⭐ The twin: the same readings with the analytical request read beside them."""
+    rows = _readings({(SUN, 0): EDGE, (SUN, NONUT): EDGE}, keys=(0, NONUT))
+    swiss.returned_words_are_requested(rows)
+    without = [r for r in rows if r["condition"] != "analytical_request"]
+    with pytest.raises(SurveyRefusal) as excinfo:
+        swiss.returned_words_are_requested(without)
+    assert "no reading here requested" in str(excinfo.value)
+    mislabelled = [{**r, "ephemeris_requested": "swiss_file"} if r["condition"] == "analytical_request"
+                   else r for r in rows]
+    with pytest.raises(SurveyRefusal):
+        swiss.returned_words_are_requested(mislabelled)
+
+
+def test_the_analytical_reading_neither_admits_nor_refuses():
+    rows = _readings({(SUN, 0): EDGE})
+    analytical = [r for r in rows if r["condition"] == "analytical_request"]
+    assert len(analytical) == 1 and analytical[0]["returned"] == analytical[0]["requested"]
+    assert reporting_by_body(rows) == reporting_by_body(
+        [r for r in rows if r["condition"] != "analytical_request"]) == {("calc_ut", SUN, 0): REPORTS}
+
+
 def test_the_survey_writer_refuses_such_a_row_before_it_writes_anything(tmp_path):
     speed = _readings({(SUN, swe.FLG_SPEED): EDGE}, keys=(swe.FLG_SPEED,))
     with pytest.raises(SurveyRefusal):
@@ -361,6 +387,15 @@ def test_the_survey_writer_refuses_such_a_row_before_it_writes_anything(tmp_path
             demonstration=[], state_rows=[], offset_rows=[], session=None, out_dir=tmp_path,
             script=ROOT / "generators" / "r3_swiss.py", ephe={},
         )
+    assert not any(tmp_path.iterdir())
+    unreadable = [r for r in _readings({(SUN, 0): EDGE}) if r["condition"] != "analytical_request"]
+    with pytest.raises(SurveyRefusal) as excinfo:
+        r3.write_audit_fixture(
+            audit_rows=[], edges={}, edges_by_body={}, body_rows=unreadable, verdicts={},
+            demonstration=[], state_rows=[], offset_rows=[], session=None, out_dir=tmp_path,
+            script=ROOT / "generators" / "r3_swiss.py", ephe={},
+        )
+    assert "no reading here requested" in str(excinfo.value)
     assert not any(tmp_path.iterdir())
 
 
@@ -469,6 +504,8 @@ def test_the_survey_rows_are_its_two_words_and_each_reading_is_fresh(per_body):
     _edges, readings, _verdicts = per_body
     rows = [r for r in readings if (r["requested"] & ~7) in r3.SURVEY_KEYS]
     r3.survey_rows_hold_only_survey_words(rows)
-    assert len(rows) == len(r3.BODIES) * len(r3.SURVEY_KEYS) * len(swiss.FIXED_CONDITIONS)
+    assert len(rows) == len(r3.BODIES) * len(r3.SURVEY_KEYS) * len(
+        swiss.FIXED_CONDITIONS + swiss.TABLE_READINGS)
+    swiss.returned_words_are_requested(rows)
     assert {r["call_history"] for r in readings} == {"cold_process_per_row"}
     json.dumps(rows)

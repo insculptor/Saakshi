@@ -70,12 +70,12 @@ from saakshi.swiss import (  # noqa: E402
     assert_library_state_returned,
     ephe_set_identity,
     fixed_condition_readings,
-    host_identity,
     measured_entry_point_records,
     offset_attribution,
     offset_epochs,
     one_edge_per_body,
     reporting_by_body,
+    returned_words_are_requested,
     returns_read_blind,
     state_dependence,
     verify_ephe_set,
@@ -961,6 +961,7 @@ def write_audit_fixture(
     edge per body.
     """
     survey_rows_hold_only_survey_words(body_rows)
+    returned_words_are_requested(body_rows)
     rows: list[dict[str, Any]] = list(audit_rows)
     for body, edge in sorted(edges_by_body.items()):
         if edge is None:
@@ -1011,7 +1012,7 @@ def write_audit_fixture(
                     k for k in os.environ if k.startswith("SE_")
                 ),
             },
-            "host": host_identity(),
+            "host": host_record(),
             "data_files": ephe,
             "empty_directory": {
                 "verified_empty": True,
@@ -1059,9 +1060,11 @@ def write_audit_fixture(
             "upper_edge_last_outside_jd_ut_bits": "⭐ the value; adjacent to the one above",
             "condition": (
                 "for a returned_flag_by_body row: empty_directory | no_jpl_file | "
-                "outside_coverage | no_measured_edge -- the condition built so that the requested "
-                "source cannot answer. ⭐ outside_coverage only where the instant was placed, as "
-                "bits, outside the body's own edge; no_measured_edge where the body has none"
+                "outside_coverage | no_measured_edge | analytical_request -- the condition built "
+                "so that the requested source cannot answer. ⭐ outside_coverage only where the "
+                "instant was placed, as bits, outside the body's own edge; no_measured_edge where "
+                "the body has none; analytical_request is under no condition at all: it is read "
+                "so that the word a substituted answer returns is one a reading here requested"
             ),
             "ephemeris_requested": "moshier | swiss_file | jpl_file -- the source the request names",
             "path_state": (

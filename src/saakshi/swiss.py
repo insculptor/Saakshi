@@ -38,7 +38,6 @@ from __future__ import annotations
 
 import json
 import os
-import platform
 import struct
 import subprocess
 import sys
@@ -857,6 +856,15 @@ FIXED_CONDITIONS: tuple[tuple[str, str, str, str], ...] = (
     ("outside_coverage", "swiss_file", "data_files", "outside_3000"),
 )
 
+#: ⭐ **The analytical request, honoured — under no fixed condition, and read anyway.** A reader
+#: that looks a returned word up through the words readings *requested* cannot read a word
+#: nobody requested: the substituted answer's word is the analytical request's, and measured
+#: here, a survey without this reading returned a word no reading had asked for, which such a
+#: reader refuses for the body under every key. It neither admits nor refuses anything itself.
+TABLE_READINGS: tuple[tuple[str, str, str, str], ...] = (
+    ("analytical_request", "moshier", "data_files", "j2000"),
+)
+
 #: What a body's readings say about its returned word, per (entry point, body, key).
 REPORTS, ECHOES, UNCOVERED = "reports", "echoes", "uncovered"
 
@@ -1137,7 +1145,7 @@ def fixed_condition_readings(
     rows: list[dict[str, Any]] = []
     for body in bodies:
         for key in keys:
-            for condition, source, path_state, epoch_id in FIXED_CONDITIONS:
+            for condition, source, path_state, epoch_id in FIXED_CONDITIONS + TABLE_READINGS:
                 jd = FIXED_CONDITION_EPOCHS[epoch_id]
                 filed = condition
                 if condition == "outside_coverage":
@@ -1190,6 +1198,31 @@ def fixed_condition_readings(
     return rows
 
 
+def returned_words_are_requested(readings: Iterable[Mapping[str, Any]]) -> None:
+    """⛔ Refuse readings that return a word none of them requested, through the same entry point.
+
+    A reader that looks a returned word up through the requested words — never decoding its
+    bits — cannot read one nobody asked for, and refuses the body for every key over it. So
+    every word these readings return must be one of them requested, under the same source
+    label as the request that asked for it.
+    """
+    requested: dict[tuple[str, int], str] = {}
+    readings = list(readings)
+    for r in readings:
+        requested[(str(r["entry_point"]), int(r["requested"]))] = str(r["ephemeris_requested"])
+    for r in readings:
+        key = (str(r["entry_point"]), int(r["returned"]))
+        if key not in requested:
+            raise SurveyRefusal(
+                f"a {key[0]} reading of body {r.get('body')} returned word {key[1]}, which no "
+                "reading here requested; a reader of words by their requests could not read it"
+            )
+        if SOURCE_FLAGS[requested[key]] != key[1] & SOURCE_MASK:
+            raise SurveyRefusal(
+                f"word {key[1]} was requested as {requested[key]}, which its bits do not name"
+            )
+
+
 def reporting_by_body(readings: Iterable[Mapping[str, Any]]) -> dict[tuple[str, int, int], str]:
     """Per (entry point, body, key): ``reports``, ``echoes`` or ``uncovered``.
 
@@ -1218,14 +1251,6 @@ def reporting_by_body(readings: Iterable[Mapping[str, Any]]) -> dict[tuple[str, 
         for group, conditions in seen.items()
     }
 
-
-def host_identity() -> dict[str, str]:
-    """The host the readings were taken on — bits are host-bound until shown otherwise."""
-    return {
-        "python": sys.version.split()[0],
-        "platform": platform.platform(),
-        "machine": platform.machine(),
-    }
 
 
 # --------------------------------------------------------------------------------------
