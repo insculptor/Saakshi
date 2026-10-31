@@ -65,6 +65,9 @@ generators/          one script per fixture set; each is a recorder
   r2_kernel_states.py    geometric states from a pinned DE kernel, read twice
   publisher_testpo.py    the ephemeris publisher's own test-value set
   r3_swiss.py            the same grid under each ephemeris source, source asserted per row
+                         and per body; and the survey of which entry points report
+  mean_node_section.py   the mean node through calc as a comparison section, read warm, and
+                         its three controls at every row
   r5_continuity.py       what an earlier implementation answered, before it stops running
   deployment_capture.py  what a deployment's library resolves, captured on its own host;
                          ⛔ imports nothing from here and writes no fixture
@@ -105,6 +108,9 @@ python generators/r2_kernel_states.py --kernel <path to de440s.bsp> --out out/
 python generators/publisher_testpo.py --kernel <path to de440s.bsp> --out out/
 python generators/r1_horizons.py --kernel <path to de440s.bsp> --out out/
 python generators/r3_swiss.py --ephe-path <directory of .se1 files> --out out/
+python generators/mean_node_section.py --ephe-path <directory of .se1 files> \
+    --empty-dir <an empty directory> --profile <a data profile manifest> \
+    --survey out/swiss/r3-flag-reporting.jsonl --out-dir out/mean-node-section/
 python generators/convention_probes.py --ephe-path <directory of .se1 files> --out out/
 python generators/probe6b_ffi.py --out out/
 
@@ -222,6 +228,44 @@ and every row records which one it relied on:
 ⭐ **A row whose source cannot be established is not written.** It is listed in the header
 as a substitution. That exclusion is the mechanism: it is what keeps an uncovered epoch
 from contributing a zero that would read as agreement.
+
+⛔ **And a reporting entry point does not report for every body.** Under every condition built
+so that the requested source cannot answer — a verified-empty directory, a JPL request with no
+JPL file, an instant outside the body's own coverage edge — every body's returned word named the
+source that did answer, except the mean lunar node's, which handed the request back. So a flag
+is read as a report only per body and per word: the survey reads each body under each condition,
+each reading the one call of a fresh process, and writes each body's edge as adjacent bits for
+the words its readings use (one body's edge moves with the speed bit). A value row of a body
+not shown reporting under its own word is recorded as unattested and not written.
+
+⚠ **A reader of words can only read the words somebody asked for.** A consumer that looks a
+returned word up through the words readings *requested*, never decoding its bits, could not read
+the analytical source's word when no reading had requested it — and refused every body under
+every key over it, one it had admitted before among them. Measured before anything was emitted;
+the survey now reads the analytical request beside each body's conditions, and refuses readings
+that return a word none of them requested. See
+`docs/measurements/2026-10-31-the-word-nobody-requested.md`.
+
+### A convention value that does not move with the request
+
+`mean_node_section.py` writes the one comparison section here whose rows assert `none` and are
+meant to be compared anyway: the mean lunar node through `calc`, under the data-file request
+with the whole word, `FLG_NONUT` included. Its claim is not about which source answered — the
+node's word cannot say — but that the value **did not move with the request**, and that claim is
+carried by three controls committed beside it, at **every** row:
+
+* ① **invariance** — the node under five configurations of request and directory, each reading
+  the only call of a fresh process, bit-identical to the row; and a **witness**, the Moon at the
+  same instant under the same five, whose word reports where the request cannot answer, whose
+  value differs between two answering sources, and which the section's own request answers;
+* ② **sufficiency** — the section, read warm, read again warm in the reverse order. ⛔ Never
+  cold: a cold reading under the section's configuration is already ①'s, and would repeat it;
+* ③ **a nutation twin** — the row without `FLG_NONUT`, which must differ.
+
+Every control is checked before either file is written, each part held to exactly the section's
+own epochs and instants. ⚠ The section is classified `tolerance` with the band this instrument
+measured between a row and every other reading of it — none — and that band is context: the band
+a comparison applies is its consumer's.
 
 ### Sampling an engine for continuity
 
