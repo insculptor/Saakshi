@@ -33,6 +33,7 @@ how any ephemeris is evaluated.
 from __future__ import annotations
 
 import argparse
+import os
 import sys
 import tempfile
 from importlib.metadata import version as _distribution_version
@@ -52,19 +53,29 @@ from saakshi.fixture import (  # noqa: E402
 )
 from saakshi.provenance import generator_for, host_record, today  # noqa: E402
 from saakshi.swiss import (  # noqa: E402
+    ECHOES,
+    SurveyRefusal,
     MODES,
+    NUTATION_LABELS,
+    REPORTS,
     EphemerisSubstitution,
     Mode,
     Session,
+    UnattestedReport,
     assert_reported,
     assert_window,
+    body_edges,
     calendar_ut,
     coverage_edges,
     assert_library_state_returned,
     ephe_set_identity,
+    fixed_condition_readings,
+    host_identity,
     measured_entry_point_records,
     offset_attribution,
     offset_epochs,
+    one_edge_per_body,
+    reporting_by_body,
     returns_read_blind,
     state_dependence,
     verify_ephe_set,
@@ -148,6 +159,18 @@ ANGULAR: dict[str, Any] = {
 
 SECTIONS: tuple[str, ...] = tuple(ANGULAR)
 
+#: ⭐ The non-ephemeris bits of the words the survey's per-body readings and edges use — the
+#: two a reader of words can hold apart. ⛔ Only these become survey rows.
+SURVEY_KEYS: tuple[int, ...] = tuple(NUTATION_LABELS.values())
+
+#: The non-ephemeris bits of the words the value fixtures' position rows use. ⚠ Each is read
+#: per body as well, because a flag is read as a report only under the word it came back
+#: from; their readings live in those fixtures' own summaries, never in the survey's rows.
+VALUE_KEYS: tuple[int, ...] = (swe.FLG_SPEED, swe.FLG_SPEED | swe.FLG_SIDEREAL)
+
+#: The range every body's edge is searched in -- the Moon's, as it always was.
+EDGE_SEARCH_YEARS: tuple[int, int] = (1000, 3000)
+
 
 # --------------------------------------------------------------------------------------
 # The grid, derived from where the data files were measured to stop answering
@@ -225,7 +248,11 @@ def _values_row(
 
 
 def sample_mode(
-    mode: Mode, epochs: list[tuple[str, str, float]], session: Session
+    mode: Mode,
+    epochs: list[tuple[str, str, float]],
+    session: Session,
+    *,
+    attested: dict[tuple[str, int, int], str],
 ) -> dict[str, Any]:
     """Call every entry point at every grid point, and attribute or refuse each result.
 
@@ -239,6 +266,7 @@ def sample_mode(
     rows: list[dict[str, Any]] = []
     substitutions: list[dict[str, Any]] = []
     refusals: list[dict[str, Any]] = []
+    unattested: list[dict[str, Any]] = []
     by_key: dict[str, tuple[str, list[float]]] = {}
 
     def keep(row: dict[str, Any], key: str) -> None:
@@ -279,18 +307,27 @@ def sample_mode(
         ):
             for body, body_name in BODIES:
                 where = f"{mode.id}/{section}/{epoch_id}/{body_name}"
+                word = mode.flag | swe.FLG_SPEED | extra
                 session.reset()
                 try:
-                    xx, returned = swe.calc_ut(
-                        jd, body, mode.flag | swe.FLG_SPEED | extra
-                    )
+                    xx, returned = swe.calc_ut(jd, body, word)
                 except Exception as exc:
                     refused(section, epoch_id, where, exc)
                     continue
                 try:
-                    assertion = assert_reported(mode, returned, where=where)
+                    assertion = assert_reported(
+                        mode, returned, body=body, word=word, attested=attested, where=where
+                    )
                 except EphemerisSubstitution as exc:
                     substituted(section, epoch_id, where, exc)
+                    continue
+                except UnattestedReport as exc:
+                    # ⛔ Not written, and not a substitution either: nothing is known to have
+                    #    been substituted. This body's flag was not shown to report one.
+                    unattested.append(
+                        {"section": section, "epoch_id": epoch_id, "where": where,
+                         "detail": str(exc)[:300]}
+                    )
                     continue
                 keep(
                     _values_row(
@@ -493,6 +530,7 @@ def sample_mode(
         "rows": rows,
         "substitutions": substitutions,
         "refusals": refusals,
+        "unattested": unattested,
         "by_key": by_key,
     }
 
@@ -709,6 +747,7 @@ def write_mode_fixture(
     session: Session,
     out_dir: Path,
     script: Path,
+    per_body: dict[str, Any],
 ) -> tuple[Path, int]:
     rows = sampled["rows"]
     sections_present = sorted({str(row["section"]) for row in rows})
@@ -791,6 +830,17 @@ def write_mode_fixture(
                     "because a refusal is a fact about the library; ⚠ NOT an error here"
                 ),
             },
+            "unattested": {
+                "count": len(sampled["unattested"]),
+                "sample": sampled["unattested"][:20],
+                "meaning": (
+                    "⛔ calls whose returned flag named the requested source, for a body whose "
+                    "flag was not shown to report one under this word (`per_body_reporting`). "
+                    "Their values were NOT written: a flag that cannot report a substitution "
+                    "is the request written down as its own evidence"
+                ),
+            },
+            "per_body_reporting": per_body,
             "coverage_edges": edges,
             "attribution_by_stratum": attribution_by_stratum(sampled, epochs),
             "mode_comparison": comparison,
@@ -803,10 +853,93 @@ def write_mode_fixture(
     return path, written
 
 
+def survey_summary(
+    *,
+    edges: dict[str, Any],
+    edges_by_body: dict[int, dict[str, Any] | None],
+    body_rows: list[dict[str, Any]],
+    verdicts: dict[tuple[str, int, int], str],
+) -> dict[str, Any]:
+    """What the per-body readings and edges say, read off the rows that say it."""
+    labels = {bits_value: label for label, bits_value in NUTATION_LABELS.items()}
+    bodies = sorted({int(r["body"]) for r in body_rows})
+    by_body = []
+    for body in bodies:
+        entry: dict[str, Any] = {"body": body, "body_name": swe.get_planet_name(body)}
+        for key in SURVEY_KEYS:
+            entry[labels[key]] = verdicts[("calc_ut", body, key)]
+        by_body.append(entry)
+    moon = edges_by_body.get(swe.MOON)
+    return {
+        "returned_flag_by_body": {
+            "entry_point": "calc_ut",
+            "readings": len(body_rows),
+            "by_body": by_body,
+            "meaning": (
+                "per body and label, from this file's own returned_flag_by_body rows: "
+                f"`{REPORTS}` where every fixed condition has a reading whose returned source "
+                f"differs from the request; `{ECHOES}` where one reading under a fixed condition "
+                "handed the request back; anything else uncovered. ⛔ A recorder's reading, "
+                "never a consumer's decision"
+            ),
+        },
+        "bodies_without_a_measured_edge": [
+            {
+                "body": body,
+                "body_name": swe.get_planet_name(body),
+                "why": (
+                    "the data-file request was answered at both ends of the search range and at "
+                    "its middle under every word read, so no edge lies inside the range. ⛔ No "
+                    "coverage_edge row is written for it, and none of its readings is filed "
+                    "outside_coverage"
+                ),
+            }
+            for body, edge in sorted(edges_by_body.items())
+            if edge is None
+        ],
+        "grid_edge": {
+            "body": swe.MOON,
+            "located_with_word": MODES["swiss_file"].flag | swe.FLG_SPEED,
+            "equals_the_moons_coverage_edge_row": moon is not None
+            and all(edges[f"{e}_bits"] == moon[f"{e}_bits"] for e in (
+                "lower_edge_last_outside_jd_ut", "lower_edge_first_inside_jd_ut",
+                "upper_edge_first_inside_jd_ut", "upper_edge_last_outside_jd_ut")),
+            "meaning": (
+                "the Moon's edge as the value grid locates it, under the speed word the value "
+                "rows use, against its coverage_edge row above, located under the survey's own "
+                "words"
+            ),
+        },
+    }
+
+
+def survey_rows_hold_only_survey_words(body_rows: list[dict[str, Any]]) -> None:
+    """⛔ Refuse a survey reading whose word carries a non-ephemeris bit other than the nutation bit.
+
+    A reader that looks words up by (source, label) holds one word per pair: a word carrying
+    the speed bit beside the same source's plain word is two words under one label, and such
+    a reader refuses the whole record rather than guess which is meant. So the survey's rows
+    hold the two labelled keys alone, each labelled by its own bits.
+    """
+    labels = dict(NUTATION_LABELS)
+    for row in body_rows:
+        key = int(row["requested"]) & ~7
+        label = row.get("nutation")
+        if label not in labels or labels[label] != key or "non_ephemeris_key" in row:
+            raise SurveyRefusal(
+                f"a survey reading of body {row.get('body')} requested word {row['requested']} "
+                f"under label {label!r}: only {sorted(labels)} words, each labelled by its own "
+                "bits, are survey rows"
+            )
+
+
 def write_audit_fixture(
     *,
     audit_rows: list[dict[str, Any]],
     edges: dict[str, Any],
+    edges_by_body: dict[int, dict[str, Any] | None],
+    body_rows: list[dict[str, Any]],
+    verdicts: dict[tuple[str, int, int], str],
     demonstration: list[dict[str, Any]],
     state_rows: list[dict[str, Any]],
     offset_rows: list[dict[str, Any]],
@@ -820,18 +953,31 @@ def write_audit_fixture(
     ⭐ A `provenance_record`, not a `numeric_pin`. It attests a property of the library
     rather than comparing a value against a reference, and the contract's own kind
     discipline is what keeps the two from being confused.
+
+    ⭐ **Per body.** A `coverage_edge` row for every body that has one, its four ends as
+    adjacent bits, measured under exactly the words of that body's readings; and each body's
+    returned word read in a fresh process under every fixed condition. ⛔ It REPLACES the
+    single edge the survey used to carry, and is never written beside it: a reader holds one
+    edge per body.
     """
+    survey_rows_hold_only_survey_words(body_rows)
     rows: list[dict[str, Any]] = list(audit_rows)
-    rows.append(
-        {
-            "finding": "coverage_edge",
-            "note": (
-                "where the supplied data files stop answering, located by bisection on the "
-                "returned flag of the one entry point that reports it"
-            ),
-            **{k: v for k, v in edges.items()},
-        }
-    )
+    for body, edge in sorted(edges_by_body.items()):
+        if edge is None:
+            continue
+        rows.append(
+            {
+                "finding": "coverage_edge",
+                "note": (
+                    "where the supplied data files stop answering this body, located by "
+                    "bisection on the returned flag of the one entry point that reports it"
+                ),
+                "body_name": swe.get_planet_name(body),
+                "located_through": "calc_ut",
+                **edge,
+            }
+        )
+    rows.extend(body_rows)
     rows.extend(state_rows)
     rows.extend(offset_rows)
     rows.extend(demonstration)
@@ -850,8 +996,27 @@ def write_audit_fixture(
                 "each entry point was called under conditions where the requested "
                 "ephemeris was known to be unavailable, and what came back was read"
             ),
-            "session": session.identity(),
+            "session": {
+                **session.identity(),
+                "returned_flag_by_body": (
+                    "⛔ each such reading is one call in a fresh child interpreter (-I), in "
+                    "an empty working directory verified empty after the run, with every "
+                    "SE_ environment variable removed; every call the child made into the "
+                    "library, through the module's and its submodule's callables after "
+                    "they were wrapped, was recorded inside it and had to be exactly the "
+                    "row's: the directory for its path state and one reading call with the "
+                    "row's instant, body and whole word. ⚠ Honest error, not forgery"
+                ),
+                "removed_environment_variables": sorted(
+                    k for k in os.environ if k.startswith("SE_")
+                ),
+            },
+            "host": host_identity(),
             "data_files": ephe,
+            "empty_directory": {
+                "verified_empty": True,
+                "checked": "before the first reading and after the last",
+            },
         },
         attests=(
             "which entry points of the ephemeris library report the ephemeris that actually "
@@ -874,8 +1039,51 @@ def write_audit_fixture(
         record_date=today(),
         row_schema={
             "finding": (
-                "flag_reporting | coverage_edge | state_dependence | "
+                "flag_reporting | coverage_edge | returned_flag_by_body | state_dependence | "
                 "offset_attribution | substitution_demonstration"
+            ),
+            "body": "the library's own body integer",
+            "body_name": "the library's own name for that body",
+            "located_through": "for a coverage_edge row: the entry point whose returned flag located it",
+            "located_with_words": (
+                "⭐ for a coverage_edge row: every whole word the edge was located under. ⛔ A row "
+                "is written only where all of them put the edge at the same bits"
+            ),
+            "lower_edge_last_outside_jd_ut": "a coverage_edge's end, a Julian day in UT -- ⚠ display",
+            "lower_edge_last_outside_jd_ut_bits": "⭐ that end's bit pattern, which is the value",
+            "lower_edge_first_inside_jd_ut": "a coverage_edge's end -- ⚠ display",
+            "lower_edge_first_inside_jd_ut_bits": "⭐ the value; adjacent to the one above",
+            "upper_edge_first_inside_jd_ut": "a coverage_edge's end -- ⚠ display",
+            "upper_edge_first_inside_jd_ut_bits": "⭐ the value",
+            "upper_edge_last_outside_jd_ut": "a coverage_edge's end -- ⚠ display",
+            "upper_edge_last_outside_jd_ut_bits": "⭐ the value; adjacent to the one above",
+            "condition": (
+                "for a returned_flag_by_body row: empty_directory | no_jpl_file | "
+                "outside_coverage | no_measured_edge -- the condition built so that the requested "
+                "source cannot answer. ⭐ outside_coverage only where the instant was placed, as "
+                "bits, outside the body's own edge; no_measured_edge where the body has none"
+            ),
+            "ephemeris_requested": "moshier | swiss_file | jpl_file -- the source the request names",
+            "path_state": (
+                "data_files (exactly the pinned set) | empty_directory (verified empty)"
+            ),
+            "jd": "the Julian day passed, UT -- ⚠ display; `jd_bits` is the value",
+            "jd_bits": "⭐ the instant's bit pattern, as the call received it",
+            "requested": "⭐ the WHOLE word passed, every bit of it",
+            "nutation": (
+                "default (no non-ephemeris bit) | nonut (FLG_NONUT and nothing else) -- ⛔ a word "
+                "with any other non-ephemeris bit is never a row here"
+            ),
+            "returned": "the whole word the call returned",
+            "substitution_reported": "whether the returned word's source bits differ from the requested word's",
+            "longitude": "the call's first returned value -- ⚠ display; `longitude_bits` is the value",
+            "longitude_bits": "⭐ its bit pattern",
+            "latitude": "the second returned value",
+            "latitude_bits": "⭐ its bit pattern",
+            "distance": "the third returned value",
+            "distance_bits": "⭐ its bit pattern",
+            "call_history": (
+                "cold_process_per_row -- ⭐ the reading was the only call of a fresh interpreter"
             ),
             "sweep": (
                 "for a state_dependence row: the order the same instants were visited in, "
@@ -897,7 +1105,7 @@ def write_audit_fixture(
                 "this is non-zero and the one above is zero, the obvious comparison "
                 "reported agreement it had not measured"
             ),
-            "entry_point": "the library function, for a flag_reporting row",
+            "entry_point": "the library function, for a flag_reporting or returned_flag_by_body row",
             "quantity_returned": (
                 "⭐ what the entry point returns a value OF. Recorded because the proxy "
                 "that stands in for a missing report is a call about a POSITION, and not "
@@ -998,6 +1206,9 @@ def write_audit_fixture(
                 "honest value exists for this field for either offset entry point"
             ),
         },
+        summary=survey_summary(
+            edges=edges, edges_by_body=edges_by_body, body_rows=body_rows, verdicts=verdicts
+        ),
         notes=[
             "⭐ THE POINT OF THIS FILE. A rule that says `assert the returned flag` is "
             "necessary and not sufficient: one entry point here returns a flag that is the "
@@ -1050,8 +1261,15 @@ def write_audit_fixture(
             "tidal constant in force as bits. The table above is CHECKED against the first "
             "rather than copied into it, and the second is written only where all three of "
             "its clauses were measured; which rows carry it is the measurement's to say.",
-            "⚠ Dated and versioned deliberately. This is an observation of one release "
-            "through one binding, not a claim about the software in general.",
+            "⭐ PER BODY. Whether a returned flag reports is a property of the body as well "
+            "as of the entry point: under every condition built so that the requested source "
+            "cannot answer, one body's word handed the request back while every other body's "
+            "named the source that did. So each body is read under each condition, in a fresh "
+            "process, and its coverage edge is written as bits for the words its readings "
+            "use. ⛔ A body with no reading under some condition is not shown to report there.",
+            "⚠ Dated, versioned and placed deliberately. This is an observation of one "
+            "release through one binding on the recorded host, not a claim about the "
+            "software in general.",
         ],
     )
     path = out_dir / "swiss" / "r3-flag-reporting.jsonl"
@@ -1222,6 +1440,75 @@ def offset_survey(
     return rows
 
 
+def _verify_empty(path: str) -> None:
+    if os.listdir(path):
+        raise SurveyRefusal(f"a directory used as empty holds {len(os.listdir(path))} entries")
+
+
+def measure_per_body(
+    ephe_path: Path, session: Session
+) -> tuple[dict[tuple[int, int], dict[str, Any] | None], list[dict[str, Any]]]:
+    """Every body's edge under every key, and its returned word under every fixed condition.
+
+    ⛔ The empty directory is verified empty before the first reading and after the last, and
+    so is the working directory the children run in.
+    """
+    bodies = [body for body, _ in BODIES]
+    keys = SURVEY_KEYS + VALUE_KEYS
+    jd_low, jd_high = (swe.julday(year, 1, 1, 0.0) for year in EDGE_SEARCH_YEARS)
+    keyed_edges = body_edges(
+        bodies=bodies, keys=keys, jd_low=jd_low, jd_high=jd_high, session=session
+    )
+    with tempfile.TemporaryDirectory() as empty, tempfile.TemporaryDirectory() as work:
+        _verify_empty(empty)
+        readings = fixed_condition_readings(
+            bodies=bodies,
+            keys=keys,
+            edges=keyed_edges,
+            ephe_path=os.path.abspath(ephe_path),
+            empty_dir=empty,
+            work_dir=work,
+            sidereal_mode=session.sidereal_mode,
+        )
+        _verify_empty(empty)
+        _verify_empty(work)
+    return keyed_edges, readings
+
+
+def value_evidence(
+    keyed_edges: dict[tuple[int, int], dict[str, Any] | None],
+    readings: list[dict[str, Any]],
+    attested: dict[tuple[str, int, int], str],
+) -> dict[str, Any]:
+    """The per-body evidence the value rows were labelled from, for their own words only.
+
+    ⭐ Kept in the value fixtures' own summaries and never in the survey's rows: these words
+    carry the speed and sidereal bits, which a reader of words by (source, label) cannot hold
+    apart from the survey's.
+    """
+    mine = [r for r in readings if (r["requested"] & ~7) in VALUE_KEYS]
+    return {
+        "entry_point": "calc_ut",
+        "non_ephemeris_key": list(VALUE_KEYS),
+        "edges": [
+            {"body": body, "non_ephemeris_key": key, "edge": edge}
+            for (body, key), edge in sorted(keyed_edges.items())
+            if key in VALUE_KEYS
+        ],
+        "readings": mine,
+        "by_body": [
+            {"body": body, "non_ephemeris_key": key, "verdict": attested[("calc_ut", body, key)]}
+            for body, _name in BODIES
+            for key in VALUE_KEYS
+        ],
+        "meaning": (
+            "⭐ a value row is labelled `reported` only for a body whose verdict under that "
+            f"row's word is `{REPORTS}`: every fixed condition read, in a fresh process, and the "
+            "returned source differing from the request under each"
+        ),
+    }
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument(
@@ -1287,15 +1574,32 @@ def main() -> int:
     epochs = build_epochs(edges)
     print(f"epochs: {len(epochs)}   bodies: {len(BODIES)}   sites: {len(SITES)}")
 
+    # ⭐ Per body, before any value row is labelled: each body's edge under each word, and its
+    #    returned word read in a fresh process wherever the request cannot be answered. Every
+    #    probe here starts from a reset and every reading is a child of its own, so nothing
+    #    measured after this point can depend on it.
+    keyed_edges, body_readings = measure_per_body(args.ephe_path, session)
+    attested = reporting_by_body(body_readings)
+    edges_by_body = one_edge_per_body(keyed_edges, keys=SURVEY_KEYS)
+    body_rows = [r for r in body_readings if (r["requested"] & ~7) in SURVEY_KEYS]
+    for body, _name in BODIES:
+        print(
+            f"    body {body}: edge {'none' if edges_by_body[body] is None else 'measured'}; "
+            + ", ".join(
+                f"{key}={attested[('calc_ut', body, key)]}" for key in SURVEY_KEYS + VALUE_KEYS
+            )
+        )
+
     sampled = {
-        mode_id: sample_mode(MODES[mode_id], epochs, session)
+        mode_id: sample_mode(MODES[mode_id], epochs, session, attested=attested)
         for mode_id in ("moshier", "swiss_file")
     }
     for mode_id, result in sampled.items():
         print(
             f"{mode_id}: {len(result['rows'])} row(s), "
             f"{len(result['substitutions'])} substitution(s), "
-            f"{len(result['refusals'])} refusal(s)"
+            f"{len(result['refusals'])} refusal(s), "
+            f"{len(result['unattested'])} unattested"
         )
 
     comparison = compare_modes(sampled["moshier"], sampled["swiss_file"])
@@ -1365,12 +1669,16 @@ def main() -> int:
             session=session,
             out_dir=args.out,
             script=script,
+            per_body=value_evidence(keyed_edges, body_readings, attested),
         )
         print(f"wrote {written} rows -> {path}")
 
     path, written = write_audit_fixture(
         audit_rows=audit_rows,
         edges=edges,
+        edges_by_body=edges_by_body,
+        body_rows=body_rows,
+        verdicts=attested,
         demonstration=demonstration,
         state_rows=state_rows,
         offset_rows=offset_rows,

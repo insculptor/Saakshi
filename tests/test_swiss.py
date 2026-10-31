@@ -39,6 +39,9 @@ from saakshi.fixture import FixtureContractError, _scan_keys, bits  # noqa: E402
 from saakshi.kernels import KernelIdentityError  # noqa: E402
 from saakshi.swiss import (  # noqa: E402
     ASSERTIONS,
+    ECHOES,
+    REPORTS,
+    UNCOVERED,
     ENTRY_POINTS,
     MODES,
     OFFSET_READ_BACK_STATE,
@@ -88,8 +91,19 @@ FILE = MODES["swiss_file"]
 # --------------------------------------------------------------------------------------
 
 
+#: A body measured reporting under the speed word, as a stand-in for the per-body evidence.
+REPORTING_SUN = {("calc_ut", swe.SUN, swe.FLG_SPEED): REPORTS}
+
+
+def _reported(mode, returned, *, word=None, body=swe.SUN, attested=REPORTING_SUN):
+    word = mode.flag | swe.FLG_SPEED if word is None else word
+    return assert_reported(
+        mode, returned, body=body, word=word, attested=attested, where="t"
+    )
+
+
 def test_a_matching_source_is_accepted_and_records_how_it_was_established():
-    record = assert_reported(FILE, swe.FLG_SWIEPH | swe.FLG_SPEED, where="t")
+    record = _reported(FILE, swe.FLG_SWIEPH | swe.FLG_SPEED)
     assert record["kind"] == "reported"
     assert record["requested"] == "swiss_file"
     assert record["answered"] == "swiss_file"
@@ -98,14 +112,14 @@ def test_a_matching_source_is_accepted_and_records_how_it_was_established():
 def test_the_substitution_this_whole_module_exists_for_is_refused():
     """⛔ The measured failure: a data-file request answered analytically, successfully."""
     with pytest.raises(EphemerisSubstitution) as excinfo:
-        assert_reported(FILE, swe.FLG_MOSEPH | swe.FLG_SPEED, where="t")
+        _reported(FILE, swe.FLG_MOSEPH | swe.FLG_SPEED)
     assert "moshier" in str(excinfo.value)
     assert "WRONG ephemeris" in str(excinfo.value)
 
 
 def test_the_reverse_substitution_is_refused_too():
     with pytest.raises(EphemerisSubstitution):
-        assert_reported(MOSHIER, swe.FLG_SWIEPH | swe.FLG_SPEED, where="t")
+        _reported(MOSHIER, swe.FLG_SWIEPH | swe.FLG_SPEED)
 
 
 @pytest.mark.parametrize(
@@ -115,7 +129,7 @@ def test_the_reverse_substitution_is_refused_too():
 def test_non_source_bits_never_affect_the_verdict(extra):
     """⚠ A returned flag carries more than a source; comparing whole flags would refuse
     every legitimate call, and 'loosen the check' is how a real check gets deleted."""
-    assert assert_reported(FILE, swe.FLG_SWIEPH | extra, where="t")["kind"] == "reported"
+    assert _reported(FILE, swe.FLG_SWIEPH | extra)["kind"] == "reported"
 
 
 def test_an_unnamed_source_bit_is_named_as_unnamed_rather_than_guessed():
@@ -126,7 +140,7 @@ def test_an_unnamed_source_bit_is_named_as_unnamed_rather_than_guessed():
 def test_no_source_bit_at_all_is_a_substitution_not_a_pass():
     """⛔ Absence of a source bit must never read as 'the requested one, presumably'."""
     with pytest.raises(EphemerisSubstitution):
-        assert_reported(FILE, swe.FLG_SPEED, where="t")
+        _reported(FILE, swe.FLG_SPEED)
 
 
 # --------------------------------------------------------------------------------------

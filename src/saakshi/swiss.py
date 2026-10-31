@@ -36,9 +36,15 @@ which flags. It contains no account of how any ephemeris is evaluated.
 
 from __future__ import annotations
 
+import json
+import os
+import platform
+import struct
+import subprocess
+import sys
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Callable, Iterable
+from typing import Any, Callable, Iterable, Mapping
 
 import swisseph as swe
 
@@ -105,17 +111,57 @@ def source_name(flag_value: int) -> str:
     return SOURCE_NAMES.get(masked, f"unnamed_source_bits_{masked}")
 
 
-def assert_reported(mode: Mode, returned: int, *, where: str) -> dict[str, Any]:
-    """Check a returned flag against the mode that was requested.
+class UnattestedReport(Exception):
+    """A returned flag that names the requested source, for a body whose flag cannot report.
+
+    ⛔ Distinct from :class:`EphemerisSubstitution`: nothing is known to have been
+    substituted. What is known is that this body's returned word was not shown to report
+    one — for the mean node it was measured handing the request back where the requested
+    source could not have answered — so a matching flag says nothing about where the value
+    came from, and ``reported`` would be the request written down as its own evidence.
+    """
+
+
+def assert_reported(
+    mode: Mode,
+    returned: int,
+    *,
+    body: int,
+    word: int,
+    attested: Mapping[tuple[str, int, int], str],
+    where: str,
+    entry_point: str = "calc_ut",
+) -> dict[str, Any]:
+    """Check a returned flag against the mode that was requested, **for this body**.
 
     ⛔ Raises rather than returning a verdict. A caller that receives a verdict may write
     the value anyway; a caller that receives an exception cannot.
+
+    ⛔ **The flag is read per body.** A flag that names the requested source is a report only
+    for a body whose returned word was measured differing from the request wherever the
+    request could not be answered — see :func:`reporting_by_body`. ``attested`` is that
+    measurement, keyed by (entry point, body, the word's non-ephemeris bits): a body it
+    shows echoing, or does not cover under this word, is refused ``reported`` however its
+    flag reads.
     """
     answered = source_name(returned)
     if (returned & SOURCE_MASK) != mode.flag:
         raise EphemerisSubstitution(
             f"{where}: requested {mode.source}, answered by {answered}. "
             "The value is a valid value of the WRONG ephemeris."
+        )
+    verdict = attested.get((entry_point, body, word & ~SOURCE_MASK))
+    if verdict != REPORTS:
+        raise UnattestedReport(
+            f"{where}: body {body} through {entry_point} under non-ephemeris bits "
+            f"{word & ~SOURCE_MASK}: its returned word "
+            + (
+                "was measured handing the request back where the request could not be "
+                "answered"
+                if verdict == ECHOES
+                else "was not read under every fixed condition"
+            )
+            + ", so a flag naming the requested source is not a report of it."
         )
     return {
         "kind": "reported",
@@ -595,7 +641,13 @@ class Session:
 
 
 def coverage_edges(
-    mode: Mode, *, body: int, jd_low: float, jd_high: float, session: Session
+    mode: Mode,
+    *,
+    body: int,
+    jd_low: float,
+    jd_high: float,
+    session: Session,
+    extra: int = swe.FLG_SPEED,
 ) -> dict[str, Any]:
     """Find where the requested ephemeris stops answering, from a reset state each time.
 
@@ -613,12 +665,17 @@ def coverage_edges(
     ⚠ The postcondition is checked rather than assumed. A boundary search that reports an
     interval it has not re-verified is the same defect as a fixture that records a value
     without recording where it came from.
+
+    ⚠ ``extra`` is the word's non-ephemeris bits, and it is part of the measurement: one
+    body's edge was measured moving with the speed bit. Each end is returned as its bit
+    pattern beside the decimal, and the bracket is a pair of adjacent doubles.
     """
+    word = mode.flag | extra
 
     def answered(jd: float) -> bool:
         session.reset()
         try:
-            _, returned = swe.calc_ut(jd, body, mode.flag | swe.FLG_SPEED)
+            _, returned = swe.calc_ut(jd, body, word)
         except Exception:
             return False
         return (returned & SOURCE_MASK) == mode.flag
@@ -664,9 +721,13 @@ def coverage_edges(
             "library state, endpoints re-verified"
         ),
         "lower_edge_last_outside_jd_ut": low_out,
+        "lower_edge_last_outside_jd_ut_bits": bits_of(low_out),
         "lower_edge_first_inside_jd_ut": low_in,
+        "lower_edge_first_inside_jd_ut_bits": bits_of(low_in),
         "upper_edge_first_inside_jd_ut": high_in,
+        "upper_edge_first_inside_jd_ut_bits": bits_of(high_in),
         "upper_edge_last_outside_jd_ut": high_out,
+        "upper_edge_last_outside_jd_ut_bits": bits_of(high_out),
         "lower_edge_calendar_ut": calendar_ut(low_in),
         "upper_edge_calendar_ut": calendar_ut(high_in),
         "search_range_jd_ut": [jd_low, jd_high],
@@ -761,6 +822,410 @@ def state_dependence(
         }
     )
     return rows
+
+
+# --------------------------------------------------------------------------------------
+# ⛔ Per body: whether a returned word reports, read where the request cannot be answered
+# --------------------------------------------------------------------------------------
+
+#: ⭐ The two labels a written reading's non-ephemeris bits go under, and the only two. ⛔ A
+#: word carrying any other non-ephemeris bit (speed, sidereal) is never written as a reading
+#: row: a reader that looks words up by (source, label) would find two words under one
+#: label and could read neither.
+NUTATION_LABELS: dict[str, int] = {"default": 0, "nonut": swe.FLG_NONUT}
+
+#: Source name -> its flag bit, the inverse of :data:`SOURCE_NAMES`.
+SOURCE_FLAGS: dict[str, int] = {name: flag for flag, name in SOURCE_NAMES.items()}
+
+#: The instants a body's returned word is read at. ⭐ The empty directory and the absent JPL
+#: file are read where the data files do answer, so the only thing missing is the source; the
+#: other two are centuries beyond every measured edge, and each is placed against the body's
+#: own edge, as bits, before it is filed under the condition.
+FIXED_CONDITION_EPOCHS: dict[str, float] = {
+    "j2000": 2451545.0,
+    "outside_1500": 2451545.0 + (1500 - 2000) * 365.25,
+    "outside_3000": 2451545.0 + (3000 - 2000) * 365.25,
+}
+
+#: ⭐ The conditions under which the requested source cannot answer, each built rather than
+#: chosen: (condition, requested source, directory on the path, epoch). ⛔ No "no path set":
+#: what the default path holds is undeclared, so an unset path fixes nothing.
+FIXED_CONDITIONS: tuple[tuple[str, str, str, str], ...] = (
+    ("empty_directory", "swiss_file", "empty_directory", "j2000"),
+    ("no_jpl_file", "jpl_file", "data_files", "j2000"),
+    ("outside_coverage", "swiss_file", "data_files", "outside_1500"),
+    ("outside_coverage", "swiss_file", "data_files", "outside_3000"),
+)
+
+#: What a body's readings say about its returned word, per (entry point, body, key).
+REPORTS, ECHOES, UNCOVERED = "reports", "echoes", "uncovered"
+
+#: Where a ``coverage_edge`` row's four ends are read from, in bracket order.
+EDGE_ENDS: tuple[str, ...] = (
+    "lower_edge_last_outside_jd_ut",
+    "lower_edge_first_inside_jd_ut",
+    "upper_edge_first_inside_jd_ut",
+    "upper_edge_last_outside_jd_ut",
+)
+
+CHILD_TIMEOUT_SECONDS = 120
+
+
+def _key_bits(word: int) -> int:
+    return word & ~SOURCE_MASK
+
+
+def body_edges(
+    *,
+    bodies: Iterable[int],
+    keys: Iterable[int],
+    jd_low: float,
+    jd_high: float,
+    session: Session,
+) -> dict[tuple[int, int], dict[str, Any] | None]:
+    """Each body's coverage edge under each key, as adjacent bits — or ``None`` where it has none.
+
+    ⭐ ``None`` is measured, never assumed: the data-file request was answered at both ends of
+    the search range and at its middle, so no edge lies inside it. For the mean node that is
+    the whole range, which is the echo seen from this side. ⛔ An edge on one side only is a
+    shape nothing here can write, and is refused; so is a bracket whose ends are not adjacent
+    doubles, because placing an instant between them would decide nothing.
+    """
+    swiss_file = MODES["swiss_file"]
+    out: dict[tuple[int, int], dict[str, Any] | None] = {}
+    for body in bodies:
+        for key in keys:
+            word = swiss_file.flag | key
+
+            def answered(jd: float) -> bool:
+                session.reset()
+                try:
+                    _, returned = swe.calc_ut(jd, body, word)
+                except Exception:
+                    return False
+                return (returned & SOURCE_MASK) == swiss_file.flag
+
+            ends = (answered(jd_low), answered(jd_high))
+            if all(ends) and answered((jd_low + jd_high) / 2.0):
+                out[(body, key)] = None
+                continue
+            if any(ends):
+                raise SurveyRefusal(
+                    f"body {body} under word {word}: the data-file request was answered at "
+                    f"{'the start' if ends[0] else 'the end'} of the search range only. An edge "
+                    "on one side is not a shape a coverage_edge row can carry."
+                )
+            edge = coverage_edges(
+                swiss_file, body=body, jd_low=jd_low, jd_high=jd_high, session=session,
+                extra=key,
+            )
+            for low, high in (EDGE_ENDS[:2], EDGE_ENDS[2:]):
+                a = int(edge[f"{low}_bits"], 16)
+                b = int(edge[f"{high}_bits"], 16)
+                if abs(a - b) != 1:
+                    raise SurveyRefusal(
+                        f"body {body} under word {word}: the bracket {low}..{high} is not two "
+                        "adjacent doubles, so an instant between them would be undecided"
+                    )
+            out[(body, key)] = {**edge, "located_with_word": word}
+    return out
+
+
+def one_edge_per_body(
+    edges: Mapping[tuple[int, int], dict[str, Any] | None], *, keys: Iterable[int]
+) -> dict[int, dict[str, Any] | None]:
+    """One edge per body, refused where the keys disagree about it.
+
+    ⛔ A consumer holds one edge per body and refuses two that differ. One body's edge was
+    measured moving with the speed bit, so an edge is written only for the words its body's
+    readings use — and only when every one of them puts it at the same bits.
+    """
+    keys = list(keys)
+    out: dict[int, dict[str, Any] | None] = {}
+    for body in sorted({body for body, _ in edges}):
+        found = [edges[(body, key)] for key in keys]
+        rendered = {
+            None if e is None else tuple(e[f"{end}_bits"] for end in EDGE_ENDS) for e in found
+        }
+        if len(rendered) != 1:
+            raise SurveyRefusal(
+                f"body {body}: its edge differs between the words {keys}. One row per body "
+                "cannot carry two edges, and choosing one would place the other word's "
+                "readings against an edge that is not theirs."
+            )
+        first = found[0]
+        out[body] = None if first is None else {
+            **{k: v for k, v in first.items() if k != "located_with_word"},
+            "located_with_words": [e["located_with_word"] for e in found if e is not None],
+        }
+    return out
+
+
+def placement(jd: float, edge: Mapping[str, Any] | None) -> str:
+    """``outside``, ``inside`` or ``undecided`` against a body's edge read as bits; ``no_edge``."""
+    if edge is None:
+        return "no_edge"
+    lo_out, lo_in, up_in, up_out = (
+        value_of_bits(edge[f"{end}_bits"]) for end in EDGE_ENDS
+    )
+    if jd <= lo_out or jd >= up_out:
+        return "outside"
+    if lo_in <= jd <= up_in:
+        return "inside"
+    return "undecided"
+
+
+def value_of_bits(text: str) -> float:
+    """The double a 16-hex bit pattern names — the inverse of :func:`bits_of`."""
+    return struct.unpack(">d", bytes.fromhex(text))[0]
+
+
+#: ⭐ **The child program a body's returned word is read in — one reading per fresh
+#: interpreter.** Every call it makes into the library, through every callable of the module
+#: and of its submodule after they are wrapped, is recorded inside it with the arguments the
+#: library actually received (each float as its bit pattern), so the parent admits a reading
+#: only if the whole sequence is the one its row declares. ⚠ Honest error, not forgery: a
+#: reference bound before the wrapping, or a call through one of the library's classes, is
+#: outside the record.
+_READING_CHILD = r"""
+import json
+import os
+import struct
+import sys
+import types
+
+fresh = "swisseph" not in sys.modules
+import swisseph as swe
+
+
+def bits(x):
+    return struct.pack(">d", x).hex()
+
+
+def value(h):
+    return struct.unpack(">d", bytes.fromhex(h))[0]
+
+
+calls = []
+
+
+def recorded(name, function):
+    def call(*args, **keywords):
+        calls.append({"function": name,
+                      "args": [bits(a) if isinstance(a, float) else a for a in args],
+                      "keywords": sorted(keywords)})
+        return function(*args, **keywords)
+    return call
+
+
+def wrap(module, prefix):
+    for name in dir(module):
+        member = getattr(module, name)
+        if name.startswith("_") or isinstance(member, type):
+            continue
+        if isinstance(member, types.ModuleType):
+            if member.__name__.startswith(swe.__name__ + "."):
+                wrap(member, prefix + name + ".")
+        elif callable(member):
+            setattr(module, name, recorded(prefix + name, member))
+
+
+wrap(swe, "")
+spec = json.loads(sys.stdin.read())
+if spec["path"] is not None:
+    swe.set_ephe_path(spec["path"])
+if spec["sidereal_mode"] is not None:
+    swe.set_sid_mode(spec["sidereal_mode"], 0.0, 0.0)
+values, returned = getattr(swe, spec["entry_point"])(value(spec["jd_bits"]), spec["body"], spec["word"])
+sys.stdout.write(json.dumps({
+    "nonce": os.urandom(16).hex(),
+    "fresh_interpreter": fresh,
+    "calls": calls,
+    "returned": returned,
+    "values_bits": [bits(float(v)) for v in values[:3]],
+}))
+"""
+
+
+class ReadingRefused(Exception):
+    """A child that was not one fresh reading, or whose calls were not the ones its row declares."""
+
+
+def child_environment() -> dict[str, str]:
+    """The children's environment: this one, less every ``SE_`` variable the library reads."""
+    return {k: v for k, v in os.environ.items() if not k.startswith("SE_")}
+
+
+def declared_reading_calls(spec: Mapping[str, Any]) -> list[dict[str, Any]]:
+    """The whole call sequence a reading's child may make: the path, the sidereal mode where
+    its word asks for one, and the one reading call with its instant, body and whole word."""
+    calls: list[dict[str, Any]] = []
+    if spec["path"] is not None:
+        calls.append({"function": "set_ephe_path", "args": [spec["path"]], "keywords": []})
+    if spec["sidereal_mode"] is not None:
+        calls.append({
+            "function": "set_sid_mode",
+            "args": [spec["sidereal_mode"], bits_of(0.0), bits_of(0.0)],
+            "keywords": [],
+        })
+    calls.append({
+        "function": spec["entry_point"],
+        "args": [spec["jd_bits"], spec["body"], spec["word"]],
+        "keywords": [],
+    })
+    return calls
+
+
+def run_reading_child(spec: Mapping[str, Any], *, work_dir: str) -> dict[str, Any]:
+    """One reading, in one fresh interpreter, admitted only if it made exactly its calls."""
+    proc = subprocess.run(
+        [sys.executable, "-I", "-c", _READING_CHILD],
+        input=json.dumps(dict(spec)),
+        cwd=work_dir,
+        env=child_environment(),
+        capture_output=True,
+        text=True,
+        timeout=CHILD_TIMEOUT_SECONDS,
+        check=False,
+    )
+    if proc.returncode != 0:
+        from .fixture import redact_environment
+
+        raise ReadingRefused(
+            f"a reading child failed ({proc.returncode}): "
+            f"{redact_environment(proc.stderr.strip())[-400:]}"
+        )
+    result = json.loads(proc.stdout)
+    if not result["fresh_interpreter"]:
+        raise ReadingRefused("a reading child had the library loaded before it was asked")
+    if result["calls"] != declared_reading_calls(spec):
+        raise ReadingRefused(
+            f"a reading child's calls were {[c['function'] for c in result['calls']]}; its "
+            f"row declares {[c['function'] for c in declared_reading_calls(spec)]}"
+        )
+    return result
+
+
+def fixed_condition_readings(
+    *,
+    bodies: Iterable[int],
+    keys: Iterable[int],
+    edges: Mapping[tuple[int, int], dict[str, Any] | None],
+    ephe_path: str,
+    empty_dir: str,
+    work_dir: str,
+    sidereal_mode: int,
+    entry_point: str = "calc_ut",
+    run: Callable[..., dict[str, Any]] = run_reading_child,
+) -> list[dict[str, Any]]:
+    """Each body's returned word under every fixed condition, each read in a fresh process.
+
+    ⭐ The rows carry the raw words and attested inputs — the whole requested and returned
+    words, the body, the instant's bits, the source requested, the directory on the path —
+    and the call's first three returned values. A word carrying only nutation bits is
+    labelled ``default`` or ``nonut``; any other key is labelled by its bits instead, and is
+    never a row of a survey (see :data:`NUTATION_LABELS`).
+
+    ⛔ A planned out-of-coverage reading is filed under ``outside_coverage`` only once its
+    instant is placed **outside** its body's own edge for its own key; a body with no edge
+    has it filed as ``no_measured_edge``; and an instant placed inside or undecided is
+    refused, because the instant was chosen to be outside and is not.
+    """
+    labels = {bits_value: label for label, bits_value in NUTATION_LABELS.items()}
+    paths = {"data_files": ephe_path, "empty_directory": empty_dir}
+    nonces: set[str] = set()
+    rows: list[dict[str, Any]] = []
+    for body in bodies:
+        for key in keys:
+            for condition, source, path_state, epoch_id in FIXED_CONDITIONS:
+                jd = FIXED_CONDITION_EPOCHS[epoch_id]
+                filed = condition
+                if condition == "outside_coverage":
+                    where = placement(jd, edges[(body, key)])
+                    if where == "no_edge":
+                        filed = "no_measured_edge"
+                    elif where != "outside":
+                        raise SurveyRefusal(
+                            f"body {body}, key {key}: {epoch_id} is placed {where} against "
+                            "its own edge; the instant was chosen to be outside it"
+                        )
+                word = SOURCE_FLAGS[source] | key
+                spec = {
+                    "path": paths[path_state],
+                    "sidereal_mode": sidereal_mode if key & swe.FLG_SIDEREAL else None,
+                    "entry_point": entry_point,
+                    "jd_bits": bits_of(jd),
+                    "body": body,
+                    "word": word,
+                }
+                result = run(spec, work_dir=work_dir)
+                if result["nonce"] in nonces:
+                    raise ReadingRefused("two readings came back from one child")
+                nonces.add(result["nonce"])
+                returned = int(result["returned"])
+                row: dict[str, Any] = {
+                    "finding": "returned_flag_by_body",
+                    "condition": filed,
+                    "ephemeris_requested": source,
+                    "path_state": path_state,
+                    "entry_point": entry_point,
+                    "body": body,
+                    "body_name": swe.get_planet_name(body),
+                    "epoch_id": epoch_id,
+                    "jd": jd,
+                    "jd_bits": bits_of(jd),
+                    "requested": word,
+                }
+                if key in labels:
+                    row["nutation"] = labels[key]
+                else:
+                    row["non_ephemeris_key"] = key
+                row["returned"] = returned
+                row["substitution_reported"] = (returned & SOURCE_MASK) != (word & SOURCE_MASK)
+                for name, pattern in zip(("longitude", "latitude", "distance"), result["values_bits"]):
+                    row[name] = value_of_bits(pattern)
+                    row[f"{name}_bits"] = pattern
+                row["call_history"] = "cold_process_per_row"
+                rows.append(row)
+    return rows
+
+
+def reporting_by_body(readings: Iterable[Mapping[str, Any]]) -> dict[tuple[str, int, int], str]:
+    """Per (entry point, body, key): ``reports``, ``echoes`` or ``uncovered``.
+
+    ⛔ **One echo refuses**: a reading under a fixed condition whose returned source is its
+    requested one names a source that cannot have answered, and no number of reports beside
+    it outvotes that. ⭐ **Reports** only where every fixed condition — the empty directory,
+    the absent JPL file, an instant outside the body's own edge — has a reading whose
+    returned source differs from the request. Anything less is ``uncovered``, and refused
+    like an echo: a body nobody read under a condition has not been shown to report there.
+    """
+    seen: dict[tuple[str, int, int], set[str]] = {}
+    echoed: set[tuple[str, int, int]] = set()
+    for r in readings:
+        group = (str(r["entry_point"]), int(r["body"]), _key_bits(int(r["requested"])))
+        seen.setdefault(group, set())
+        condition = str(r["condition"])
+        if condition not in {c for c, *_ in FIXED_CONDITIONS}:
+            continue
+        if (int(r["returned"]) & SOURCE_MASK) == (int(r["requested"]) & SOURCE_MASK):
+            echoed.add(group)
+        else:
+            seen[group].add(condition)
+    wanted = {c for c, *_ in FIXED_CONDITIONS}
+    return {
+        group: ECHOES if group in echoed else (REPORTS if conditions == wanted else UNCOVERED)
+        for group, conditions in seen.items()
+    }
+
+
+def host_identity() -> dict[str, str]:
+    """The host the readings were taken on — bits are host-bound until shown otherwise."""
+    return {
+        "python": sys.version.split()[0],
+        "platform": platform.platform(),
+        "machine": platform.machine(),
+    }
 
 
 # --------------------------------------------------------------------------------------
