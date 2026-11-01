@@ -267,6 +267,11 @@ own epochs and instants. ⚠ The section is classified `tolerance` with the band
 measured between a row and every other reading of it — none — and that band is context: the band
 a comparison applies is its consumer's.
 
+⭐ Every row carries its own unit, `degree`. A consumer reads a row's unit from the row, ⛔ never
+from the classification beside it, so the section refuses to be written with a row that carries no
+unit or another spelling of it. The header names the row its consumer minted for it, `BU03`. See
+`docs/measurements/2026-11-01-a-unit-beside-the-rows.md`.
+
 ### Sampling an engine for continuity
 
 One generator is different in kind: `r5_continuity.py` samples a *running implementation*
