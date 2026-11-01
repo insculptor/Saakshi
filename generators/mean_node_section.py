@@ -28,7 +28,7 @@ the pinned set; an "empty" directory that is not empty (before and after); a chi
 library loaded, returned other than its readings, or came back twice; a child whose calls into the library —
 recorded inside it, through the module's and its submodule's callables after they were wrapped — are not exactly
 the sequence its finished rows declare; a reading not at its own part's epochs and instants, or whose labels are
-not what they name; any control failing at any row; a read-back that differs between rows; a witness reading the
+not what they name; a section row without its unit, spelled ``degree``; any control failing at any row; a read-back that differs between rows; a witness reading the
 section's configuration answers that lies within a day of the witness's coverage edge as the survey given measures
 it. ⚠ These guard honest error, ⛔ not forgery.
 
@@ -111,8 +111,14 @@ STATE_DISCIPLINE: dict[str, str] = {
     "leap_second_table": "never read: no child converts a civil instant",
 }
 
-#: ⚠ A proposal. The row this section is compared against is minted by its consumer; this names the one it asks for.
-BUDGET_ROW = "mean-node-convention-1"
+#: ⭐ The row this section is compared against, by the id its consumer minted for it. It replaces this file's earlier
+#: proposal `mean-node-convention-1` at the consumer's request. ⛔ The row is the consumer's; nothing here asserts
+#: it exists.
+BUDGET_ROW = "BU03"
+
+#: ⭐ The unit of the one component every row carries, written on EVERY row: a consumer reads a row's unit from the
+#: row itself, ⛔ never from the classification beside it, and refuses a row with none or another spelling.
+SECTION_UNIT = "degree"
 
 CHILD_TIMEOUT_SECONDS = 300
 
@@ -387,7 +393,7 @@ def measure(ephe_path: str, empty_dir: str, profile: str, work: str) -> tuple[li
     rows = []
     for epoch, reading in zip(epochs, section, strict=True):
         rows.append({"section": SECTION, "epoch_id": epoch["epoch_id"], "body": swe.MEAN_NODE,
-                     "instant": {"scale": "tt", **patterned("jd", epoch["jd"])},
+                     "instant": {"scale": "tt", **patterned("jd", epoch["jd"])}, "unit": SECTION_UNIT,
                      "values": [unbits(reading["longitude_bits"])], "values_bits": [reading["longitude_bits"]],
                      "state_read_back": {"state": "tidal_acceleration",
                                          **patterned("value", unbits(reading["tidal_constant_after_bits"]))},
@@ -466,6 +472,8 @@ def check(rows: list[dict], controls: list[dict], context: dict, survey: dict) -
     for row in rows:
         if row["instant"]["jd_bits"] != bits(epochs[row["epoch_id"]]["jd"]) or row["body"] != subject:
             raise Refusal(f"section row {row['epoch_id']} is not that instant or not the node")
+        if row.get("unit") != SECTION_UNIT:
+            raise Refusal(f"section row {row['epoch_id']} declares unit {row.get('unit')!r}, not {SECTION_UNIT!r}")
     expected_parts = {
         ("invariance", "subject"): {(e, c) for e in epochs for c in configurations},
         ("invariance", "witness"): {(e, c) for e in epochs for c in configurations},
@@ -661,6 +669,7 @@ SECTION_ROW_SCHEMA = {
     "epoch_id": "which instant",
     "body": "the library's own body integer: the mean node",
     "instant": "⭐ the dynamical-time Julian day passed to calc -- `scale` tt, `jd_bits` the value, `jd` display",
+    "unit": "⭐ the unit of every component of `values`, `degree`, on every row",
     "values": "[longitude] in degrees -- ⚠ display; `values_bits` is the value",
     "values_bits": "⭐ the bit pattern of the longitude calc returned",
     "state_read_back": "the tidal-acceleration constant read back after the call -- `value_bits` the value",
@@ -778,14 +787,15 @@ def write_files(rows: list[dict], controls: list[dict], context: dict, summary: 
         # ⭐ A tolerance, MEASURED here and with no headroom: the largest difference between the row and any other
         #    reading of it the controls took -- none. ⛔ The band a consumer applies is its own; this one is context.
         classification={SECTION: {"class": "tolerance", "band": summary["invariance"]["largest_difference_arcseconds"]
-                                  / ARCSECONDS_PER_DEGREE, "unit": "degree"}},
+                                  / ARCSECONDS_PER_DEGREE, "unit": SECTION_UNIT}},
         budget_row=BUDGET_ROW,
         row_schema=SECTION_ROW_SCHEMA,
         summary={"configuration_sha256": identity, "epochs": epochs_summary,
                  "controls": {"record": "mean-node-section-controls.jsonl", "invariance": summary["invariance"],
                               "sufficiency": summary["sufficiency"], "nutation_twin": summary["nutation_twin"]},
                  "state_read_back": summary["state_read_back"], "returned_word_every_row": summary["section_returned_word"],
-                 "budget_row": "⚠ a proposal: the row this section is compared against is its consumer's to mint"},
+                 "budget_row": "the id its consumer minted for the row this section is compared against. ⛔ The row is "
+                               "the consumer's; nothing here asserts it exists"},
         notes=[
             "⭐ A COMPARISON OF A CONVENTION, NEVER OF THE SKY. What one release of the library returned for its mean "
             "lunar node through calc under one declared configuration, at instants inside a data profile's coverage.",

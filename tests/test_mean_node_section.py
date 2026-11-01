@@ -162,6 +162,11 @@ def test_a_field_that_would_forge_a_boundary_or_a_file_twice_is_refused(m):
                                  configuration=configuration)
 
 
+def test_it_names_the_row_its_consumer_minted(m):
+    """⭐ The consumer named the row ``BU03``. ⛔ The earlier proposal is not the name."""
+    assert m.BUDGET_ROW == "BU03"
+
+
 # ---------------------------------------------------------------------------------------
 # The rows: the manifest's interval, and the mean-node record's in-interval epochs
 # ---------------------------------------------------------------------------------------
@@ -251,7 +256,7 @@ def _conforming(m, n=3):
     epochs = [{"epoch_id": f"e{i}", "jd": 120.0 + i} for i in range(n)]
     rows = [{"section": "mean_node", "epoch_id": e["epoch_id"], "body": 10,
              "instant": {"scale": "tt", "jd": e["jd"], "jd_bits": bits(e["jd"])},
-             "values": [10.0 + i], "values_bits": [bits(10.0 + i)],
+             "unit": "degree", "values": [10.0 + i], "values_bits": [bits(10.0 + i)],
              "state_read_back": {"state": "tidal_acceleration", "value": -25.936, "value_bits": bits(-25.936)},
              "source_assertion": {"kind": "none", "reason": "request_invariant"}} for i, e in enumerate(epochs)]
     controls = []
@@ -366,6 +371,12 @@ def _mutations():
     def rows_out_of_order(rows, controls, context, survey):
         rows[0], rows[1] = rows[1], rows[0]
 
+    def row_without_its_unit(rows, controls, context, survey):
+        del rows[1]["unit"]
+
+    def row_in_another_spelling(rows, controls, context, survey):
+        rows[2]["unit"] = "deg"
+
     return [
         ("① (a): a subject one bit away", subject_bit, "① (a) fails"),
         ("①: a configuration missing at a row", missing_configuration, "not one at each"),
@@ -389,6 +400,8 @@ def _mutations():
         ("no edge for the witness", no_witness_edge, "no edge for the witness"),
         ("a reading count other than the children's", children_count, "children"),
         ("the rows out of their order", rows_out_of_order, "not its epochs in order"),
+        ("a section row with no unit", row_without_its_unit, "declares unit"),
+        ("a section row whose unit is another spelling", row_in_another_spelling, "declares unit"),
     ]
 
 
@@ -505,6 +518,16 @@ def test_it_writes_the_section_and_its_controls_naming_one_commit_one_host_one_i
     assert {c["configuration_sha256"] for c in controls[1:]} == {IDENTITY_WORD_66}
     assert header["classification"] == {"mean_node": {"class": "tolerance", "band": 0.0, "unit": "degree"}}
     assert {r["source_assertion"]["kind"] for r in section[1:]} == {"none"}
+
+
+def test_every_row_carries_its_own_unit_spelled_exactly(emission):
+    """⭐ A consumer reads a row's unit from the row, ⛔ never from the classification beside it."""
+    section = emission["section"]
+    assert [r.get("unit") for r in section[1:]] == ["degree"] * 76 and "unit" in section[0]["row_schema"]
+
+
+def test_the_header_names_the_row_its_consumer_minted(emission):
+    assert emission["section"][0]["budget_row"] == "BU03"
 
 
 def test_its_readings_are_the_pinned_ones(emission):
