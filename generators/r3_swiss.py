@@ -38,7 +38,7 @@ import sys
 import tempfile
 from importlib.metadata import version as _distribution_version
 from pathlib import Path
-from typing import Any, Callable
+from typing import Any, Callable, Mapping
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
@@ -115,6 +115,11 @@ BODIES: tuple[tuple[int, str], ...] = (
     (swe.MEAN_NODE, "mean_node"),
     (swe.TRUE_NODE, "true_node"),
 )
+
+#: ⭐ Bodies the per-body survey reads and the value grid never does: the library's pseudo-body for
+#: nutation and obliquity. Its returned values are no body's position, so it has no value row to label;
+#: its returned word is read where every other body's is, under the survey's two words only.
+SURVEY_ONLY_BODIES: tuple[tuple[int, str], ...] = ((swe.ECL_NUT, "nutation_obliquity"),)
 
 #: Sites, as geography. ⭐ Chosen for the call paths they exercise, not for where anyone
 #: lives: the last two are at and above the polar circle, where one house method is
@@ -913,6 +918,29 @@ def survey_summary(
     }
 
 
+def per_body_note(verdicts: Mapping[tuple[str, int, int], str]) -> str:
+    """The survey's per-body note, naming every body whose word echoed — read off the verdicts, never typed.
+
+    ⭐ A body is named by the survey's own label for it: the library's name for one of them is empty.
+    """
+    labels = dict(BODIES + SURVEY_ONLY_BODIES)
+    echoed = sorted({body for (_ep, body, _key), verdict in verdicts.items() if verdict == ECHOES})
+    names = [f"the {labels[body]}'s" for body in echoed]
+    if len(names) == 1:
+        who = f"{names[0]} word handed the request back while every other body's"
+    else:
+        who = (", ".join(names[:-1]) + f" and {names[-1]} words handed the request back"
+               " while every other body's")
+    return (
+        "⭐ PER BODY. Whether a returned flag reports is a property of the body as well "
+        "as of the entry point: under every condition built so that the requested source "
+        f"cannot answer, {who} named the source that did. So each body is read under each "
+        "condition, in a fresh process, and its coverage edge is written as bits for the words "
+        "its readings use. ⛔ A body with no reading under some condition is not shown to "
+        "report there."
+    )
+
+
 def survey_rows_hold_only_survey_words(body_rows: list[dict[str, Any]]) -> None:
     """⛔ Refuse a survey reading whose word carries a non-ephemeris bit other than the nutation bit.
 
@@ -1264,12 +1292,7 @@ def write_audit_fixture(
             "tidal constant in force as bits. The table above is CHECKED against the first "
             "rather than copied into it, and the second is written only where all three of "
             "its clauses were measured; which rows carry it is the measurement's to say.",
-            "⭐ PER BODY. Whether a returned flag reports is a property of the body as well "
-            "as of the entry point: under every condition built so that the requested source "
-            "cannot answer, one body's word handed the request back while every other body's "
-            "named the source that did. So each body is read under each condition, in a fresh "
-            "process, and its coverage edge is written as bits for the words its readings "
-            "use. ⛔ A body with no reading under some condition is not shown to report there.",
+            per_body_note(verdicts),
             "⚠ Dated, versioned and placed deliberately. This is an observation of one "
             "release through one binding on the recorded host, not a claim about the "
             "software in general.",
@@ -1456,23 +1479,32 @@ def measure_per_body(
     ⛔ The empty directory is verified empty before the first reading and after the last, and
     so is the working directory the children run in.
     """
-    bodies = [body for body, _ in BODIES]
-    keys = SURVEY_KEYS + VALUE_KEYS
-    jd_low, jd_high = (swe.julday(year, 1, 1, 0.0) for year in EDGE_SEARCH_YEARS)
-    keyed_edges = body_edges(
-        bodies=bodies, keys=keys, jd_low=jd_low, jd_high=jd_high, session=session
+    # ⭐ The value grid's bodies under every word, then the survey-only bodies under the survey's words
+    #    alone — after them, so every reading the survey carried before they were added is taken, and
+    #    written, exactly as it was.
+    groups = (
+        ([body for body, _ in BODIES], SURVEY_KEYS + VALUE_KEYS),
+        ([body for body, _ in SURVEY_ONLY_BODIES], SURVEY_KEYS),
     )
+    jd_low, jd_high = (swe.julday(year, 1, 1, 0.0) for year in EDGE_SEARCH_YEARS)
+    keyed_edges: dict[tuple[int, int], dict[str, Any] | None] = {}
+    for bodies, keys in groups:
+        keyed_edges.update(body_edges(
+            bodies=bodies, keys=keys, jd_low=jd_low, jd_high=jd_high, session=session
+        ))
+    readings: list[dict[str, Any]] = []
     with tempfile.TemporaryDirectory() as empty, tempfile.TemporaryDirectory() as work:
         _verify_empty(empty)
-        readings = fixed_condition_readings(
-            bodies=bodies,
-            keys=keys,
-            edges=keyed_edges,
-            ephe_path=os.path.abspath(ephe_path),
-            empty_dir=empty,
-            work_dir=work,
-            sidereal_mode=session.sidereal_mode,
-        )
+        for bodies, keys in groups:
+            readings += fixed_condition_readings(
+                bodies=bodies,
+                keys=keys,
+                edges=keyed_edges,
+                ephe_path=os.path.abspath(ephe_path),
+                empty_dir=empty,
+                work_dir=work,
+                sidereal_mode=session.sidereal_mode,
+            )
         _verify_empty(empty)
         _verify_empty(work)
     return keyed_edges, readings
@@ -1585,12 +1617,11 @@ def main() -> int:
     attested = reporting_by_body(body_readings)
     edges_by_body = one_edge_per_body(keyed_edges, keys=SURVEY_KEYS)
     body_rows = [r for r in body_readings if (r["requested"] & ~7) in SURVEY_KEYS]
-    for body, _name in BODIES:
+    for body, _name in BODIES + SURVEY_ONLY_BODIES:
+        keys = SURVEY_KEYS + (VALUE_KEYS if (body, _name) in BODIES else ())
         print(
             f"    body {body}: edge {'none' if edges_by_body[body] is None else 'measured'}; "
-            + ", ".join(
-                f"{key}={attested[('calc_ut', body, key)]}" for key in SURVEY_KEYS + VALUE_KEYS
-            )
+            + ", ".join(f"{key}={attested[('calc_ut', body, key)]}" for key in keys)
         )
 
     sampled = {

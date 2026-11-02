@@ -420,6 +420,56 @@ def test_a_directory_used_as_empty_is_verified_empty_after_the_readings(monkeypa
 
 
 # ---------------------------------------------------------------------------------------
+# A body the survey reads and the value grid never does
+# ---------------------------------------------------------------------------------------
+
+ECL_NUT = swe.ECL_NUT
+
+
+def test_the_nutation_and_obliquity_pseudo_body_is_surveyed_and_never_a_value_row():
+    """⭐ Its returned values are no body's position, so the value grid never reads it; its returned word is
+    read where every other body's is."""
+    assert getattr(r3, "SURVEY_ONLY_BODIES", ()) == ((ECL_NUT, "nutation_obliquity"),)
+    assert ECL_NUT not in {body for body, _ in r3.BODIES}
+
+
+def test_a_survey_only_body_is_read_under_the_survey_words_alone(monkeypatch, tmp_path):
+    """⛔ A word carrying the speed or sidereal bit is never a survey row, and a survey-only body has no value
+    row to label — so it is read under the survey's two words, and only there; the value grid's bodies are
+    read under every word, as before."""
+    asked = []
+
+    def edges(*, bodies, keys, **_):
+        asked.append(("edges", tuple(bodies), tuple(keys)))
+        return {(b, k): None for b in bodies for k in keys}
+
+    def readings(*, bodies, keys, **_):
+        asked.append(("readings", tuple(bodies), tuple(keys)))
+        return [{"body": b, "key": k} for b in bodies for k in keys]
+
+    monkeypatch.setattr(r3, "body_edges", edges)
+    monkeypatch.setattr(r3, "fixed_condition_readings", readings)
+    session = Session(ephe_path=str(tmp_path), sidereal_mode=swe.SIDM_LAHIRI)
+    keyed, read = r3.measure_per_body(tmp_path, session)
+    grid = tuple(body for body, _ in r3.BODIES)
+    survey_only = tuple(body for body, _ in getattr(r3, "SURVEY_ONLY_BODIES", ()))
+    every = tuple(r3.SURVEY_KEYS + r3.VALUE_KEYS)
+    assert asked == [("edges", grid, every), ("edges", survey_only, tuple(r3.SURVEY_KEYS)),
+                     ("readings", grid, every), ("readings", survey_only, tuple(r3.SURVEY_KEYS))]
+    assert [r["body"] for r in read][-len(r3.SURVEY_KEYS):] == [ECL_NUT] * len(r3.SURVEY_KEYS)
+    assert {k for (b, k) in keyed if b == ECL_NUT} == set(r3.SURVEY_KEYS)
+
+
+def test_the_per_body_note_names_every_body_whose_word_echoed():
+    """⭐ The note says what the verdicts say: one echoing body is named alone, two are named together."""
+    one = {("calc_ut", NODE, 0): ECHOES, ("calc_ut", SUN, 0): REPORTS}
+    two = dict(one) | {("calc_ut", ECL_NUT, 0): ECHOES}
+    assert "the mean_node's word handed the request back" in r3.per_body_note(one)
+    assert "the nutation_obliquity's and the mean_node's words handed the request back" in r3.per_body_note(two)
+    assert r3.per_body_note(one) != r3.per_body_note(two)
+
+
+# ---------------------------------------------------------------------------------------
 # The child: one fresh reading, admitted only if it made exactly its row's calls
 # ---------------------------------------------------------------------------------------
 
@@ -496,16 +546,33 @@ def test_one_bodys_edge_moves_with_the_speed_bit_so_an_edge_is_written_for_the_s
     word. One edge per body is therefore only writable over the words its readings use."""
     edges, _readings_, _verdicts = per_body
     assert one_edge_per_body(edges, keys=r3.SURVEY_KEYS)
-    with pytest.raises(SurveyRefusal):
-        one_edge_per_body(edges, keys=r3.SURVEY_KEYS + r3.VALUE_KEYS)
+    # ⚠ Over the value grid's bodies only: a survey-only body is never read under the speed words.
+    grid = {body for body, _ in r3.BODIES}
+    with pytest.raises(SurveyRefusal, match=f"body {swe.TRUE_NODE}: its edge differs between the words"):
+        one_edge_per_body({k: v for k, v in edges.items() if k[0] in grid}, keys=r3.SURVEY_KEYS + r3.VALUE_KEYS)
 
 
 def test_the_survey_rows_are_its_two_words_and_each_reading_is_fresh(per_body):
     _edges, readings, _verdicts = per_body
     rows = [r for r in readings if (r["requested"] & ~7) in r3.SURVEY_KEYS]
     r3.survey_rows_hold_only_survey_words(rows)
-    assert len(rows) == len(r3.BODIES) * len(r3.SURVEY_KEYS) * len(
+    assert len(rows) == (len(r3.BODIES) + len(r3.SURVEY_ONLY_BODIES)) * len(r3.SURVEY_KEYS) * len(
         swiss.FIXED_CONDITIONS + swiss.TABLE_READINGS)
     swiss.returned_words_are_requested(rows)
     assert {r["call_history"] for r in readings} == {"cold_process_per_row"}
     json.dumps(rows)
+
+
+def test_the_pseudo_body_echoes_under_both_survey_words_and_has_no_edge(per_body):
+    """⭐ Measured: like the mean node's, its word hands the request back under every fixed condition, and the
+    data-file request is answered across the whole search range — so it has no edge, and no reading of it is
+    filed outside one."""
+    edges, readings, verdicts = per_body
+    assert {verdicts[("calc_ut", ECL_NUT, key)] for key in r3.SURVEY_KEYS} == {ECHOES}
+    assert one_edge_per_body(edges, keys=r3.SURVEY_KEYS)[ECL_NUT] is None
+    mine = [r for r in readings if r["body"] == ECL_NUT]
+    assert len(mine) == len(r3.SURVEY_KEYS) * len(swiss.FIXED_CONDITIONS + swiss.TABLE_READINGS)
+    assert {r["condition"] for r in mine} == {"empty_directory", "no_jpl_file", "no_measured_edge",
+                                             "analytical_request"}
+    assert all(r["returned"] == r["requested"] for r in mine)
+    assert {r["requested"] & ~7 for r in mine} == set(r3.SURVEY_KEYS)
