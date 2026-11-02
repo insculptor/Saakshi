@@ -68,6 +68,8 @@ generators/          one script per fixture set; each is a recorder
                          and per body; and the survey of which entry points report
   mean_node_section.py   the mean node through calc as a comparison section, read warm, and
                          its three controls at every row
+  nutation_obliquity_modes.py  the nutation and obliquity pseudo-body under every request,
+                         both words and both entry points, its word beside the Moon's
   r5_continuity.py       what an earlier implementation answered, before it stops running
   deployment_capture.py  what a deployment's library resolves, captured on its own host;
                          ⛔ imports nothing from here and writes no fixture
@@ -111,6 +113,9 @@ python generators/r3_swiss.py --ephe-path <directory of .se1 files> --out out/
 python generators/mean_node_section.py --ephe-path <directory of .se1 files> \
     --empty-dir <an empty directory> --profile <a data profile manifest> \
     --survey out/swiss/r3-flag-reporting.jsonl --out-dir out/mean-node-section/
+python generators/nutation_obliquity_modes.py --ephe-path <directory of .se1 files> \
+    --empty-dir <an empty directory> --profile <a data profile manifest> \
+    --out out/nutation-obliquity-modes.jsonl
 python generators/convention_probes.py --ephe-path <directory of .se1 files> --out out/
 python generators/probe6b_ffi.py --out out/
 
@@ -232,7 +237,8 @@ from contributing a zero that would read as agreement.
 ⛔ **And a reporting entry point does not report for every body.** Under every condition built
 so that the requested source cannot answer — a verified-empty directory, a JPL request with no
 JPL file, an instant outside the body's own coverage edge — every body's returned word named the
-source that did answer, except the mean lunar node's, which handed the request back. So a flag
+source that did answer, except the mean lunar node's and the nutation and obliquity pseudo-body's,
+which handed the request back. So a flag
 is read as a report only per body and per word: the survey reads each body under each condition,
 each reading the one call of a fresh process, and writes each body's edge as adjacent bits for
 the words its readings use (one body's edge moves with the speed bit). A value row of a body
@@ -271,6 +277,26 @@ a comparison applies is its consumer's.
 from the classification beside it, so the section refuses to be written with a row that carries no
 unit or another spelling of it. The header names the row its consumer minted for it, `BU03`. See
 `docs/measurements/2026-11-01-a-unit-beside-the-rows.md`.
+
+### A body that is not a body
+
+The library returns its obliquity of the ecliptic and its nutation through the same call as a
+position, for a body number of its own. `nutation_obliquity_modes.py` reads that pseudo-body the
+way the mean node's record read the node: five configurations of request and directory, both
+words, through `calc` and `calc_ut`, every reading the one call of a fresh process, and the
+Moon's word beside its own under every condition built so that the request cannot answer.
+
+* ⛔ **Its word hands the request back**, in every reading, whatever answered — as the mean
+  node's does. So the survey reads it as well, and a reader of the survey sees it echo.
+* ⭐ **Through `calc` its six values did not move** with the request or the directory, at any
+  instant read, the ones outside every data file included; through `calc_ut` they moved at three
+  of seven, and were bit-identical to `calc` at the universal day plus the offset every time.
+* ⚠ **Every value is written, and the first three twice.** A consumer reads a reading's first
+  three returned values under three fixed names, whatever the body; the record writes them there,
+  held bit for bit to the positions, so that consumer can see a value move. ⛔ Those names are not
+  what the values are, and the fourth is in none of them.
+
+See `docs/measurements/2026-11-02-a-second-word-that-hands-the-request-back.md`.
 
 ### Sampling an engine for continuity
 
