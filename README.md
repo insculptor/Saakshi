@@ -70,6 +70,8 @@ generators/          one script per fixture set; each is a recorder
                          its three controls at every row
   nutation_obliquity_modes.py  the nutation and obliquity pseudo-body under every request,
                          both words and both entry points, its word beside the Moon's
+  nutation_obliquity_grid.py   the same pseudo-body through calc every half day across an
+                         interval, under every request at a subset, tied to the modes record
   r5_continuity.py       what an earlier implementation answered, before it stops running
   deployment_capture.py  what a deployment's library resolves, captured on its own host;
                          ⛔ imports nothing from here and writes no fixture
@@ -116,6 +118,9 @@ python generators/mean_node_section.py --ephe-path <directory of .se1 files> \
 python generators/nutation_obliquity_modes.py --ephe-path <directory of .se1 files> \
     --empty-dir <an empty directory> --profile <a data profile manifest> \
     --out out/nutation-obliquity-modes.jsonl
+python generators/nutation_obliquity_grid.py --ephe-path <directory of .se1 files> \
+    --empty-dir <an empty directory> --profile <a data profile manifest> \
+    --modes-record out/nutation-obliquity-modes.jsonl --out out/nutation-obliquity-grid.jsonl
 python generators/convention_probes.py --ephe-path <directory of .se1 files> --out out/
 python generators/probe6b_ffi.py --out out/
 
@@ -297,6 +302,32 @@ Moon's word beside its own under every condition built so that the request canno
   what the values are, and the fourth is in none of them.
 
 See `docs/measurements/2026-11-02-a-second-word-that-hands-the-request-back.md`.
+
+### The same body, every half day
+
+`nutation_obliquity_grid.py` reads the same pseudo-body through `calc` every half day across a data
+profile's interval: 219 205 instants, each reading the one call of a fresh process, under the
+data-file request with the pinned files and the default word. At a stated subset of those instants
+it reads the body again under all five configurations and both words.
+
+* ⭐ **The reading is the modes record's, by import.** Its child program, its admission rule, its
+  epochs, its directory checks and its pins are all that generator's. Nothing about a reading is
+  written twice, and its children run several at once, each its own process.
+* ⭐ **Half a day, so that no term hides between samples.** Under the published convention that a
+  nutation model holds terms of periods over two days, half a day reads every such term more than
+  four times per period. A daily step would read a two-day term twice, possibly at its zeros, and
+  would miss J2000, which falls at noon. ⛔ The step is chosen against the convention, not against
+  the library.
+* ⛔ **Four findings refuse the record rather than being written into it**:
+  * a returned word other than the request;
+  * six values that move across configurations at a subset instant;
+  * a reading at the modes record's instants that is not that record's, bit for bit;
+  * a broken clause of the relation that record measured for the nutation-off word.
+* ⚠ **The library's models are quoted, not read.** Its documentation is quoted for its precession,
+  obliquity and nutation models, by address, day and digest, ⛔ not reconciled where it names more
+  than one. The binding offers no way to read or set the models in force, so none was read.
+
+See `docs/measurements/2026-11-03-a-step-chosen-against-the-convention.md`.
 
 ### Sampling an engine for continuity
 
