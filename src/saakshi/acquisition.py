@@ -124,6 +124,7 @@ def retrieve(
     cache: Path,
     expected_sha256: str | None = None,
     canonical: CanonicalForm | None = None,
+    user_agent: str = USER_AGENT,
 ) -> Retrieval:
     """Fetch `url` over the network, and record what came back.
 
@@ -137,8 +138,14 @@ def retrieve(
     resource rather than over the transaction that delivered it. ⚠ With no canonical form
     the two are the same bytes, so the refusal above is unchanged for every published file
     this repository reads.
+
+    ⚠ **`user_agent` names the client, and its default is unchanged.** A caller that passes
+    nothing sends :data:`USER_AGENT`, exactly as before, so every generator that never asked
+    for another sends what it always sent. A service whose published terms ask more of the
+    header is answered by its caller passing one. ⛔ An email address or a person's name has
+    no place in it: a header is sent to a third party, and a recorded one is published.
     """
-    request = urllib.request.Request(url, headers={"User-Agent": USER_AGENT})
+    request = urllib.request.Request(url, headers={"User-Agent": user_agent})
     try:
         with urllib.request.urlopen(request, timeout=120) as response:
             payload = response.read()
