@@ -283,7 +283,9 @@ def plan(interval: dict, vector_query: dict[str, str]) -> list[dict]:
                   "TLIST": tlist([vector_instant["jd"]])},
     }]
     for variant in VARIANTS:
-        chosen = named + (window if variant["window"] else [])
+        # ⚠ In time order. Measured on 2026-11-09: the service answers a time list in time order, whatever order
+        #   it was sent in, and each answer is held to the instant asked at its position.
+        chosen = sorted(named + (window if variant["window"] else []), key=lambda instant: instant["jd"])
         for command in variant["targets"]:
             requests.append({
                 "request_id": f"observer-{variant['variant']}-{command}",

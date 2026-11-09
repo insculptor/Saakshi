@@ -106,8 +106,11 @@ def vector_text(jd: float, *, solution: str = "mar099") -> str:
 
 
 def respond(query: dict[str, str], **overrides) -> bytes:
-    """What a well-behaved service would print for a query this probe sends, synthetic throughout."""
-    jds = [float(x) for x in query["TLIST"].strip("'").split(",")]
+    """What a well-behaved service would print for a query this probe sends, synthetic throughout.
+
+    ⚠ Its lines are in time order whatever order the list was sent in, as the service's were, measured.
+    """
+    jds = sorted(float(x) for x in query["TLIST"].strip("'").split(","))
     command = query["COMMAND"].strip("'")
     labels = {t["command"]: t["label"] for t in probe.TARGETS}
     target = f"{labels[command]} ({command})"
@@ -434,6 +437,17 @@ def test_the_plan(requests) -> None:
     default = requests[-1]["query"]
     assert not {"ANG_FORMAT", "EXTRA_PREC", "CSV_FORMAT", "CAL_FORMAT"} & set(default)
     assert len({r["request_id"] for r in requests}) == len(requests) == 16
+
+
+def test_every_time_list_is_sent_in_time_order(requests) -> None:
+    """⭐ The service answers in time order; a list sent in another order is answered out of the order asked."""
+    for request in requests:
+        jds = [i["jd"] for i in request["instants"]]
+        assert jds == sorted(jds), request["request_id"]
+    window = request_named(requests, "observer-deg_extra-10")["instants"]
+    assert [i["instant"] if "instant" in i else i["name"] for i in window][:3] == [
+        "interval_start_next_day", "1900-01-01T00:00:00", "1950-01-01T00:00:00"]
+    assert window[3]["name"] == "window" and window[-1]["name"] == "interval_end_previous_day"
 
 
 # --------------------------------------------------------------------------------------
