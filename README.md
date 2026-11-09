@@ -62,6 +62,8 @@ mechanical facts: what was called, what came back, and under what versions.
 generators/          one script per fixture set; each is a recorder
   r1_horizons.py         geometric states from the publisher's live service
   r1_drift.py            whether that service still answers as a fixture says; ⛔ never gates
+  r1_of_date_probe.py    one apparent direction as that service prints it in two of-date frames, on
+                         one line, under every format; ⛔ derives nothing, and writes nothing here
   r2_kernel_states.py    geometric states from a pinned DE kernel, read twice
   publisher_testpo.py    the ephemeris publisher's own test-value set
   r3_swiss.py            the same grid under each ephemeris source, source asserted per row
@@ -111,6 +113,8 @@ cp config/reserved-names.txt.example config/reserved-names.txt   # then add your
 python generators/r2_kernel_states.py --kernel <path to de440s.bsp> --out out/
 python generators/publisher_testpo.py --kernel <path to de440s.bsp> --out out/
 python generators/r1_horizons.py --kernel <path to de440s.bsp> --out out/
+python generators/r1_of_date_probe.py --profile <a data profile manifest> \
+    --cache <a directory outside this tree> --out <a file outside this tree>
 python generators/r3_swiss.py --ephe-path <directory of .se1 files> --out out/
 python generators/mean_node_section.py --ephe-path <directory of .se1 files> \
     --empty-dir <an empty directory> --profile <a data profile manifest> \
