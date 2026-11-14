@@ -74,6 +74,8 @@ generators/          one script per fixture set; each is a recorder
                          both words and both entry points, its word beside the Moon's
   nutation_obliquity_grid.py   the same pseudo-body through calc every half day across an
                          interval, under every request at a subset, tied to the modes record
+  nutation_obliquity_section.py  the same pseudo-body's first value through calc as a comparison
+                         section, every value carried and read, its three controls at every row
   r5_continuity.py       what an earlier implementation answered, before it stops running
   deployment_capture.py  what a deployment's library resolves, captured on its own host;
                          ⛔ imports nothing from here and writes no fixture
@@ -125,6 +127,10 @@ python generators/nutation_obliquity_modes.py --ephe-path <directory of .se1 fil
 python generators/nutation_obliquity_grid.py --ephe-path <directory of .se1 files> \
     --empty-dir <an empty directory> --profile <a data profile manifest> \
     --modes-record out/nutation-obliquity-modes.jsonl --out out/nutation-obliquity-grid.jsonl
+python generators/nutation_obliquity_section.py --ephe-path <directory of .se1 files> \
+    --empty-dir <an empty directory> --profile <a data profile manifest> \
+    --survey out/swiss/r3-flag-reporting.jsonl --budget-row <the consumer's row id> \
+    --out-dir out/nutation-obliquity-section/
 python generators/convention_probes.py --ephe-path <directory of .se1 files> --out out/
 python generators/probe6b_ffi.py --out out/
 
@@ -332,6 +338,34 @@ it reads the body again under all five configurations and both words.
   than one. The binding offers no way to read or set the models in force, so none was read.
 
 See `docs/measurements/2026-11-03-a-step-chosen-against-the-convention.md`.
+
+### One value compared, six carried
+
+`nutation_obliquity_section.py` writes the pseudo-body as a comparison section in the mean node's
+section's shape, by import of that generator: its rows, its child program, its admission rule, its
+directories, its configuration identity, and the controls a section of that shape keeps whatever its
+body and word. What differs is the word, and what a row carries:
+
+* ⭐ **The data-file request without `FLG_NONUT`.** Its configuration renders the identity its consumer
+  names, and the section refuses to be written under any other.
+* ⭐ **One value compared, six carried.** Each row compares the call's first returned value and carries
+  all six beside it, nested, so that nothing compares the others. Every reading of the pseudo-body in
+  the controls carries all six as well, the first three again under the names a reading's first three
+  are read by.
+* ⛔ **The controls read every position**, at every row: ① each configuration's six values bit-identical
+  to the row's, the Moon the witness; ② the section read again warm in another order, six of six;
+  ③ the twin with `FLG_NONUT` added, whose first value must differ from the row's and must equal its own
+  second and the row's second.
+* ⚠ Where the row's first value and its twin's agree to the bit, the twin control refuses the row. The
+  instants are the mean node's section's, not chosen against that; how far apart the two were at the
+  closest row is measured and written into the record.
+* ⚠ The band in its classification is its consumer's, declared as it asked, ⛔ not a measurement. The
+  row id is a parameter: it is the consumer's, ⛔ never chosen here.
+
+The survey now writes every returned value on the pseudo-body's readings too, and on no other body's:
+a reader that reads every position of that body's readings would otherwise hold three of them.
+
+See `docs/measurements/2026-11-14-one-value-compared-six-carried.md`.
 
 ### Sampling an engine for continuity
 
