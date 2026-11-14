@@ -156,6 +156,22 @@ def test_the_section_identity_is_the_pinned_one_and_anything_else_is_refused(m):
         assert _independent_rendering(word, library) in str(excinfo.value)
 
 
+def test_two_renderers_that_disagree_before_the_word_line_are_refused(m, monkeypatch):
+    """⛔ The section's renderer is held to the shared one on every line but the word's, before the literal is: a
+    renderer that drifted on any other line is refused even where its own rendering with the word still matched."""
+    pytest.importorskip("swisseph", reason="the shared rendering lives in a module that imports the binding")
+    real = m.node.configuration_identity
+
+    def drifted(**keywords):
+        return real(**keywords) if keywords["word"] is not None else "0" * 64
+
+    assert m.section_identity(LIBRARY, 2) == IDENTITY_WORD_2
+    monkeypatch.setattr(m.node, "configuration_identity", drifted)
+    with pytest.raises(m.Refusal) as excinfo:
+        m.section_identity(LIBRARY, 2)
+    assert "disagree before the word line" in str(excinfo.value)
+
+
 def test_the_declared_band_is_its_consumers_converted_once(m):
     """⭐ 0.05 arcsecond is 1/72000 degree exactly; the band is that ratio's nearest double, the consumer's bits."""
     assert bits(m.CONSUMER_BAND_DEGREES) == "3eed208a5a912e32"
