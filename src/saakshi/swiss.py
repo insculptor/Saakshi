@@ -1050,7 +1050,7 @@ sys.stdout.write(json.dumps({
     "fresh_interpreter": fresh,
     "calls": calls,
     "returned": returned,
-    "values_bits": [bits(float(v)) for v in values[:3]],
+    "values_bits": [bits(float(v)) for v in values],
 }))
 """
 
@@ -1125,6 +1125,7 @@ def fixed_condition_readings(
     sidereal_mode: int,
     entry_point: str = "calc_ut",
     run: Callable[..., dict[str, Any]] = run_reading_child,
+    every_value: bool = False,
 ) -> list[dict[str, Any]]:
     """Each body's returned word under every fixed condition, each read in a fresh process.
 
@@ -1133,6 +1134,12 @@ def fixed_condition_readings(
     and the call's first three returned values. A word carrying only nutation bits is
     labelled ``default`` or ``nonut``; any other key is labelled by its bits instead, and is
     never a row of a survey (see :data:`NUTATION_LABELS`).
+
+    ⭐ With ``every_value``, each row carries **every** value the call returned as well, in
+    order (``values`` / ``values_bits``), beside the first three by name: for a body whose
+    returned values are no body's position, a reader that reads every position of a reading
+    would otherwise hold three of them and refuse it. The named three are always written from
+    the first three returned. ⛔ A child that returned fewer than three values is refused.
 
     ⛔ A planned out-of-coverage reading is filed under ``outside_coverage`` only once its
     instant is placed **outside** its body's own edge for its own key; a body with no edge
@@ -1190,9 +1197,17 @@ def fixed_condition_readings(
                     row["non_ephemeris_key"] = key
                 row["returned"] = returned
                 row["substitution_reported"] = (returned & SOURCE_MASK) != (word & SOURCE_MASK)
+                if len(result["values_bits"]) < 3:
+                    raise ReadingRefused(
+                        f"a reading of body {body} returned {len(result['values_bits'])} values; "
+                        "a reading's first three are written by name"
+                    )
                 for name, pattern in zip(("longitude", "latitude", "distance"), result["values_bits"]):
                     row[name] = value_of_bits(pattern)
                     row[f"{name}_bits"] = pattern
+                if every_value:
+                    row["values"] = [value_of_bits(p) for p in result["values_bits"]]
+                    row["values_bits"] = list(result["values_bits"])
                 row["call_history"] = "cold_process_per_row"
                 rows.append(row)
     return rows

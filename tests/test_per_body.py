@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import importlib.util
 import json
+import struct
 import sys
 from pathlib import Path
 
@@ -306,6 +307,36 @@ def test_a_reading_carries_the_raw_words_and_its_freshness():
     assert row["jd_bits"] == bits(row["jd"])
 
 
+def test_a_reading_carries_every_returned_value_only_where_it_is_asked_to():
+    """⭐ A survey-only body's reading carries every value its call returned, its named three the first three;
+    every other body's reading is written exactly as before, its named three alone."""
+    six = [bits(float(v)) for v in (23.4, 23.5, -0.004, 0.002, 0.0, 0.0)]
+
+    class Six(_Children):
+        def __call__(self, spec, *, work_dir):
+            return {**super().__call__(spec, work_dir=work_dir), "values_bits": list(six)}
+
+    plain = _readings({(SUN, 0): EDGE}, run=Six())
+    every = fixed_condition_readings(bodies=[SUN], keys=[0], edges={(SUN, 0): EDGE}, ephe_path="F",
+                                     empty_dir="E", work_dir="W", sidereal_mode=1, run=Six(), every_value=True)
+    assert all("values" not in r and "values_bits" not in r for r in plain)
+    for p, e in zip(plain, every, strict=True):
+        assert {k: v for k, v in e.items() if k not in ("values", "values_bits")} == p
+        assert e["values_bits"] == six and e["values"] == [struct.unpack(">d", bytes.fromhex(b))[0] for b in six]
+        assert e["values_bits"][:3] == [e["longitude_bits"], e["latitude_bits"], e["distance_bits"]]
+        assert list(e)[list(e).index("distance_bits") + 1:list(e).index("call_history")] == ["values", "values_bits"]
+
+
+def test_a_reading_of_fewer_than_three_values_is_refused():
+    class Two(_Children):
+        def __call__(self, spec, *, work_dir):
+            return {**super().__call__(spec, work_dir=work_dir), "values_bits": [bits(1.0), bits(0.0)]}
+
+    with pytest.raises(ReadingRefused):
+        _readings({(SUN, 0): EDGE}, run=Two())
+    assert _readings({(SUN, 0): EDGE})
+
+
 def test_a_word_with_another_non_ephemeris_bit_is_labelled_by_its_bits_and_never_as_nutation():
     row = _readings({(SUN, swe.FLG_SPEED): EDGE}, keys=(swe.FLG_SPEED,))[0]
     assert "nutation" not in row and row["non_ephemeris_key"] == swe.FLG_SPEED
@@ -437,14 +468,15 @@ def test_a_survey_only_body_is_read_under_the_survey_words_alone(monkeypatch, tm
     """⛔ A word carrying the speed or sidereal bit is never a survey row, and a survey-only body has no value
     row to label — so it is read under the survey's two words, and only there; the value grid's bodies are
     read under every word, as before."""
-    asked = []
+    asked, written_whole = [], []
 
     def edges(*, bodies, keys, **_):
         asked.append(("edges", tuple(bodies), tuple(keys)))
         return {(b, k): None for b in bodies for k in keys}
 
-    def readings(*, bodies, keys, **_):
+    def readings(*, bodies, keys, every_value=False, **_):
         asked.append(("readings", tuple(bodies), tuple(keys)))
+        written_whole.append((tuple(bodies), every_value))
         return [{"body": b, "key": k} for b in bodies for k in keys]
 
     monkeypatch.setattr(r3, "body_edges", edges)
@@ -458,6 +490,8 @@ def test_a_survey_only_body_is_read_under_the_survey_words_alone(monkeypatch, tm
                      ("readings", grid, every), ("readings", survey_only, tuple(r3.SURVEY_KEYS))]
     assert [r["body"] for r in read][-len(r3.SURVEY_KEYS):] == [ECL_NUT] * len(r3.SURVEY_KEYS)
     assert {k for (b, k) in keyed if b == ECL_NUT} == set(r3.SURVEY_KEYS)
+    # ⭐ Every returned value is written for the survey-only body alone: every other row is taken as it was.
+    assert written_whole == [(grid, False), (survey_only, True)]
 
 
 def test_the_per_body_note_names_every_body_whose_word_echoed():
@@ -489,6 +523,14 @@ def test_a_child_reading_is_one_fresh_call_with_exactly_its_rows_arguments(tmp_p
     assert result["calls"] == declared_reading_calls(_spec(tmp_path))
     # an empty directory: the request cannot be answered, and the word says which source did
     assert result["returned"] & 7 == swe.FLG_MOSEPH
+
+
+def test_a_child_reading_hands_back_every_value_the_call_returned(tmp_path):
+    work = tmp_path / "work"
+    work.mkdir()
+    result = run_reading_child(_spec(tmp_path, body=ECL_NUT, path=str(EPHE)), work_dir=str(work))
+    values, returned = swe.calc_ut(2451545.0, ECL_NUT, swe.FLG_SWIEPH | NONUT)
+    assert len(result["values_bits"]) == 6 and result["returned"] == returned
 
 
 @pytest.mark.parametrize("plant", [

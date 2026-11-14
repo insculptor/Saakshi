@@ -1113,6 +1113,12 @@ def write_audit_fixture(
             "latitude_bits": "⭐ its bit pattern",
             "distance": "the third returned value",
             "distance_bits": "⭐ its bit pattern",
+            "values": (
+                "for a returned_flag_by_body row of a survey-only body: every value the call "
+                "returned, in order -- ⚠ display; `values_bits` is the value. The first three are "
+                "the named three above"
+            ),
+            "values_bits": "⭐ their bit patterns",
             "call_history": (
                 "cold_process_per_row -- ⭐ the reading was the only call of a fresh interpreter"
             ),
@@ -1482,20 +1488,22 @@ def measure_per_body(
     # ⭐ The value grid's bodies under every word, then the survey-only bodies under the survey's words
     #    alone — after them, so every reading the survey carried before they were added is taken, and
     #    written, exactly as it was.
+    #    ⭐ A survey-only body's readings carry every value the call returned: its values are no body's
+    #    position, and a reader that reads every position of such a reading refuses one carrying three.
     groups = (
-        ([body for body, _ in BODIES], SURVEY_KEYS + VALUE_KEYS),
-        ([body for body, _ in SURVEY_ONLY_BODIES], SURVEY_KEYS),
+        ([body for body, _ in BODIES], SURVEY_KEYS + VALUE_KEYS, False),
+        ([body for body, _ in SURVEY_ONLY_BODIES], SURVEY_KEYS, True),
     )
     jd_low, jd_high = (swe.julday(year, 1, 1, 0.0) for year in EDGE_SEARCH_YEARS)
     keyed_edges: dict[tuple[int, int], dict[str, Any] | None] = {}
-    for bodies, keys in groups:
+    for bodies, keys, _every in groups:
         keyed_edges.update(body_edges(
             bodies=bodies, keys=keys, jd_low=jd_low, jd_high=jd_high, session=session
         ))
     readings: list[dict[str, Any]] = []
     with tempfile.TemporaryDirectory() as empty, tempfile.TemporaryDirectory() as work:
         _verify_empty(empty)
-        for bodies, keys in groups:
+        for bodies, keys, every_value in groups:
             readings += fixed_condition_readings(
                 bodies=bodies,
                 keys=keys,
@@ -1504,6 +1512,7 @@ def measure_per_body(
                 empty_dir=empty,
                 work_dir=work,
                 sidereal_mode=session.sidereal_mode,
+                every_value=every_value,
             )
         _verify_empty(empty)
         _verify_empty(work)

@@ -314,9 +314,12 @@ def _child(spec_json: str) -> None:
     readings = []
     for jd_bits in spec["jd_bits"]:
         values, returned = swe.calc(unbits(jd_bits), spec["body"], spec["word"])
+        # ⭐ Every value the call returned, in order, beside the first three by name: a section of another body
+        #    reads all of them (`nutation_obliquity_section.py`); this one writes the three it always wrote.
         readings.append({"longitude_bits": bits(values[0]), "latitude_bits": bits(values[1]),
                          "distance_bits": bits(values[2]), "returned": returned,
-                         "tidal_constant_after_bits": bits(swe.get_tid_acc())})
+                         "tidal_constant_after_bits": bits(swe.get_tid_acc()),
+                         "values_bits": [bits(float(v)) for v in values]})
     sys.stdout.write(json.dumps({"nonce": os.urandom(16).hex(), "fresh_interpreter": fresh, "calls": calls,
                                  "readings": readings}))
 
@@ -452,10 +455,17 @@ def source(word: int) -> int:
     return word & EPHEMERIS_MASK
 
 
-def check(rows: list[dict], controls: list[dict], context: dict, survey: dict) -> dict:
-    """The section's own controls, at every row. Returns the summary; raises Refusal on any that fails."""
+def held(rows: list[dict], controls: list[dict], context: dict, *, invariance_bits: int,
+         twin_bits: int) -> tuple[list[dict], list[dict], dict]:
+    """Every row and reading held to what it names, each part to its own epochs; and every returned word one these
+    readings requested. Returns (the readings, the sufficiency rows, the readings by part, epoch and configuration).
+
+    ⭐ What a section of this shape keeps whatever its body and word: the invariance part's readings carry
+    ``invariance_bits`` beside each configuration's ephemeris bits, the twin's ``twin_bits`` beside the section's
+    own — the one bit that differs between the section's word and its twin's. Raises Refusal on any that fails.
+    """
     epochs = {e["epoch_id"]: e for e in context["epochs"]}
-    flag, nonut, word = context["flag"], context["nonut"], context["word"]
+    flag = context["flag"]
     configurations = {name: (eph, state) for name, eph, state in CONFIGURATIONS}
     subject, witness = context["subject"], context["witness"]
     readings = [c for c in controls if c["control"] != "sufficiency"]
@@ -471,7 +481,7 @@ def check(rows: list[dict], controls: list[dict], context: dict, survey: dict) -
         raise Refusal("the section's rows are not its epochs in order")
     for row in rows:
         if row["instant"]["jd_bits"] != bits(epochs[row["epoch_id"]]["jd"]) or row["body"] != subject:
-            raise Refusal(f"section row {row['epoch_id']} is not that instant or not the node")
+            raise Refusal(f"section row {row['epoch_id']} is not that instant or not the section's body")
         if row.get("unit") != SECTION_UNIT:
             raise Refusal(f"section row {row['epoch_id']} declares unit {row.get('unit')!r}, not {SECTION_UNIT!r}")
     expected_parts = {
@@ -486,7 +496,7 @@ def check(rows: list[dict], controls: list[dict], context: dict, survey: dict) -
             raise Refusal(f"a reading filed as {part}")
         seen[part].append((r["epoch_id"], r["configuration"]))
         eph, state = configurations[r["configuration"]]
-        nutation_bit = nonut if r["control"] == "invariance" else 0
+        nutation_bit = invariance_bits if r["control"] == "invariance" else twin_bits
         body = witness if part == ("invariance", "witness") else subject
         if (r["ephemeris_requested"], r["path_state"]) != (eph, state) or r["requested"] != flag[eph] | nutation_bit \
                 or r["nutation"] != ("nonut" if nutation_bit else "default") or r["body"] != body \
@@ -508,17 +518,16 @@ def check(rows: list[dict], controls: list[dict], context: dict, survey: dict) -
         if r["returned"] not in asked or flag[asked[r["returned"]]] != source(r["returned"]):
             raise Refusal(f"a reading at {r['epoch_id']} returned word {r['returned']}, which no reading here "
                           "requested under the source its bits name")
+    return readings, sufficiency, {(r["control"], r.get("role"), r["epoch_id"], r["configuration"]): r
+                                   for r in readings}
 
-    values = {r["epoch_id"]: r["values_bits"][0] for r in rows}
-    by = {(r["control"], r.get("role"), r["epoch_id"], r["configuration"]): r for r in readings}
 
-    # ⛔ ① (a) — every subject reading bit-identical to its row.
-    for (control, role, epoch_id, configuration), r in by.items():
-        if role == "subject" and r["longitude_bits"] != values[epoch_id]:
-            raise Refusal(f"① (a) fails at {epoch_id}: under {configuration} the node read {r['longitude_bits']}, "
-                          f"the row {values[epoch_id]}")
-
-    # ⛔ ① (b) — the witness at every row: reports where its source is absent; spans two answering sources; C honoured.
+def witness_at_every_row(by: dict, context: dict) -> list[float]:
+    """⛔ ① (b) — the witness at every row: reports where its source is absent; spans two answering sources; C
+    honoured. Returns, per row, the smallest separation between C's answer and another answering source's."""
+    epochs = {e["epoch_id"]: e for e in context["epochs"]}
+    word = context["word"]
+    configurations = {name: (eph, state) for name, eph, state in CONFIGURATIONS}
     separations = []
     for epoch_id in epochs:
         w = {c: by[("invariance", "witness", epoch_id, c)] for c in configurations}
@@ -535,11 +544,59 @@ def check(rows: list[dict], controls: list[dict], context: dict, survey: dict) -
         if not spanning:
             raise Refusal(f"① (b) ⑵ fails at {epoch_id}: no other configuration's answer differs from C's")
         separations.append(min(abs(wrapped_arcseconds(w[c]["longitude"], c_reading["longitude"])) for c in spanning))
+    return separations
 
-    # ⛔ ① (c) — every row inside the interval.
+
+def inside_the_interval(rows: list[dict], context: dict) -> None:
+    """⛔ ① (c) — every row inside the interval."""
+    epochs = {e["epoch_id"]: e for e in context["epochs"]}
     start, end = context["interval"]["start"], context["interval"]["end"]
-    if not all(start <= epochs[e]["jd"] <= end for e in values):
+    if not all(start <= epochs[r["epoch_id"]]["jd"] <= end for r in rows):
         raise Refusal("① (c): a row lies outside the declared interval")
+
+
+def one_read_back(rows: list[dict], context: dict) -> set[str]:
+    """⛔ One read-back across the section (the configuration's one state), and the section's word every row."""
+    read_back = {r["state_read_back"]["value_bits"] for r in rows}
+    if len(read_back) != 1:
+        raise Refusal(f"the section read back {sorted(read_back)}; one configuration reads back one value")
+    if set(context["section_returned"]) != {context["word"]}:
+        raise Refusal(f"the section's returned words were {sorted(set(context['section_returned']))}, not "
+                      f"{context['word']}")
+    return read_back
+
+
+def witness_edge(survey: dict, readings: list[dict], context: dict, *, subject_noun: str = "the node") -> tuple:
+    """⛔ The survey's edge: no witness reading the files answered lies within a day of the witness's measured
+    coverage edge, and the section's body has no edge row of its own. Returns (the edge, the smallest margin)."""
+    subject, witness = context["subject"], context["witness"]
+    edge = survey["edges"].get(witness)
+    if edge is None or subject in survey["edges"]:
+        raise Refusal(f"the survey carries no edge for the witness, or one for {subject_noun}")
+    honoured = [r for r in readings if r["body"] == witness and r["ephemeris_requested"] != "moshier"
+                and source(r["returned"]) == source(r["requested"])]
+    margin = min(min(r["jd"] - edge[1], edge[2] - r["jd"]) for r in honoured)
+    if margin <= 1.0:
+        raise Refusal(f"a witness reading the files answered lies {margin} days inside the witness's edge")
+    return edge, margin
+
+
+def check(rows: list[dict], controls: list[dict], context: dict, survey: dict) -> dict:
+    """The section's own controls, at every row. Returns the summary; raises Refusal on any that fails."""
+    epochs = {e["epoch_id"]: e for e in context["epochs"]}
+    configurations = {name: (eph, state) for name, eph, state in CONFIGURATIONS}
+    witness = context["witness"]
+    readings, sufficiency, by = held(rows, controls, context, invariance_bits=context["nonut"], twin_bits=0)
+    values = {r["epoch_id"]: r["values_bits"][0] for r in rows}
+
+    # ⛔ ① (a) — every subject reading bit-identical to its row.
+    for (control, role, epoch_id, configuration), r in by.items():
+        if role == "subject" and r["longitude_bits"] != values[epoch_id]:
+            raise Refusal(f"① (a) fails at {epoch_id}: under {configuration} the node read {r['longitude_bits']}, "
+                          f"the row {values[epoch_id]}")
+
+    separations = witness_at_every_row(by, context)
+    inside_the_interval(rows, context)
 
     # ⛔ ② — the permuted regeneration bit-identical, in an order that differs.
     order = sufficiency[0]["call_order"]
@@ -557,23 +614,8 @@ def check(rows: list[dict], controls: list[dict], context: dict, survey: dict) -
             raise Refusal(f"③ fails at {epoch_id}: the reading without FLG_NONUT equals the row")
         twin_moves.append(abs(wrapped_arcseconds(t["longitude"], unbits(values[epoch_id]))))
 
-    # ⛔ One read-back across the section (the configuration's one state), and the node's word every row.
-    read_back = {r["state_read_back"]["value_bits"] for r in rows}
-    if len(read_back) != 1:
-        raise Refusal(f"the section read back {sorted(read_back)}; one configuration reads back one value")
-    if set(context["section_returned"]) != {word}:
-        raise Refusal(f"the section's returned words were {sorted(set(context['section_returned']))}, not {word}")
-
-    # ⛔ The survey's edge: no witness reading C answers lies within a day of the witness's measured coverage edge,
-    #    and the node has no edge row of its own.
-    edge = survey["edges"].get(witness)
-    if edge is None or subject in survey["edges"]:
-        raise Refusal("the survey carries no edge for the witness, or one for the node")
-    honoured = [r for r in readings if r["body"] == witness and r["ephemeris_requested"] != "moshier"
-                and source(r["returned"]) == source(r["requested"])]
-    margin = min(min(r["jd"] - edge[1], edge[2] - r["jd"]) for r in honoured)
-    if margin <= 1.0:
-        raise Refusal(f"a witness reading the files answered lies {margin} days inside the witness's edge")
+    read_back = one_read_back(rows, context)
+    edge, margin = witness_edge(survey, readings, context)
 
     worst = max(abs(wrapped_arcseconds(r["longitude"], unbits(values[r["epoch_id"]])))
                 for r in readings if r.get("role") == "subject")
@@ -598,7 +640,7 @@ def check(rows: list[dict], controls: list[dict], context: dict, survey: dict) -
                           "smallest_difference_arcseconds": round(min(twin_moves), 6),
                           "largest_difference_arcseconds": round(max(twin_moves), 6)},
         "state_read_back": {"state": "tidal_acceleration", **patterned("value", unbits(next(iter(read_back))))},
-        "section_returned_word": word,
+        "section_returned_word": context["word"],
         "survey_edge": {"survey_sha256": survey["sha256"], "body": witness,
                         **{f"{end}_bits": bits(v) for end, v in zip(EDGE_ENDS, edge)},
                         **dict(zip(EDGE_ENDS, edge))},
