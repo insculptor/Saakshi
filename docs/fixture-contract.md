@@ -230,6 +230,16 @@ the rules above. Three refusals:
 * a pattern and a decimal that are **different numbers**, compared through `bits()` rather
   than `==` so that `-0.0` and `0.0` are told apart.
 
+⭐ **One exemption, stated rather than tolerated.** In a row's own `returned_values` object,
+`values_bits` may stand with no `values` beside it. That object carries every value a call
+returned, as bit patterns; its reader takes it with that one member and refuses a second, so
+the decimals that would pair the patterns cannot be written there. ⛔ **It is one key in one
+object.** The object must be a member of the row itself — not one nested deeper, not one inside
+a list, not a header's; any other pattern key in it still has to name its value; the patterns
+are still checked, sixteen lowercase hex digits each; and a `values` written beside them is
+still paired and verified like any other. Widening it is a change to `UNPAIRED_PATTERNS` in
+`fixture.py` and to the tests that hold it there.
+
 ⭐ This reaches all three carrying forms — the flattened leaf model (`number`/`bits`), the
 scalar sibling (`jd_ut`/`jd_ut_bits`) and the parallel array (`values`/`values_bits`). ⚠
 `leaves.verify_bits` had only ever reached the first: **135 524** pairs checked, **108 768**

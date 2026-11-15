@@ -61,6 +61,10 @@ def bits(x: float) -> str:
     return struct.pack(">d", x).hex()
 
 
+def _unbits(pattern: str) -> float:
+    return struct.unpack(">d", bytes.fromhex(pattern))[0]
+
+
 def _manifest(directory: Path) -> Path:
     path = directory / "profile.v1.toml"
     path.write_text(f'[identity]\nname = "standard"\nversion = 1\n\n[[pinned.dataset]]\nlogical_id = "de440s"\n'
@@ -269,7 +273,7 @@ def _conforming(m, n=3):
         rows.append({"section": "true_obliquity", "epoch_id": e["epoch_id"], "body": SUBJECT,
                      "instant": {"scale": "tt", "jd": e["jd"], "jd_bits": bits(e["jd"])}, "unit": "degree",
                      "values": [six[0]], "values_bits": [bits(six[0])],
-                     "returned_values": {"values": six, "values_bits": [bits(v) for v in six]},
+                     "returned_values": {"values_bits": [bits(v) for v in six]},
                      "state_read_back": {"state": "tidal_acceleration", "value": -25.936, "value_bits": bits(-25.936)},
                      "source_assertion": {"kind": "none", "reason": "request_invariant"}})
     controls = []
@@ -333,7 +337,7 @@ def _mutations():
 
     def twin_equal(rows, controls, context, survey):
         twin = _find(controls, control="nutation_twin", epoch_id="e0")[0]
-        six = list(rows[0]["returned_values"]["values"])
+        six = [_unbits(b) for b in rows[0]["returned_values"]["values_bits"]]
         twin["values"], twin["values_bits"] = six, [bits(v) for v in six]
         for key, p in (("longitude", 0), ("latitude", 1), ("distance", 2)):
             twin[key], twin[f"{key}_bits"] = six[p], bits(six[p])
@@ -385,15 +389,23 @@ def _mutations():
 
     def five_returned_values(rows, controls, context, survey):
         nested = rows[2]["returned_values"]
-        nested["values"], nested["values_bits"] = nested["values"][:5], nested["values_bits"][:5]
+        nested["values_bits"] = nested["values_bits"][:5]
+
+    def returned_values_with_their_decimals(rows, controls, context, survey):
+        nested = rows[1]["returned_values"]
+        nested["values"] = [_unbits(b) for b in nested["values_bits"]]
+
+    def returned_values_with_another_member(rows, controls, context, survey):
+        rows[0]["returned_values"]["count"] = 6
 
     def compared_not_the_first(rows, controls, context, survey):
-        second = rows[0]["returned_values"]["values"][1]
+        second = _unbits(rows[0]["returned_values"]["values_bits"][1])
         rows[0]["values"], rows[0]["values_bits"] = [second], [bits(second)]
 
     def two_components(rows, controls, context, survey):
         nested = rows[0]["returned_values"]
-        rows[0]["values"], rows[0]["values_bits"] = nested["values"][:2], nested["values_bits"][:2]
+        rows[0]["values_bits"] = nested["values_bits"][:2]
+        rows[0]["values"] = [_unbits(b) for b in rows[0]["values_bits"]]
 
     def a_second_comparison_column(rows, controls, context, survey):
         rows[1]["mean_obliquity"], rows[1]["mean_obliquity_bits"] = 23.44, bits(23.44)
@@ -443,6 +455,10 @@ def _mutations():
         ("②: a same-order regeneration", same_order, "order is the section's own"),
         ("a row without its returned values", no_returned_values, "returned values"),
         ("a row with five returned values", five_returned_values, "returned values"),
+        ("a row's returned values with their decimals beside them", returned_values_with_their_decimals,
+         "beside its returned values"),
+        ("a row's returned values with another member", returned_values_with_another_member,
+         "beside its returned values"),
         ("a row comparing other than its first value", compared_not_the_first, "first returned value alone"),
         ("a row comparing two components", two_components, "first returned value alone"),
         ("a row with a second comparison column", a_second_comparison_column, "first returned value alone"),
@@ -566,7 +582,7 @@ def test_every_row_compares_its_first_value_and_carries_all_six(emission):
         assert row["body"] == -1 and row["unit"] == "degree"
         assert row["source_assertion"] == {"kind": "none", "reason": "request_invariant"}
         assert [k for k in row if k.endswith("_bits")] == ["values_bits"]
-        assert len(row["returned_values"]["values_bits"]) == 6
+        assert list(row["returned_values"]) == ["values_bits"] and len(row["returned_values"]["values_bits"]) == 6
         assert row["values_bits"] == row["returned_values"]["values_bits"][:1]
         assert row["state_read_back"]["state"] == "tidal_acceleration"
 

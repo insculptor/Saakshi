@@ -37,10 +37,10 @@ recorded calls into the library are not exactly the sequence its rows declare; a
 epochs and instants, or whose labels are not what they name; a returned word no reading requested; a section row
 without its unit; a read-back that differs between rows; a witness failing at any row; a witness the files
 answered within a day of its edge); and, of this section: a child whose readings do not carry every returned value
-with the named three equal to the first three; a row whose compared value is not its first returned value; any
-subject reading differing from its row at any returned position; a sufficiency row differing at any position; a
-twin failing either clause; a configuration identity other than the one pinned below. ⚠ These guard honest error,
-⛔ not forgery.
+with the named three equal to the first three; a row whose compared value is not its first returned value, or whose
+returned values carry anything beside their bit patterns; any subject reading differing from its row at any returned
+position; a sufficiency row differing at any position; a twin failing either clause; a configuration identity other
+than the one pinned below. ⚠ These guard honest error, ⛔ not forgery.
 
 Usage::
 
@@ -164,8 +164,7 @@ def measure(ephe_path: str, empty_dir: str, profile: str, work: str) -> tuple[li
         rows.append({"section": SECTION, "epoch_id": epoch["epoch_id"], "body": subject,
                      "instant": {"scale": "tt", **patterned("jd", epoch["jd"])}, "unit": SECTION_UNIT,
                      "values": [unbits(returned_values[COMPARED])], "values_bits": [returned_values[COMPARED]],
-                     "returned_values": {"values": [unbits(b) for b in returned_values],
-                                         "values_bits": returned_values},
+                     "returned_values": {"values_bits": returned_values},
                      "state_read_back": {"state": "tidal_acceleration",
                                          **patterned("value", unbits(reading["tidal_constant_after_bits"]))},
                      "source_assertion": {"kind": "none", "reason": "request_invariant"}})
@@ -233,14 +232,18 @@ def check(rows: list[dict], controls: list[dict], context: dict, survey: dict) -
     #    (the section's own word carries none), FLG_NONUT for the twin.
     readings, sufficiency, by = node.held(rows, controls, context, invariance_bits=0, twin_bits=context["nonut"])
 
-    # ⛔ The row's shape: one compared value, which is the first of every value the call returned; and every returned
-    #    value carried by every reading of the pseudo-body, its named three the first three.
+    # ⛔ The row's shape: one compared value, which is the first of every value the call returned, carried as bit
+    #    patterns and nothing beside them; and every returned value carried by every reading of the pseudo-body, its
+    #    named three the first three.
     returned: dict[str, list[str]] = {}
     for row in rows:
         nested = row.get("returned_values")
-        if not isinstance(nested, dict) or set(nested) != {"values", "values_bits"} \
-                or not isinstance(nested["values_bits"], list) or len(nested["values_bits"]) != RETURNED_POSITIONS:
+        if not isinstance(nested, dict) or not isinstance(nested.get("values_bits"), list) \
+                or len(nested["values_bits"]) != RETURNED_POSITIONS:
             raise Refusal(f"section row {row['epoch_id']} carries no {RETURNED_POSITIONS} returned values")
+        if set(nested) != {"values_bits"}:
+            raise Refusal(f"section row {row['epoch_id']} carries {sorted(set(nested) - {'values_bits'})} beside its "
+                          f"returned values' bit patterns; `values_bits` is written alone")
         if row["values_bits"] != [nested["values_bits"][COMPARED]] \
                 or [k for k in row if k.endswith("_bits")] != ["values_bits"]:
             raise Refusal(f"section row {row['epoch_id']} compares other than its first returned value alone")
@@ -374,9 +377,10 @@ SECTION_ROW_SCHEMA = {
     "values": "[the call's first returned value] in degrees -- ⚠ display; `values_bits` is the value. The "
               "documentation calls it the true obliquity of the ecliptic (header summary.value_positions)",
     "values_bits": "⭐ its bit pattern: the one value the row compares",
-    "returned_values": "⭐ every value the call returned, in order -- `values_bits` the values, `values` display; "
-                       "the first is the compared value. Nested, so that nothing compares the others: the controls "
-                       "read them",
+    "returned_values": "⭐ every value the call returned, in order, as `values_bits` alone -- bit patterns with no "
+                       "decimal beside them (the fixture contract's one stated exemption from its pairing rule); the "
+                       "first is the compared value. Nested, so that nothing compares the others: the controls read "
+                       "them",
     "state_read_back": "the tidal-acceleration constant read back after the call -- `value_bits` the value",
     "source_assertion": "⭐ `none`, reason `request_invariant`: the pseudo-body's returned word hands the request "
                         "back, and none of its returned values moved with the request across the declared "

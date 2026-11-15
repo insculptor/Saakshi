@@ -737,6 +737,91 @@ def test_prose_describing_a_pattern_is_not_verified_as_one(tmp_path):
     validate_header(header, where="t")  # ⛔ must not raise
 
 
+# --- the one stated exemption: a row's returned values, as patterns alone ---------------
+#
+# ⭐ A row may carry every value a call returned nested under `returned_values`, as bit
+# patterns with no decimal beside them: the reader of that object takes it with one member and
+# refuses a second. ⛔ The exemption is one key in one object, and these tests hold it there —
+# anywhere else the same key without its values is refused exactly as before, and the patterns
+# it lets stand alone are still checked as patterns.
+
+
+def _row(**extra):
+    return {"section": "position", **patterned("values", [1.5]), **extra}
+
+
+def test_a_rows_returned_values_may_carry_its_patterns_alone(tmp_path):
+    path = tmp_path / "a.jsonl"
+    write_jsonl(
+        path,
+        numeric(),
+        [_row(returned_values={"values_bits": [bits(1.5), bits(-0.0)]})],
+        declared_sections=["position"],
+    )
+    row = json.loads(path.read_text(encoding="utf-8").splitlines()[1])
+    assert row["returned_values"] == {"values_bits": [bits(1.5), bits(-0.0)]}
+
+
+def test_the_exemption_names_one_key_in_one_object():
+    """⛔ One pair of names, stated once: widening it is a change to this line and this test."""
+    from saakshi import fixture as contract
+
+    assert contract.UNPAIRED_PATTERNS == ("returned_values", "values_bits")
+
+
+@pytest.mark.parametrize(
+    "row",
+    [
+        _row(returned_values={"values_bits": [bits(1.5)], "jd_bits": bits(2.5)}),
+        {"section": "position", "values_bits": [bits(1.5)]},
+        _row(state_read_back={"values_bits": [bits(1.5)]}),
+        _row(reading={"returned_values": {"values_bits": [bits(1.5)]}}),
+        _row(readings=[{"returned_values": {"values_bits": [bits(1.5)]}}]),
+    ],
+    ids=[
+        "another pattern key beside it in the same object",
+        "the same key at the row's top level",
+        "the same key in another object of the row",
+        "the object one level deeper",
+        "the object inside a list",
+    ],
+)
+def test_anywhere_else_a_pattern_without_its_values_is_still_refused(row, tmp_path):
+    with pytest.raises(FixtureContractError, match="names no value"):
+        write_jsonl(tmp_path / "a.jsonl", numeric(), [row], declared_sections=["position"])
+
+
+def test_the_exemption_does_not_reach_a_header():
+    header = numeric(summary={"returned_values": {"values_bits": [bits(1.5)]}})
+    with pytest.raises(FixtureContractError, match="names no value"):
+        validate_header(header, where="t")
+
+
+@pytest.mark.parametrize(
+    "bad",
+    [["3FF8000000000000"], ["zz"], [bits(1.5), 1.5], [None], [], bits(1.5), None],
+)
+def test_the_patterns_it_lets_stand_alone_are_still_checked_as_patterns(bad, tmp_path):
+    with pytest.raises(FixtureContractError, match="not a bit pattern|a list of bit patterns"):
+        write_jsonl(
+            tmp_path / "a.jsonl",
+            numeric(),
+            [_row(returned_values={"values_bits": bad})],
+            declared_sections=["position"],
+        )
+
+
+def test_beside_its_values_the_key_is_paired_as_anywhere_else(tmp_path):
+    """⚠ The exemption waives a partner that is absent; a partner that is present is checked."""
+    with pytest.raises(FixtureContractError, match="different numbers"):
+        write_jsonl(
+            tmp_path / "a.jsonl",
+            numeric(),
+            [_row(returned_values={"values": [1.5], "values_bits": [bits(2.5)]})],
+            declared_sections=["position"],
+        )
+
+
 # --- the pair has one spelling now ------------------------------------------------------
 
 

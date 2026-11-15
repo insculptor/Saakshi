@@ -181,6 +181,19 @@ LEAF_VALUE_KEY = "number"
 #: 16 lowercase hex digits, and nothing else.
 _PATTERN_RE = re.compile(r"^[0-9a-f]{16}$")
 
+#: ⭐ **The pairing rule's one stated exemption** — (the object, the pattern key): a row's
+#: ``returned_values`` object may carry ``values_bits`` with no ``values`` beside it. Its reader
+#: takes every value a call returned from that object as bit patterns, with one member and
+#: never a second, so the decimals that would pair them cannot be written there.
+#:
+#: ⛔ **One key in one object, and nowhere else.** The object must be a row's own member (not
+#: one nested deeper, not one inside a list, not a header's), and any other pattern key in it
+#: still names its value. The patterns it lets stand alone are still checked as patterns, and
+#: a ``values`` written beside them is still paired and verified. See
+#: :func:`_verify_pattern_pairs`.
+UNPAIRED_PATTERNS = ("returned_values", "values_bits")
+_UNPAIRED_PATH_RE = re.compile(r"row\[\d+\]\." + re.escape(UNPAIRED_PATTERNS[0]))
+
 
 class FixtureContractError(Exception):
     """Raised when a fixture would violate the contract. ⛔ There is no permissive mode."""
@@ -698,12 +711,20 @@ def _verify_pattern_pairs(node: Mapping[str, Any], *, where: str, path: str) -> 
     parallel arrays of mismatched length. ⛔ Nothing that has ever been written is refused
     by this — and 108 768 of those pairs had never been checked by anything, because
     ``leaves.verify_bits`` only ever reached the leaf model.
+
+    ⭐ **One exemption, stated in** :data:`UNPAIRED_PATTERNS`: in a row's own
+    ``returned_values`` object, ``values_bits`` may name no value. It waives the partner and
+    nothing else — the list must still be bit patterns, and a partner that *is* written beside
+    it is resolved and verified as anywhere.
     """
     keys = list(node)
     for key in keys:
         if not _is_pattern_key(key):
             continue
         partner = resolve_pattern_partner(key, keys)
+        if partner is None and key == UNPAIRED_PATTERNS[1] and _UNPAIRED_PATH_RE.fullmatch(path):
+            _verify_unpaired_patterns(node[key], where=where, path=f"{path}.{key}")
+            continue
         if partner is None:
             raise FixtureContractError(
                 f"{where}: {path}.{key}: this key carries a bit pattern but names no value "
@@ -730,6 +751,23 @@ def _verify_pattern_pairs(node: Mapping[str, Any], *, where: str, path: str) -> 
                 _verify_one_pattern(
                     pattern[index], item, where=where, path=f"{path}.{key}[{index}]"
                 )
+
+
+def _verify_unpaired_patterns(patterns: Any, *, where: str, path: str) -> None:
+    """The patterns the one exemption lets stand without their values: still bit patterns."""
+    if not isinstance(patterns, (list, tuple)) or not patterns:
+        raise FixtureContractError(
+            f"{where}: {path}: {patterns!r} is not a list of bit patterns. ⛔ The one pattern "
+            "key this contract lets stand without its values must hold at least one pattern, "
+            "each as bits() writes it — with no decimal beside them, the patterns are all a "
+            "reader has"
+        )
+    for index, pattern in enumerate(patterns):
+        if not isinstance(pattern, str) or not _PATTERN_RE.match(pattern):
+            raise FixtureContractError(
+                f"{where}: {path}[{index}]: {pattern!r} is not a bit pattern — sixteen lowercase "
+                "hex digits, as bits() writes them"
+            )
 
 
 def _verify_one_pattern(pattern: Any, value: float, *, where: str, path: str) -> None:
