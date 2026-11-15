@@ -367,6 +367,17 @@ a reader that reads every position of that body's readings would otherwise hold 
 
 See `docs/measurements/2026-11-14-one-value-compared-six-carried.md`.
 
+### The returned values as patterns alone
+
+Each row's `returned_values` is written as `values_bits` alone — the six bit patterns, with no
+decimals beside them — because the reader of that object takes it with that one member and refuses
+a second. ⭐ The fixture contract states the one exemption from its pairing rule this needs: that key,
+in a row's own `returned_values`, and nowhere else; the patterns are still checked as patterns.
+Emitted again, the four files together: every section row lost that member and nothing else, and
+every other file moved only by its stamps and the survey's digest.
+
+See `docs/measurements/2026-11-15-the-returned-values-as-patterns-alone.md`.
+
 ### Sampling an engine for continuity
 
 One generator is different in kind: `r5_continuity.py` samples a *running implementation*
