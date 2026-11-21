@@ -199,6 +199,9 @@ python generators/r1_drift.py --fixture out/service/r1-values.jsonl --out out/
 python generators/r1_geocentric_drift.py --values out/service/r1-geocentric-vectors.jsonl --out out/
 ```
 
+The geocentric grid's three corrections, what each response stated about them, the service's silent truncation
+of a long time list, and the drift control's first run: `docs/measurements/2026-11-21-three-corrections-from-the-geocentre.md`.
+
 ⛔ **It detects and proposes. It never gates** — it exits 0 on every outcome, adopts no band
 and edits no fixture. A job that failed a build the day a public service updated a data file
 is a job somebody switches off, and the fixture it would have failed is still exactly good

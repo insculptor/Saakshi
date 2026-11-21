@@ -193,9 +193,9 @@ SPARSE_STEP_DAYS = 1000
 DENSE_START = "1900-01-01T00:00:00"
 DENSE_END = "2050-01-01T00:00:00"
 DENSE_STEP_DAYS = 200
-#: The goldens the consumer's accuracy specification names with a year or a date and no fixed instant.
-#: ⭐ Sampled by rule because no instant is fixed; ⛔ the two named with neither (the LMT-era chart and the
-#: published station) are not sampled at all, because an instant would have to be invented.
+#: The goldens the consumer's accuracy specification names with a year or a date and no fixed instant, and asks
+#: for regardless. ⭐ Sampled by rule because no instant is fixed. ⛔ Two more (an LMT-era chart of 1885 and a
+#: published station) are to be sampled only where an instant is fixed; none is, so neither is sampled.
 GOLDEN_INSTANTS: tuple[tuple[str, str, tuple[str, ...]], ...] = (
     ("golden_1855", "the 1855 kernel-edge historical golden: the first instant of its year",
      ("1855-01-01T00:00:00",)),
@@ -219,7 +219,9 @@ EPOCH_RULE = (
     "(1) the profile's interval ends, each one day inside; "
     f"(2) a sparse lattice from {SPARSE_ORIGIN} every {SPARSE_STEP_DAYS} days to the interval's end; "
     f"(3) a dense lattice from {DENSE_START} every {DENSE_STEP_DAYS} days to {DENSE_END}; "
-    "(4) the goldens named with a year or a date and no fixed instant, each as stated; "
+    "(4) the goldens named with a year or a date and no fixed instant that are asked for regardless, each as "
+    "listed (the 1855 and 2145 goldens and the 1995-10-24 eclipse day; the 1885 chart and the published station "
+    "are asked for only where an instant is fixed, and none is); "
     "(5) per body, after each anchor year's first instant, the first lattice days on which the angle between the "
     "body's and the Sun's geometric geocentric directions is a local minimum (a conjunction with the Sun); "
     "(6) per planet, after each anchor, the first lattice days after which the sign of its geometric geocentric "
