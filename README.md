@@ -67,6 +67,8 @@ generators/          one script per fixture set; each is a recorder
   r1_geocentric_vectors.py  geocentric ICRF states in TDB from that service under each of its
                          three vector corrections, every response held to its own statement of
                          them; read live or from the copies it kept; ⛔ derives nothing
+  r1_geocentric_drift.py whether that service still answers a stated sample of that grid's own
+                         queries as it recorded; ⛔ never gates
   r2_kernel_states.py    geometric states from a pinned DE kernel, read twice
   publisher_testpo.py    the ephemeris publisher's own test-value set
   r3_swiss.py            the same grid under each ephemeris source, source asserted per row
@@ -194,6 +196,7 @@ drift job:
 
 ```bash
 python generators/r1_drift.py --fixture out/service/r1-values.jsonl --out out/
+python generators/r1_geocentric_drift.py --values out/service/r1-geocentric-vectors.jsonl --out out/
 ```
 
 ⛔ **It detects and proposes. It never gates** — it exits 0 on every outcome, adopts no band

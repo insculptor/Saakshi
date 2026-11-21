@@ -42,14 +42,14 @@ STATED_LINES = {"NONE": "GEOMETRIC cartesian states", "LT": "LT CORRECTED cartes
 def respond(query: dict, *, source="NASA/JPL Horizons API", version="1.2", solution="DE441", center_solution="DE441", output_type=None,
             paragraph=None, frame="ICRF", echo_target=None, columns=None, drop_line=False, shift_jd=0.0,
             time_text='Barycentric Dynamical Time ("TDB" or T_eph) output was requested. This', stamp="10:00:00",
-            eop="eop.261120.p270216") -> bytes:
+            eop="eop.261120.p270216", value_offset=0.0) -> bytes:
     command = query["COMMAND"].strip("'")
     correction = query["VEC_CORR"].strip("'")
     jds = [float(text) for text in query["TLIST"].strip("'").split(",")]
     statement = g.EXPECTED_CORRECTION_STATEMENTS[correction]
     lines = []
     for jd in jds[:-1] if drop_line else jds:
-        values = [f"{(int(command) + k) * 1e-3 + (jd - 2451545.0) * 1e-9:.15E}" for k in range(9)]
+        values = [f"{(int(command) + k) * 1e-3 + (jd - 2451545.0) * 1e-9 + value_offset:.15E}" for k in range(9)]
         lines.append(f"{jd + shift_jd:.9f}, A.D. 2000-Jan-01 00:00:00.0000, " + ", ".join(values) + ",")
     header = columns or ", ".join(g.EXPECTED_COLUMNS) + ","
     text = "\n".join([
