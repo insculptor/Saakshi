@@ -42,7 +42,22 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Callable
 
-USER_AGENT = "saakshi/0.1"
+#: ⭐ **The one client name every request is sent under.** The SSD API's Fair Use Policy
+#: (https://ssd-api.jpl.nasa.gov/, read 2026-11-21): *"Applications making automated
+#: connections must provide a valid, application-specific User-Agent request header that
+#: includes correct product name, version, and contact information."* The product is this
+#: package, the version is its own (``pyproject.toml``, major and minor), and the contact is
+#: this repository's public address, as its owner chose. ⛔ No email address and no person's
+#: name: the header is sent to a third party, and every acquisition record publishes it.
+#:
+#: ⛔ **There is no per-call override.** An earlier keyword let a caller name another client,
+#: and every caller but one sent the bare product and version, with no contact. One string,
+#: sent by every request and written into every acquisition record, is the only way a record
+#: can say exactly what was sent.
+PRODUCT = "saakshi"
+VERSION = "0.1"
+CONTACT = "https://github.com/insculptor/Saakshi"
+USER_AGENT = f"{PRODUCT}/{VERSION} (+{CONTACT})"
 
 #: Payload bytes in, the resource's canonical bytes out. ⛔ It may raise
 #: :class:`AcquisitionError`: an extractor that cannot find the material it exists to
@@ -124,7 +139,6 @@ def retrieve(
     cache: Path,
     expected_sha256: str | None = None,
     canonical: CanonicalForm | None = None,
-    user_agent: str = USER_AGENT,
 ) -> Retrieval:
     """Fetch `url` over the network, and record what came back.
 
@@ -139,13 +153,10 @@ def retrieve(
     the two are the same bytes, so the refusal above is unchanged for every published file
     this repository reads.
 
-    ⚠ **`user_agent` names the client, and its default is unchanged.** A caller that passes
-    nothing sends :data:`USER_AGENT`, exactly as before, so every generator that never asked
-    for another sends what it always sent. A service whose published terms ask more of the
-    header is answered by its caller passing one. ⛔ An email address or a person's name has
-    no place in it: a header is sent to a third party, and a recorded one is published.
+    ⭐ **Every request names the client as :data:`USER_AGENT`**, and nothing else: there is
+    no argument that changes it. A caller records that constant in its acquisition record.
     """
-    request = urllib.request.Request(url, headers={"User-Agent": user_agent})
+    request = urllib.request.Request(url, headers={"User-Agent": USER_AGENT})
     try:
         with urllib.request.urlopen(request, timeout=120) as response:
             payload = response.read()

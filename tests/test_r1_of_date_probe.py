@@ -544,8 +544,11 @@ def test_check_refuses_a_row_that_does_not_say_what_answered(requests, tmp_path)
 
 
 def test_the_client_names_itself_and_how_to_reach_it_and_no_person() -> None:
-    assert probe.CONTACT_USER_AGENT == f"{USER_AGENT} (+https://github.com/insculptor/Saakshi)"
-    assert "@" not in probe.CONTACT_USER_AGENT
+    """⭐ The shared constant, and still the very string this probe sent before it was shared, so its records are
+    unchanged."""
+    assert probe.USER_AGENT is acquisition.USER_AGENT
+    assert USER_AGENT == "saakshi/0.1 (+https://github.com/insculptor/Saakshi)"
+    assert not hasattr(probe, "CONTACT_USER_AGENT")
 
 
 def test_every_live_request_is_sent_under_that_name(monkeypatch, tmp_path) -> None:
@@ -557,7 +560,7 @@ def test_every_live_request_is_sent_under_that_name(monkeypatch, tmp_path) -> No
 
     monkeypatch.setattr(probe, "retrieve", fake_retrieve)
     assert probe.fetch_live("https://example.invalid/x", tmp_path / "c", probe.canonical({})) == "retrieval"
-    assert sent["user_agent"] == probe.CONTACT_USER_AGENT and sent["cache"] == tmp_path / "c"
+    assert "user_agent" not in sent and sent["cache"] == tmp_path / "c"
 
 
 #: The identity a test run stamps. ⛔ Not this tree's: a test runs on whatever is checked out, committed or not.
@@ -602,7 +605,7 @@ def test_the_record_is_written_outside_the_tree_and_holds_the_contract(tmp_path)
     assert written == len(lines) - 1 == 16 + 476
     assert (header["fixture_kind"], header["reference"]) == ("provenance_record", "R1")
     assert not {"classification", "budget_row"} & set(header)
-    assert header["oracle"]["user_agent"] == probe.CONTACT_USER_AGENT
+    assert header["oracle"]["user_agent"] == header["request"]["user_agent"] == USER_AGENT
     assert header["summary"]["stated_terms"] and header["summary"]["documents"]
     readings = [json.loads(line) for line in lines[1:] if json.loads(line)["finding"] == "reading"]
     assert all(all(r[name] for name in probe.ROW_STATE) for r in readings)

@@ -50,7 +50,7 @@ for _path in (str(HERE.parent / "src"), str(HERE)):
 from saakshi import service  # noqa: E402
 from saakshi.acquisition import USER_AGENT, AcquisitionError, Retrieval, retrieve  # noqa: E402
 from saakshi.fixture import Header, describe_reserved_names, patterned, write_jsonl  # noqa: E402
-from saakshi.provenance import REPO, generator_for, host_record, today  # noqa: E402
+from saakshi.provenance import generator_for, host_record, today  # noqa: E402
 from saakshi.service import ServiceFormatError  # noqa: E402
 
 # ⭐ The data profile's interval, read by the reader the obliquity records use, by import.
@@ -67,10 +67,9 @@ class Refusal(Exception):
 # The client, and the terms it is sent under
 # ======================================================================================
 
-#: ⭐ The client this probe names. The service's published Fair Use Policy asks automated clients for a product
-#: name, a version and contact information; the contact here is this repository's public address. ⛔ No email
-#: address and no person's name.
-CONTACT_USER_AGENT = f"{USER_AGENT} (+https://{REPO})"
+#: ⭐ The client is named once, for every generator: :data:`saakshi.acquisition.USER_AGENT` (product, version and
+#: this repository's public address, as the service's published Fair Use Policy asks). It is the same string
+#: this probe has always sent, so its records are unchanged by sharing it.
 
 #: ⚠ The pause between requests, in seconds. One request at a time, never two at once.
 REQUEST_INTERVAL_SECONDS = 2.0
@@ -492,7 +491,7 @@ Fetch = Callable[[str, Path, Callable[[bytes], bytes]], Retrieval]
 
 def fetch_live(url: str, cache: Path, canonical_form: Callable[[bytes], bytes]) -> Retrieval:
     """One live request, through R1's retrieval, under this probe's client name."""
-    return retrieve(url, cache=cache, canonical=canonical_form, user_agent=CONTACT_USER_AGENT)
+    return retrieve(url, cache=cache, canonical=canonical_form)
 
 
 def inside(path: Path, root: Path) -> bool:
@@ -622,7 +621,7 @@ def build_header(request_rows: list[dict], reading_rows: list[dict], *, interval
             "publisher": "JPL Solar System Dynamics",
             "service": "Horizons",
             "endpoint": service.ENDPOINT,
-            "user_agent": CONTACT_USER_AGENT,
+            "user_agent": USER_AGENT,
             "acquiring_instrument": {"software": "python urllib.request", "python": host_record()["python"]},
             "queried_on": today(),
             "service_states_observed": [json.loads(state) for state in states],
@@ -641,7 +640,7 @@ def build_header(request_rows: list[dict], reading_rows: list[dict], *, interval
         record_date=today(),
         request={
             "endpoint": service.ENDPOINT,
-            "user_agent": CONTACT_USER_AGENT,
+            "user_agent": USER_AGENT,
             "request_interval_seconds": REQUEST_INTERVAL_SECONDS,
             "requests_issued": len(requests),
             "one_at_a_time": True,
@@ -716,7 +715,7 @@ def generate(profile: str, cache: Path, out: Path, *, fetch: Fetch = fetch_live,
     print(describe_reserved_names())
     interval = modes.read_interval(profile)
     requests = plan(interval, vector_query if vector_query is not None else r1_vector_query())
-    print(f"{len(requests)} requests, one at a time, {REQUEST_INTERVAL_SECONDS} s apart, as {CONTACT_USER_AGENT}")
+    print(f"{len(requests)} requests, one at a time, {REQUEST_INTERVAL_SECONDS} s apart, as {USER_AGENT}")
     request_rows, reading_rows = read(requests, cache=cache, fetch=fetch, sleep=sleep)
     check(request_rows, reading_rows, requests)
     header = build_header(request_rows, reading_rows, interval=interval, generator=generator, requests=requests)

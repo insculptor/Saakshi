@@ -542,6 +542,12 @@ recorded pin before a single value is read: a content-addressed *name* records w
 somebody intended, and anything that can write to the directory can write a wrong file
 under a right-looking name.
 
+⭐ Every request this repository sends names its client the same way,
+`saakshi/0.1 (+https://github.com/insculptor/Saakshi)`: the product, its version and a
+public contact, as the publisher's API Fair Use Policy asks of automated clients. There is
+no per-call override, and every acquisition record writes the string down. ⛔ No email
+address and no person's name goes into it.
+
 ## Before pushing
 
 ```bash

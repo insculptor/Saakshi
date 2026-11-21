@@ -34,7 +34,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Callable, Mapping
 
-from .acquisition import AcquisitionError, retrieve
+from .acquisition import USER_AGENT, AcquisitionError, retrieve
 from .textual import (
     Edition,
     Rendering,
@@ -1700,6 +1700,7 @@ def acquire(key: str, *, cache: Path = CACHE, today: str) -> dict[str, Any]:
         "http_status": retrieval.status,
         "copy_sha256": retrieval.resource_sha256,
         "copy_bytes": len(retrieval.resource),
+        "user_agent": USER_AGENT,
     }
     _record_path(cache, source).write_text(
         json.dumps(record, indent=2, sort_keys=True) + "\n", encoding="utf-8"
