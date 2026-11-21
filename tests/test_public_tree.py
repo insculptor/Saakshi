@@ -221,3 +221,61 @@ def test_the_content_only_exemption_matches_whole_components_only(repo):
     (repo / "cache-notes" / "x.md").write_text("acme owes us\n", encoding="utf-8")
 
     assert failures(repo)
+
+
+# --- the matcher itself, under whatever git runs this -----------------------------------
+
+
+def test_no_pattern_uses_an_escape_that_one_regex_library_ignores():
+    """⛔ Measured: ``\\b`` is honoured by the git on a Linux runner and ignored by the git
+    that ships with macOS (Apple Git 2.54.0), so on a Mac both identifier patterns matched
+    nothing and the self-test refused every run. ⭐ This fails on EVERY platform if such an
+    escape comes back, not only on the one where the pattern goes dead.
+
+    ⚠ The rule is written out here a second time on purpose, so this test does not lean on the
+    check's own copy of it."""
+    escape = re.compile(r"\\[A-Za-z0-9<>`']")
+    for pattern, description, _positive, _negative in check.EXTRA_PATTERNS:
+        assert escape.search(pattern) is None, (description, pattern)
+    assert check.NON_PORTABLE_ESCAPE.pattern == escape.pattern
+
+
+def test_the_self_test_passes_under_this_git():
+    assert check.self_test() == 0
+
+
+def test_the_self_test_refuses_a_non_portable_boundary(monkeypatch):
+    """⚠ The control for the rule above: the self-test itself, not only this suite, refuses
+    the escape that went dead — before it asks git anything."""
+    broken = [
+        (pattern.replace(check._WORD_START, "\\b"), description, positive, negative)
+        for pattern, description, positive, negative in check.EXTRA_PATTERNS
+    ]
+    assert broken != check.EXTRA_PATTERNS
+    monkeypatch.setattr(check, "EXTRA_PATTERNS", broken)
+    assert check.self_test() == 1
+
+
+def test_the_self_test_refuses_a_pattern_with_no_boundary_at_all(monkeypatch):
+    """⛔ The repair must not be bought by widening: without its boundary an identifier
+    pattern matches its own must-not-match sample, and the self-test says so."""
+    widened = [
+        (pattern.replace(check._WORD_START, ""), description, positive, negative)
+        for pattern, description, positive, negative in check.EXTRA_PATTERNS
+    ]
+    assert widened != check.EXTRA_PATTERNS
+    monkeypatch.setattr(check, "EXTRA_PATTERNS", widened)
+    assert check.self_test() == 1
+
+
+def test_an_identifier_in_a_file_is_refused_and_its_lookalike_is_not(repo):
+    """⭐ Through the scan itself, not only the self-test: each sample is planted as a file
+    body in a real repository and read by the same `git grep` the check runs."""
+    patterns = [(pattern, description) for pattern, description, _p, _n in check.EXTRA_PATTERNS]
+    for _pattern, description, positive, negative in check.EXTRA_PATTERNS:
+        (repo / "notes.md").write_text(positive + "\n", encoding="utf-8")
+        found, _examined = check.scan_working_tree(patterns, root=repo)
+        assert description in "\n".join(found), positive
+        (repo / "notes.md").write_text(negative + "\n", encoding="utf-8")
+        found, _examined = check.scan_working_tree(patterns, root=repo)
+        assert found == [], negative

@@ -107,6 +107,14 @@ FOREIGN_CONTENT: dict[str, str] = {
 #: self-test below was added. Every entry therefore carries a sample that must match and a
 #: sample that must not, and `--self-test` proves both.
 #:
+#: ⛔ **And no backslash escape of any kind, `\b` included.** `\b` is a GNU extension: the
+#: git on a Linux runner honours it, and the git that ships with macOS (measured: Apple Git
+#: 2.54.0) does not, so on a Mac both identifier patterns matched nothing and the self-test
+#: refused every run. The word boundary is therefore spelled in POSIX classes, which both
+#: regex libraries read the same way: start of line, or one character that is not a letter,
+#: a digit or an underscore. `NON_PORTABLE_ESCAPE` below is the rule; `--self-test` refuses
+#: any pattern it finds, before it asks git anything.
+#:
 #: ⭐ **The samples are BUILT, never written out.** A literal positive sample would be a
 #: string this file must not contain — the scan would flag the code that enforces it. ⛔ The
 #: answer is not to exempt this file: an exemption would also silence a real leak that
@@ -121,12 +129,21 @@ _IDENTIFIER_PREFIXES = [
     ("rfc", "an internal proposal identifier"),
 ]
 
+#: A word boundary before a word character, in POSIX ERE that BSD and GNU regex both read.
+_WORD_START = "(^|[^[:alnum:]_])"
+
+#: ⛔ No pattern this check hands to `git grep -E` may contain this: a backslash followed by
+#: a letter, a digit, or one of the GNU anchor characters (`\b`, `\d`, `\s`, `\w`, `\<` and
+#: their kin are each honoured by one regex library and not another). An escaped
+#: punctuation character such as `\.` or `\-` is portable and is allowed.
+NON_PORTABLE_ESCAPE = re.compile(r"\\[A-Za-z0-9<>`']")
+
 
 def _identifier_patterns() -> list[tuple[str, str, str, str]]:
     """`(pattern, description, must_match, must_not_match)` for each entry."""
     entries = [
         (
-            rf"\b{prefix}-[0-9]",
+            rf"{_WORD_START}{prefix}-[0-9]",
             description,
             f"see {prefix.upper()}-0015 for the rule",
             # ⛔ must NOT match: no word boundary before the prefix
@@ -195,6 +212,14 @@ def self_test() -> int:
     """
     probe = ROOT / ".matcher-probe.tmp"
     failures: list[str] = []
+    for pattern, description, _positive, _negative in EXTRA_PATTERNS:
+        escape = NON_PORTABLE_ESCAPE.search(pattern)
+        if escape:
+            failures.append(
+                f"⛔ {description}: pattern {pattern!r} uses {escape.group()!r}, which one "
+                "regex library honours and another does not. On the one that does not, the "
+                "pattern matches nothing and this check goes green over an empty set."
+            )
     try:
         for pattern, description, positive, negative in EXTRA_PATTERNS:
             probe.write_text(positive + "\n", encoding="utf-8")

@@ -559,3 +559,15 @@ single `git add -A` publishes it permanently. ⛔ Being git-ignored buys a path 
 here, deliberately: ignoring one is how the same failure comes back under a different name
 in a different path. The short list of paths that exist *to hold* private material is
 exempt, and every run prints it.
+
+⚠ **A virtual environment inside the tree is scanned like everything else**, and the
+packages in one quote other people's protocol numbers and section signs — 40-odd hits on a
+plain test environment, none of them ours. They are not exempted, because an exemption is
+how a real leak gets waved through: move the environment out of the tree for the run and
+back afterwards (never while a test suite is running in it), or keep it outside the tree.
+
+⭐ The check runs on whatever git is installed. Its identifier patterns are POSIX extended
+regular expressions with no backslash escapes, because `\b` and its kin are honoured by
+one regex library and ignored by another: the git that ships with macOS ignores `\b`, and
+on it the earlier patterns matched nothing, so the self-test refused every run there.
+`--self-test` now refuses any such escape before it asks git anything.
