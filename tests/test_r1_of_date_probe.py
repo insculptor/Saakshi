@@ -19,6 +19,8 @@ import pytest
 
 from saakshi import acquisition, service
 from saakshi.acquisition import USER_AGENT, Retrieval
+from saakshi.fixture import Generator
+from saakshi.provenance import REPO
 from saakshi.service import ServiceFormatError
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -558,12 +560,38 @@ def test_every_live_request_is_sent_under_that_name(monkeypatch, tmp_path) -> No
     assert sent["user_agent"] == probe.CONTACT_USER_AGENT and sent["cache"] == tmp_path / "c"
 
 
+#: The identity a test run stamps. ⛔ Not this tree's: a test runs on whatever is checked out, committed or not.
+TEST_IDENTITY = Generator(repo=REPO, script="generators/r1_of_date_probe.py", commit="0" * 40)
+
+
+@pytest.fixture(autouse=True)
+def committed_identity(monkeypatch):
+    """⛔ Replaces an override that let these tests stamp a dirty tree as clean. The generator's own refusal is
+    unchanged and has no switch; here its identity is supplied, visibly, as a test value that names no commit."""
+    calls = []
+
+    def identity(script):
+        calls.append(script)
+        return TEST_IDENTITY
+
+    monkeypatch.setattr(probe, "generator_for", identity)
+    return calls
+
+
 def _generate(tmp_path, out, cache, fetch=None):
     tmp_path.mkdir(parents=True, exist_ok=True)
     manifest = tmp_path / "manifest.toml"
     manifest.write_text(MANIFEST, encoding="utf-8")
     return probe.generate(str(manifest), cache, out, fetch=fetch or FakeService(), sleep=lambda s: None,
-                          vector_query=FAKE_VECTOR_QUERY, allow_dirty=True)
+                          vector_query=FAKE_VECTOR_QUERY)
+
+
+def test_the_record_names_the_identity_it_was_given(tmp_path, committed_identity) -> None:
+    out = tmp_path / "record" / "r1-of-date-probe.jsonl"
+    _generate(tmp_path, out, tmp_path / "cache")
+    header = json.loads(out.read_text(encoding="utf-8").splitlines()[0])
+    assert header["generator"] == TEST_IDENTITY.as_json()
+    assert [Path(p).name for p in committed_identity] == ["r1_of_date_probe.py"]
 
 
 def test_the_record_is_written_outside_the_tree_and_holds_the_contract(tmp_path) -> None:

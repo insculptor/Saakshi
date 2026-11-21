@@ -44,11 +44,14 @@ def repo_root(start: Path | None = None) -> Path:
     raise RuntimeError("not inside a git working tree; provenance cannot be recorded")
 
 
-def generator_for(script: Path, *, allow_dirty: bool = False) -> Generator:
+def generator_for(script: Path) -> Generator:
     """Identify the generator, refusing to stamp an uncommitted state.
 
-    `allow_dirty` exists only for the schema's own tests, which must be able to exercise
-    the refusal. ⛔ No generator passes it.
+    ⛔ **There is no override.** An earlier keyword let a caller skip this refusal, and four
+    generators exposed it as a command-line flag hidden from their help: a dirty tree then
+    came out stamped exactly like a clean one, with nothing in the fixture to say so. A test
+    that needs a generator identity builds one (`Generator(...)`) or commits a temporary
+    tree; it never asks this function to look away.
     """
     root = repo_root(script)
     try:
@@ -60,7 +63,7 @@ def generator_for(script: Path, *, allow_dirty: bool = False) -> Generator:
         ) from exc
     status = _git(root, "status", "--porcelain")
     dirty = bool(status.strip())
-    if dirty and not allow_dirty:
+    if dirty:
         raise RuntimeError(
             "the working tree is dirty, so `generator.commit` would name a state that does "
             "not exist. Commit first, then generate.\n"
@@ -70,7 +73,7 @@ def generator_for(script: Path, *, allow_dirty: bool = False) -> Generator:
         repo=REPO,
         script=str(script.resolve().relative_to(root)).replace("\\", "/"),
         commit=commit,
-        dirty=dirty and not allow_dirty,
+        dirty=dirty,
     )
 
 

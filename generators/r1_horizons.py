@@ -265,7 +265,6 @@ def _write_acquisition_record(
     demonstration: dict[str, object],
     out: Path,
     script: Path,
-    allow_dirty: bool,
 ) -> tuple[Path, str]:
     """Attest how the service was queried. Returns its path and its digest.
 
@@ -344,7 +343,7 @@ def _write_acquisition_record(
     header = Header(
         fixture_kind="provenance_record",
         reference="instrument",
-        generator=generator_for(script, allow_dirty=allow_dirty),
+        generator=generator_for(script),
         generated=today(),
         title="How the publisher's ephemeris service was queried",
         oracle={
@@ -430,10 +429,9 @@ def main() -> int:
     )
     parser.add_argument("--out", required=True, type=Path)
     parser.add_argument("--cache", default=Path("cache"), type=Path)
-    parser.add_argument("--allow-dirty", action="store_true", help=argparse.SUPPRESS)
     args = parser.parse_args()
 
-    generator = generator_for(Path(__file__), allow_dirty=args.allow_dirty)
+    generator = generator_for(Path(__file__))
     print(describe_reserved_names())
 
     pin = verify(args.kernel)
@@ -477,7 +475,6 @@ def main() -> int:
         demonstration=demonstration,
         out=args.out,
         script=Path(__file__),
-        allow_dirty=args.allow_dirty,
     )
     print(f"acquisition record -> {record_path} (sha256 {record_sha[:16]}...)")
 

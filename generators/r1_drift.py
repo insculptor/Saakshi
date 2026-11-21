@@ -145,10 +145,9 @@ def main() -> int:
     parser.add_argument("--fixture", required=True, type=Path, help="an emitted r1-values.jsonl")
     parser.add_argument("--out", required=True, type=Path)
     parser.add_argument("--cache", default=Path("cache/drift"), type=Path)
-    parser.add_argument("--allow-dirty", action="store_true", help=argparse.SUPPRESS)
     args = parser.parse_args()
 
-    generator = generator_for(Path(__file__), allow_dirty=args.allow_dirty)
+    generator = generator_for(Path(__file__))
     print(describe_reserved_names())
 
     values_header, value_rows = _load(args.fixture)

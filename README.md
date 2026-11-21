@@ -106,7 +106,8 @@ docs/                the fixture contract, and the measurements taken here
 
 Every generator refuses to run against a dirty or commitless working tree, because
 `generator.commit` in the provenance block would otherwise name a state that does not
-exist. **Commit first, then generate.**
+exist. **Commit first, then generate.** ⛔ No flag overrides this, hidden or otherwise: a
+dirty tree stamped like a clean one is a provenance field that looks discharged and is not.
 
 ```bash
 python -m pip install -r requirements.txt

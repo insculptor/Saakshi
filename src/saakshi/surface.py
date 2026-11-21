@@ -160,7 +160,7 @@ def _git(root: Path, *args: str) -> str:
     return result.stdout.strip()
 
 
-def load(path: Path | str = DEFAULT_SURFACE, *, allow_dirty: bool = False) -> Surface:
+def load(path: Path | str = DEFAULT_SURFACE) -> Surface:
     """Load and validate a surface declaration, importing the tree it names.
 
     ⚠ **This mutates `sys.path`.** Sampling an engine means importing it, and it is not a
@@ -209,7 +209,7 @@ def load(path: Path | str = DEFAULT_SURFACE, *, allow_dirty: bool = False) -> Su
     commit = _git(root, "rev-parse", "HEAD")
     status = _git(root, "status", "--porcelain")
     dirty = bool(status.strip())
-    if dirty and not allow_dirty:
+    if dirty:
         raise SurfaceError(
             f"{path}: the sampled tree at {root.name} is dirty, so `oracle.commit` would "
             "name a state nobody can check out. Commit it, then sample.\n"
@@ -322,6 +322,6 @@ def load(path: Path | str = DEFAULT_SURFACE, *, allow_dirty: bool = False) -> Su
         settings_builder=settings_builder,
         settings_builder_target=str(settings_target) if settings_target else None,
         commit=commit,
-        dirty=dirty and not allow_dirty,
+        dirty=dirty,
         label=label,
     )

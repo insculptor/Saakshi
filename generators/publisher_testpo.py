@@ -150,7 +150,7 @@ SECONDS_PER_DAY = 86400.0
 
 
 def _write_acquisition_record(
-    retrieval: Retrieval, *, identification: str, out: Path, script: Path, allow_dirty: bool
+    retrieval: Retrieval, *, identification: str, out: Path, script: Path
 ) -> tuple[Path, str]:
     """Attest how the published test file was obtained. Returns its path and its digest.
 
@@ -218,7 +218,7 @@ def _write_acquisition_record(
         #    same artifact, filed under different references, because they attest different
         #    parties' claims — which is what the single-valued `reference` field is for.
         reference="instrument",
-        generator=generator_for(script, allow_dirty=allow_dirty),
+        generator=generator_for(script),
         generated=today(),
         title="How the publisher's test-value file was obtained",
         oracle={
@@ -318,10 +318,9 @@ def main() -> int:
     parser.add_argument("--kernel", required=True, type=Path)
     parser.add_argument("--out", required=True, type=Path)
     parser.add_argument("--cache", default=Path("cache"), type=Path)
-    parser.add_argument("--allow-dirty", action="store_true", help=argparse.SUPPRESS)
     args = parser.parse_args()
 
-    generator = generator_for(Path(__file__), allow_dirty=args.allow_dirty)
+    generator = generator_for(Path(__file__))
     print(describe_reserved_names())
 
     pin = verify(args.kernel)
@@ -339,7 +338,6 @@ def main() -> int:
         identification=identification,
         out=args.out,
         script=Path(__file__),
-        allow_dirty=args.allow_dirty,
     )
     print(f"acquisition record -> {record_path} (sha256 {record_sha[:16]}...)")
 

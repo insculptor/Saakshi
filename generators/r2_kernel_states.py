@@ -266,10 +266,9 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--kernel", required=True, type=Path)
     parser.add_argument("--out", required=True, type=Path)
-    parser.add_argument("--allow-dirty", action="store_true", help=argparse.SUPPRESS)
     args = parser.parse_args()
 
-    generator = generator_for(Path(__file__), allow_dirty=args.allow_dirty)
+    generator = generator_for(Path(__file__))
 
     print(describe_reserved_names())
 

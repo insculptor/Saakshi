@@ -8,6 +8,7 @@ worthless the moment the sampled service stops.
 from __future__ import annotations
 
 import datetime as _dt
+import subprocess
 import textwrap
 from pathlib import Path
 
@@ -270,10 +271,60 @@ def test_the_digest_is_taken_over_bits_not_over_the_display_decimal():
 # --------------------------------------------------------------------------------------
 
 
-def _write(tmp_path: Path, body: str) -> Path:
+def _committed_tree(where: Path) -> Path:
+    """A sampled tree with one commit and nothing uncommitted: what `load` requires.
+
+    ⛔ It replaces an override that let these tests load a surface over a dirty tree. The
+    refusal under test is then the only refusal in the way, and the dirty-tree refusal is
+    tested on its own below rather than switched off.
+    """
+    where.mkdir(parents=True)
+    (where / "README").write_text("a sampled tree\n", encoding="utf-8")
+    for args in (["init", "-q"], ["add", "README"],
+                 ["-c", "user.name=t", "-c", "user.email=t@example.invalid", "commit", "-qm", "one"]):
+        subprocess.run(["git", *args], cwd=where, check=True, capture_output=True)
+    return where
+
+
+def _write(tmp_path: Path, body: str, *, root: Path | None = None) -> Path:
+    """The declaration, with its `root = "."` pointed at a committed tree."""
+    sampled = root if root is not None else _committed_tree(tmp_path / "sampled")
+    body = textwrap.dedent(body).replace('root = "."', f'root = "{sampled.as_posix()}"')
     path = tmp_path / "surface.toml"
-    path.write_text(textwrap.dedent(body), encoding="utf-8")
+    path.write_text(body, encoding="utf-8")
     return path
+
+
+_MINIMAL = """
+    [engine]
+    root = "."
+    label = "an implementation"
+    native_builder = "datetime:datetime"
+    [engine.native_fields]
+    year = "latitude"
+    [[atom]]
+    id = "a"
+    call = "math:floor"
+    """
+
+
+def test_a_committed_tree_loads_and_records_its_commit(tmp_path):
+    """⚠ The control: the five refusals below are reached past a clean load, not around it."""
+    surface = load(_write(tmp_path, _MINIMAL))
+    head = subprocess.run(["git", "rev-parse", "HEAD"], cwd=tmp_path / "sampled",
+                          capture_output=True, text=True, check=True).stdout.strip()
+    assert (surface.commit, surface.dirty) == (head, False)
+
+
+def test_a_dirty_sampled_tree_is_refused_and_there_is_no_override(tmp_path):
+    """⛔ The sampled commit is the one thing R5 evidence is for; a dirty tree has none."""
+    sampled = _committed_tree(tmp_path / "sampled")
+    (sampled / "README").write_text("changed\n", encoding="utf-8")
+    path = _write(tmp_path, _MINIMAL, root=sampled)
+    with pytest.raises(SurfaceError, match="dirty"):
+        load(path)
+    with pytest.raises(TypeError):
+        load(path, allow_dirty=True)  # type: ignore[call-arg]
 
 
 def test_a_missing_declaration_refuses_rather_than_defaulting(tmp_path):
@@ -303,7 +354,7 @@ def test_an_unresolved_input_has_no_name_to_ask_for(tmp_path):
         """,
     )
     with pytest.raises(SurfaceError, match="not a resolved input"):
-        load(path, allow_dirty=True)
+        load(path)
     assert "place_name" not in RESOLVED_FIELDS
 
 
@@ -323,7 +374,7 @@ def test_a_label_may_not_carry_a_reserved_name(tmp_path):
         """,
     )
     with pytest.raises(SurfaceError, match="reserved name"):
-        load(path, allow_dirty=True)
+        load(path)
 
 
 def test_two_varied_axes_are_refused_because_they_multiply(tmp_path):
@@ -346,7 +397,7 @@ def test_two_varied_axes_are_refused_because_they_multiply(tmp_path):
         """,
     )
     with pytest.raises(SurfaceError, match="One axis only"):
-        load(path, allow_dirty=True)
+        load(path)
 
 
 def test_an_atom_id_obeys_the_fixture_key_law(tmp_path):
@@ -366,7 +417,7 @@ def test_an_atom_id_obeys_the_fixture_key_law(tmp_path):
         """,
     )
     with pytest.raises(SurfaceError, match="lower_snake_case"):
-        load(path, allow_dirty=True)
+        load(path)
 
 
 def test_an_unresolvable_call_refuses_at_load_not_at_sample_time(tmp_path):
@@ -386,4 +437,4 @@ def test_an_unresolvable_call_refuses_at_load_not_at_sample_time(tmp_path):
         """,
     )
     with pytest.raises(SurfaceError, match="has no 'no_such_function'"):
-        load(path, allow_dirty=True)
+        load(path)

@@ -705,15 +705,14 @@ def r1_vector_query() -> dict[str, str]:
 
 
 def generate(profile: str, cache: Path, out: Path, *, fetch: Fetch = fetch_live,
-             sleep: Callable[[float], None] = time.sleep, vector_query: dict[str, str] | None = None,
-             allow_dirty: bool = False) -> int:
+             sleep: Callable[[float], None] = time.sleep, vector_query: dict[str, str] | None = None) -> int:
     root = HERE.parent
     for name, path in (("--out", out), ("--cache", cache)):
         if inside(path, root):
             raise Refusal(f"{name} {path} is inside this working tree. ⛔ A service reading is not written here.")
     if out.exists():
         raise Refusal(f"{out} exists; a record is never overwritten")
-    generator = generator_for(HERE / Path(SCRIPT).name, allow_dirty=allow_dirty)
+    generator = generator_for(HERE / Path(SCRIPT).name)
     print(describe_reserved_names())
     interval = modes.read_interval(profile)
     requests = plan(interval, vector_query if vector_query is not None else r1_vector_query())
