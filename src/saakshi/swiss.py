@@ -1267,6 +1267,121 @@ def reporting_by_body(readings: Iterable[Mapping[str, Any]]) -> dict[tuple[str, 
     }
 
 
+#: The range a body's edge is searched in when :func:`measure_reporting` attests it.
+ATTESTATION_EDGE_SEARCH_YEARS: tuple[int, int] = (1000, 3000)
+
+#: ⭐ **The child a per-body attestation is measured in — one fresh interpreter for the whole
+#: measurement.** It sets the data-file path in ITS process, never in the caller's: a generator
+#: that must hold no path of its own, or whose later readings must not follow these calls,
+#: gets the attestation without either. Each fixed-condition reading inside it is a fresh
+#: child of its own, exactly as everywhere else.
+_ATTESTATION_CHILD = r"""
+import json
+import os
+import sys
+import tempfile
+
+sys.dont_write_bytecode = True
+spec = json.loads(sys.stdin.read())
+sys.path.insert(0, spec["src"])
+from saakshi import swiss
+
+session = swiss.Session(ephe_path=spec["ephe_path"], sidereal_mode=spec["sidereal_mode"])
+low, high = (swiss.swe.julday(year, 1, 1, 0.0) for year in spec["edge_search_years"])
+edges = swiss.body_edges(bodies=spec["bodies"], keys=spec["keys"], jd_low=low, jd_high=high,
+                         session=session)
+with tempfile.TemporaryDirectory() as empty, tempfile.TemporaryDirectory() as work:
+    for directory in (empty, work):
+        if os.listdir(directory):
+            raise SystemExit("a directory used as empty holds entries")
+    readings = swiss.fixed_condition_readings(
+        bodies=spec["bodies"], keys=spec["keys"], edges=edges, ephe_path=spec["ephe_path"],
+        empty_dir=empty, work_dir=work, sidereal_mode=spec["sidereal_mode"],
+    )
+    for directory in (empty, work):
+        if os.listdir(directory):
+            raise SystemExit("a directory used as empty was written into")
+sys.stdout.write(json.dumps({
+    "edges": [{"body": body, "non_ephemeris_key": key, "edge": edge}
+              for (body, key), edge in sorted(edges.items())],
+    "readings": readings,
+}))
+"""
+
+ATTESTATION_TIMEOUT_SECONDS = 1800
+
+
+def measure_reporting(
+    *,
+    bodies: Iterable[int],
+    keys: Iterable[int],
+    ephe_path: Path,
+    sidereal_mode: int,
+    entry_point: str = "calc_ut",
+) -> dict[str, Any]:
+    """Whether each body's returned word reports its source, under each key — measured.
+
+    ⭐ What :func:`assert_reported` takes as ``attested``, and its evidence: every body's edge
+    under every key, and its returned word read under every fixed condition, all in one fresh
+    child (:data:`_ATTESTATION_CHILD`). ⛔ The verdicts are the parent's, recomputed from the
+    returned readings by :func:`reporting_by_body`; the child supplies rows, never verdicts.
+    ⛔ A body and key with no verdict is refused here, before anything reads a flag through it.
+    """
+    if entry_point != "calc_ut":
+        raise SurveyRefusal(f"{entry_point}: only calc_ut readings are measured here")
+    bodies, keys = [int(b) for b in bodies], [int(k) for k in keys]
+    spec = {
+        "src": str(Path(__file__).resolve().parents[1]),
+        "ephe_path": os.path.abspath(ephe_path),
+        "sidereal_mode": int(sidereal_mode),
+        "edge_search_years": list(ATTESTATION_EDGE_SEARCH_YEARS),
+        "bodies": bodies,
+        "keys": keys,
+    }
+    proc = subprocess.run(
+        [sys.executable, "-I", "-c", _ATTESTATION_CHILD],
+        input=json.dumps(spec),
+        env=child_environment(),
+        capture_output=True,
+        text=True,
+        timeout=ATTESTATION_TIMEOUT_SECONDS,
+        check=False,
+    )
+    if proc.returncode != 0:
+        from .fixture import redact_environment
+
+        raise ReadingRefused(
+            f"the attestation child failed ({proc.returncode}): "
+            f"{redact_environment(proc.stderr.strip())[-400:]}"
+        )
+    result = json.loads(proc.stdout)
+    readings = list(result["readings"])
+    verdicts = reporting_by_body(readings)
+    wanted = {(entry_point, body, key) for body in bodies for key in keys}
+    missing = sorted(wanted - set(verdicts))
+    if missing:
+        raise SurveyRefusal(f"no reading was returned for {missing}")
+    return {
+        "attested": {group: verdicts[group] for group in sorted(wanted)},
+        "evidence": {
+            "entry_point": entry_point,
+            "method": (
+                "each body's coverage edge under each key located as adjacent doubles, and its "
+                "returned word read in a fresh process under every fixed condition; a key is "
+                "'reports' only where every fixed condition returned a source other than the "
+                "one requested"
+            ),
+            "edge_search_years": list(ATTESTATION_EDGE_SEARCH_YEARS),
+            "verdicts": [
+                {"body": body, "non_ephemeris_key": key, "verdict": verdicts[(entry_point, body, key)]}
+                for body in bodies for key in keys
+            ],
+            "edges": result["edges"],
+            "readings": readings,
+        },
+    }
+
+
 
 # --------------------------------------------------------------------------------------
 # ⛔ The time offset: an entry point that cannot be asked, surveyed live

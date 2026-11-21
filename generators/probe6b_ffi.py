@@ -36,7 +36,15 @@ import swisseph as swe  # noqa: E402
 
 from saakshi.fixture import Header, describe_reserved_names, write_jsonl  # noqa: E402
 from saakshi.provenance import generator_for, host_record, today  # noqa: E402
-from saakshi.swiss import MODES, assert_reported, source_name  # noqa: E402
+from saakshi.swiss import (  # noqa: E402
+    MODES,
+    SOURCE_MASK,
+    assert_reported,
+    ephe_set_identity,
+    measure_reporting,
+    source_name,
+    verify_ephe_set,
+)
 from saakshi.timing import (  # noqa: E402
     ANCHOR,
     ARGUMENTS,
@@ -211,7 +219,23 @@ def sequence_rungs() -> list[SequenceRung]:
 # --------------------------------------------------------------------------------------
 
 
-def ephemeris_assertion() -> dict[str, Any]:
+def position_rung_attestation(ephe_path: Path) -> dict[str, Any]:
+    """Whether the position rung's body reports its source under the rung's own word — measured.
+
+    ⛔ In a child process (:func:`saakshi.swiss.measure_reporting`): the attestation needs the
+    data files, and this process must hold no data-file path of its own.
+    """
+    return measure_reporting(
+        bodies=[swe.SUN],
+        keys=[ANALYTICAL_FLAGS & ~SOURCE_MASK],
+        ephe_path=ephe_path,
+        # The library's default mode, number 0. The rung's word carries no sidereal bit, so no
+        # reading of the attestation uses it.
+        sidereal_mode=swe.SIDM_FAGAN_BRADLEY,
+    )
+
+
+def ephemeris_assertion(attestation: dict[str, Any], data_files: dict[str, Any]) -> dict[str, Any]:
     """Establish that no data file can answer in this process, and that none did.
 
     ⭐ **Two statements, and the second is the one that needs measuring.** That the analytical
@@ -221,8 +245,11 @@ def ephemeris_assertion() -> dict[str, Any]:
     where a data file is unavailable the library substitutes silently, so the substitution is
     the evidence.
     """
-    _, returned = swe.calc_ut(INSTANT_JD_UT, 0, ANALYTICAL_FLAGS)
-    reported = assert_reported(ANALYTICAL, returned, where="the position rung")
+    _, returned = swe.calc_ut(INSTANT_JD_UT, swe.SUN, ANALYTICAL_FLAGS)
+    reported = assert_reported(
+        ANALYTICAL, returned, body=swe.SUN, word=ANALYTICAL_FLAGS,
+        attested=attestation["attested"], where="the position rung",
+    )
     _, data_file_returned = swe.calc_ut(
         INSTANT_JD_UT, 0, swe.FLG_SWIEPH | swe.FLG_SPEED
     )
@@ -235,6 +262,11 @@ def ephemeris_assertion() -> dict[str, Any]:
         )
     return {
         "position_rung": reported,
+        "position_rung_attestation": {
+            **attestation["evidence"],
+            "measured_in": "a child process; no data-file path was set in this one",
+            "data_files": data_files,
+        },
         "a_data_file_request_was_answered_by": answered_a_data_file_request,
         "meaning": (
             "no ephemeris data-file directory was set in this process, so no data file was "
@@ -803,6 +835,15 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--out", required=True, type=Path)
     parser.add_argument(
+        "--ephe-path",
+        required=True,
+        type=Path,
+        help=(
+            "the library's data files, used ONLY by the child process that attests the "
+            "position rung's source; this process sets no data-file path"
+        ),
+    )
+    parser.add_argument(
         "--rounds",
         type=int,
         default=ROUNDS,
@@ -815,7 +856,14 @@ def main() -> int:
 
     print(describe_reserved_names())
 
-    assertion = ephemeris_assertion()
+    pins = verify_ephe_set(args.ephe_path)
+    print(f"data files verified: {len(pins)} file(s), sha256 ok (for the attestation child only)")
+    attestation = position_rung_attestation(args.ephe_path)
+    print("position rung attested: " + ", ".join(
+        f"body {v['body']} key {v['non_ephemeris_key']}={v['verdict']}"
+        for v in attestation["evidence"]["verdicts"]
+    ))
+    assertion = ephemeris_assertion(attestation, ephe_set_identity(args.ephe_path, pins))
     print(
         "ephemeris source asserted: the position rung was answered by "
         f"{assertion['position_rung']['answered']}; a data-file request was answered by "

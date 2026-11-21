@@ -49,6 +49,7 @@ from saakshi.conventions import (  # noqa: E402
     TABULATED_SOURCE_CHANGES,
     Boundary,
     interval_edges,
+    apparent_keys,
     apparent_variants,
     atmosphere_equivalence,
     bracket_epochs,
@@ -88,6 +89,7 @@ from saakshi.swiss import (  # noqa: E402
     Mode,
     Session,
     ephe_set_identity,
+    measure_reporting,
     offset_epochs,
     verify_ephe_set,
 )
@@ -669,12 +671,23 @@ def write_delta_t_controls(
 
 
 def write_apparent(
-    *, session: Session, ephe: dict[str, Any], out_dir: Path, script: Path
+    *, session: Session, ephe: dict[str, Any], out_dir: Path, script: Path, ephe_path: Path
 ) -> tuple[Path, int]:
     epochs = _epochs_with_hour(POSITION_EPOCHS)
+    # ⛔ Every body's returned word is attested under every word this section reads, before a
+    #    single flag is read through it, and in a child process: this process's own readings
+    #    must not follow the attestation's calls.
+    attestation = measure_reporting(
+        bodies=[body for body, _ in POSITION_BODIES],
+        keys=apparent_keys(),
+        ephe_path=ephe_path,
+        sidereal_mode=session.sidereal_mode,
+    )
     rows: list[dict[str, Any]] = []
     for mode_id in ("moshier", "swiss_file"):
-        rows.extend(apparent_variants(epochs, POSITION_BODIES, MODES[mode_id], session))
+        rows.extend(apparent_variants(
+            epochs, POSITION_BODIES, MODES[mode_id], session, attested=attestation["attested"]
+        ))
 
     per_variant: dict[str, float] = {}
     for row in rows:
@@ -740,6 +753,7 @@ def write_apparent(
                 "of longitude. ⛔ Not an error budget: these are the sizes of terms the "
                 "default answer contains, not disagreements with anything"
             ),
+            "source_attestation": attestation["evidence"],
         },
         out_dir=out_dir,
         script=script,
@@ -1360,28 +1374,49 @@ def main() -> int:
     session = Session(ephe_path=str(args.ephe_path), sidereal_mode=swe.SIDM_LAHIRI)
     session.reset()
 
-    written: list[tuple[Path, int]] = []
-    for label, call in (
-        ("the time offset", lambda: write_delta_t(
-            session=session, ephe=ephe, out_dir=args.out, script=script)),
-        ("apparent position", lambda: write_apparent(
-            session=session, ephe=ephe, out_dir=args.out, script=script)),
-        ("rise/set refraction", lambda: write_refraction(
-            session=session, ephe=ephe, out_dir=args.out, script=script)),
-        ("leap seconds", lambda: write_leap_seconds(
-            session=session, ephe=ephe, out_dir=args.out, script=script)),
-        ("polar houses", lambda: write_polar_houses(
-            session=session, ephe=ephe, out_dir=args.out, script=script)),
-        ("library state", lambda: write_state_audit(
-            session=session, ephe=ephe, out_dir=args.out, script=script)),
-    ):
-        result = call()
-        for path, count in result if isinstance(result, list) else [result]:
-            written.append((path, count))
-            print(f"{label}: wrote {count} rows -> {path}")
+    # ⛔ Every section is read and validated into a staging directory first, and published
+    #    only once all of them have been. An earlier form wrote each section as it went, so a
+    #    reading that failed in the second left the first written beside nothing.
+    with tempfile.TemporaryDirectory(prefix="convention-probes-") as staging_name:
+        staging = Path(staging_name)
+        written: list[tuple[Path, int]] = []
+        for label, call in (
+            ("the time offset", lambda: write_delta_t(
+                session=session, ephe=ephe, out_dir=staging, script=script)),
+            ("apparent position", lambda: write_apparent(
+                session=session, ephe=ephe, out_dir=staging, script=script,
+                ephe_path=args.ephe_path)),
+            ("rise/set refraction", lambda: write_refraction(
+                session=session, ephe=ephe, out_dir=staging, script=script)),
+            ("leap seconds", lambda: write_leap_seconds(
+                session=session, ephe=ephe, out_dir=staging, script=script)),
+            ("polar houses", lambda: write_polar_houses(
+                session=session, ephe=ephe, out_dir=staging, script=script)),
+            ("library state", lambda: write_state_audit(
+                session=session, ephe=ephe, out_dir=staging, script=script)),
+        ):
+            result = call()
+            for path, count in result if isinstance(result, list) else [result]:
+                written.append((path, count))
+                print(f"{label}: read {count} rows")
 
-    print(f"{len(written)} file(s), {sum(count for _, count in written)} rows")
+        published = publish(written, staging=staging, out=args.out)
+    for path, count in published:
+        print(f"wrote {count} rows -> {path}")
+    print(f"{len(published)} file(s), {sum(count for _, count in published)} rows")
     return 0
+
+
+def publish(written: list[tuple[Path, int]], *, staging: Path, out: Path) -> list[tuple[Path, int]]:
+    """Move every staged file to its place under `out`. ⭐ Called only after every section has
+    been read and validated, so a failure anywhere before it leaves `out` untouched."""
+    published: list[tuple[Path, int]] = []
+    for path, count in written:
+        final = out / path.relative_to(staging)
+        final.parent.mkdir(parents=True, exist_ok=True)
+        shutil.move(str(path), str(final))
+        published.append((final, count))
+    return published
 
 
 if __name__ == "__main__":

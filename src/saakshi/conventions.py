@@ -40,7 +40,6 @@ import swisseph as swe
 from .fixture import redact_environment
 from .swiss import (
     SOURCE_NAMES,
-    EphemerisSubstitution,
     Mode,
     Session,
     assert_reported,
@@ -1152,17 +1151,31 @@ APPARENT_VARIANTS: tuple[tuple[str, int, str], ...] = (
 )
 
 
+def apparent_keys() -> tuple[int, ...]:
+    """The non-ephemeris bits of every word :func:`apparent_variants` reads: the reference's,
+    then each variant's. ⭐ Each is attested per body before any flag is read through it."""
+    return (swe.FLG_SPEED, *(swe.FLG_SPEED | extra for _, extra, _ in APPARENT_VARIANTS))
+
+
 def apparent_variants(
     epochs: list[tuple[str, str, float]],
     bodies: tuple[tuple[int, str], ...],
     mode: Mode,
     session: Session,
+    *,
+    attested: Mapping[tuple[str, int, int], str],
 ) -> list[dict[str, Any]]:
     """Measure each term in the default answer by removing it.
 
     ⛔ The default answer is the reference here, and every row records the returned flag of
     **both** calls — the reference and the variant. A variant answered by a substituted
     ephemeris would otherwise report the substitution as an effect size.
+
+    ⛔ **Nothing a reading raises is caught here.** A failed call, a substituted ephemeris and
+    a flag not shown to report its source each stop the generator before anything is written.
+    An earlier form caught every exception and skipped the row, and so swallowed the
+    ``TypeError`` of a stale call: the section came back empty, and the run failed at write
+    time with an error that named the empty classification instead of the cause.
     """
     rows: list[dict[str, Any]] = []
     base_flags = mode.flag | swe.FLG_SPEED
@@ -1170,22 +1183,18 @@ def apparent_variants(
         for body, body_name in bodies:
             where = f"{mode.id}/apparent/{epoch_id}/{body_name}"
             session.reset()
-            try:
-                reference, returned = swe.calc_ut(jd, body, base_flags)
-                base_assertion = assert_reported(mode, returned, where=where)
-            except Exception:
-                continue
+            reference, returned = swe.calc_ut(jd, body, base_flags)
+            base_assertion = assert_reported(
+                mode, returned, body=body, word=base_flags, attested=attested, where=where
+            )
             for variant, extra, note in APPARENT_VARIANTS:
                 session.reset()
-                try:
-                    values, variant_returned = swe.calc_ut(jd, body, base_flags | extra)
-                    assertion = assert_reported(
-                        mode, variant_returned, where=f"{where}/{variant}"
-                    )
-                except EphemerisSubstitution:
-                    continue
-                except Exception:
-                    continue
+                word = base_flags | extra
+                values, variant_returned = swe.calc_ut(jd, body, word)
+                assertion = assert_reported(
+                    mode, variant_returned, body=body, word=word, attested=attested,
+                    where=f"{where}/{variant}",
+                )
                 delta = _angular_delta(float(values[0]), float(reference[0]))
                 rows.append(
                     {
