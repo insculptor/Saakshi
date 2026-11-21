@@ -326,9 +326,12 @@ def epoch_set_digest(instants: list[Epoch]) -> str:
 # The plan: every request, in the order it is sent
 # ======================================================================================
 
-#: The most instants in one request. ⚠ The interface allows ten thousand, "though URL length limits may impose
-#: smaller limits"; this keeps every address a few kilobytes long.
-CHUNK_SIZE = 200
+#: The most instants in one request. ⚠ The interface's document allows "up to 10,000 discrete output times,
+#: though URL length limits may impose smaller limits". ⛔ Measured on 2026-11-21, for this vector query: a list of
+#: 200 instants was answered HTTP 502, three times; a list of 100 was answered HTTP 200 with its first 80 instants
+#: only, and nothing in the response said so. 75 is the size R1's of-date probe's lists were answered whole at,
+#: twice. ⭐ Whatever the size, a response with fewer lines than instants asked is a stop (see :func:`hold`).
+CHUNK_SIZE = 75
 #: ⚠ The pause between requests, in seconds. One request at a time, never two at once.
 REQUEST_INTERVAL_SECONDS = 2.0
 #: ⚠ After a failed request: wait this long, then try once more; after the last, stop. Never more.
@@ -357,11 +360,11 @@ def query_for(*, command: str, center: str, correction: str, instants: list[Epoc
 
 
 def cache_stem(cache: Path, *, center: str, correction: str, digest: str, command: str, index: int) -> Path:
-    """⭐ Keyed on the target, the centre, the correction and the instant set, in a subdirectory of its own, so no
-    copy of an earlier query — the barycentric R1 responses above all — can stand in for one of these."""
+    """⭐ Keyed on the target, the centre, the correction and the instant set as chunked, in a subdirectory of its own,
+    so no copy of an earlier query — the barycentric R1 responses above all — can stand in for one of these."""
     safe = lambda text: re.sub(r"[^A-Za-z0-9]+", "_", text)  # noqa: E731
     return (cache / CACHE_SUBDIRECTORY / f"center_{safe(center)}" / f"corr_{CORRECTION_SLUGS[correction]}"
-            / f"epochs_{digest[:16]}" / f"{command}-c{index:02d}")
+            / f"epochs_{digest[:16]}_by_{CHUNK_SIZE}" / f"{command}-c{index:02d}")
 
 
 def plan(instants: list[Epoch], *, center: str, corrections: list[str]) -> list[dict]:
@@ -590,7 +593,7 @@ def read_live(request: dict, stem: Path, *, sleep: Callable[[float], None] | Non
             if pause is None or not _transient(exc):
                 raise
             print(f"  ⚠ {request['request_id']}: attempt {attempt + 1} failed ({exc.__cause__}); "
-                  f"backing off {pause:.0f} s")
+                  f"backing off {pause:.0f} s", flush=True)
             sleep(pause)
     acquired_on = today()
     stem.with_suffix(".payload").write_bytes(retrieval.payload)
@@ -646,7 +649,7 @@ def read(requests: list[dict], *, cache: Path, center: str, digest: str, from_ca
         out.append((request, got, response))
         print(f"  {request['request_id']}: {len(response.data_rows)} instants, "
               f"{response.service_state['target_solution']}/{response.service_state['center_solution']}, "
-              f"interface {version}, resource {got.resource_sha256[:12]}... ({got.kind})")
+              f"interface {version}, resource {got.resource_sha256[:12]}... ({got.kind})", flush=True)
     return out, version
 
 
@@ -935,7 +938,7 @@ def main(argv: list[str] | None = None) -> int:
     sizing = estimate(requests)
     print(f"{len(instants)} instants (set {digest[:16]}), {len(requests)} requests in {len(chunks(instants))} "
           f"chunk(s) per body and correction; estimate {sizing['estimated_wall_seconds'] / 60:.1f} min live; "
-          f"longest address {sizing['longest_address_characters']} characters; as {USER_AGENT}")
+          f"longest address {sizing['longest_address_characters']} characters; as {USER_AGENT}", flush=True)
     if args.plan_only:
         return 0
     values_path, record_path = args.out / VALUES_PATH, args.out / ACQUISITION_PATH

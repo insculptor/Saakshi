@@ -177,7 +177,7 @@ def test_one_instant_per_day_in_time_order_with_every_reason():
 def test_the_plan_asks_every_instant_of_every_body_under_every_correction_once():
     instants = _instants(450)
     requests = g.plan(instants, center="500@399", corrections=list(g.CORRECTIONS))
-    assert len(requests) == 3 * 10 * 3 and len({r["request_id"] for r in requests}) == len(requests)
+    assert len(requests) == 3 * 10 * -(-450 // g.CHUNK_SIZE) and len({r["request_id"] for r in requests}) == len(requests)
     for correction in g.CORRECTIONS:
         for target in g.TARGETS:
             mine = [r for r in requests if r["correction"] == correction and r["target"] is target]
@@ -364,6 +364,19 @@ def stand_ins(monkeypatch, tmp_path):
     return service
 
 
+def _requests_planned() -> int:
+    """30 requests per chunk of the stand-in run's instants: ten bodies under three corrections."""
+    instants = g.epochs(g.lattice_epochs(INTERVAL) + [(2451549.5, "conjunction_test"), (2451700.5, "station_test")])
+    return 30 * len(g.chunks(instants))
+
+
+def test_no_request_asks_more_instants_than_the_service_was_measured_answering_whole():
+    """⛔ Measured 2026-11-21: 100 instants came back as 80, silently; 75 came back whole."""
+    assert g.CHUNK_SIZE <= 75
+    requests = g.plan(_instants(400), center="500@399", corrections=["NONE"])
+    assert max(len(r["instants"]) for r in requests) <= 75
+
+
 def _emit(tmp_path, name, *extra):
     out = tmp_path / name
     g.main(["--profile", "p.toml", "--kernel", "k.bsp", "--out", str(out), "--cache", str(tmp_path / "cache"),
@@ -375,7 +388,7 @@ def test_the_second_emission_reads_the_cache_and_writes_the_same_values(stand_in
     live = _emit(tmp_path, "live")
     sent = len(stand_ins.calls)
     again = _emit(tmp_path, "again", "--from-cache")
-    assert len(stand_ins.calls) == sent == 90  # ⛔ the cache read sent nothing
+    assert len(stand_ins.calls) == sent == _requests_planned()  # ⛔ the cache read sent nothing
     assert (live / g.VALUES_PATH).read_bytes() == (again / g.VALUES_PATH).read_bytes()
 
     def without_kind(path):
@@ -431,7 +444,7 @@ def test_a_cache_read_with_nothing_kept_refuses(stand_ins, tmp_path):
 def test_the_plan_alone_sends_nothing(stand_ins, tmp_path, capsys):
     assert g.main(["--profile", "p.toml", "--kernel", "k.bsp", "--out", str(tmp_path / "o"), "--plan-only"]) == 0
     assert stand_ins.calls == [] and not (tmp_path / "o").exists()
-    assert "90 requests" in capsys.readouterr().out
+    assert f"{_requests_planned()} requests" in capsys.readouterr().out
 
 
 # --------------------------------------------------------------------------------------
