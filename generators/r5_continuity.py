@@ -34,6 +34,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 from saakshi.civil import (  # noqa: E402
     CivilInstant,
     CivilResolutionError,
+    require_packaged_rules_only,
     resolve,
     tzdb_identity,
 )
@@ -351,7 +352,7 @@ def _header(
             "strata": sorted({str(row["stratum"]) for row in rows}),
             "sections": sorted(per_section),
             "regenerate": (
-                "generators/r5_continuity.py --surface <declaration> --out <dir> "
+                "PYTHONTZPATH= generators/r5_continuity.py --surface <declaration> --out <dir> "
                 f"--natives {len(grid)} — the site, year and clock tables above fix the grid"
             ),
         },
@@ -464,6 +465,16 @@ def main() -> int:
     args = parser.parse_args()
 
     print(describe_reserved_names())
+
+    # ⛔ Before anything resolves a zone — the grid below, and the sampled implementation,
+    #    which resolves zones inside its own calls. A rule set on the search path would answer
+    #    before the packaged one, and nothing would say so; the fix is the operator's to see.
+    try:
+        rules = require_packaged_rules_only()
+    except CivilResolutionError as exc:
+        print(f"REFUSED: {exc}", file=sys.stderr)
+        return 1
+    print(f"timezone rules: the packaged rule set only ({rules}); the search path is empty")
 
     surface = load(args.surface)
     print(f"surface: {len(surface.atoms)} atom(s) -> {len(surface.section_names())} section(s)")

@@ -14,7 +14,14 @@ from pathlib import Path
 
 import pytest
 
-from saakshi.civil import CivilResolutionError, resolve, tzdb_identity
+import zoneinfo
+
+from saakshi.civil import (
+    CivilResolutionError,
+    require_packaged_rules_only,
+    resolve,
+    tzdb_identity,
+)
 from saakshi.leaves import LeafError, digest, flatten, verify_bits
 from saakshi.surface import RESOLVED_FIELDS, SurfaceError, load
 
@@ -124,6 +131,39 @@ def test_the_database_identity_is_reported_without_being_guessed():
     assert identity["system_version"] and identity["packaged_version"]
     # ⭐ The honest part: it does not claim to know which one answered.
     assert "unreported" in identity["answered_by"]
+
+
+@pytest.fixture
+def search_path():
+    """Set zoneinfo's search path for one test, and put the session's back afterwards."""
+    before = zoneinfo.TZPATH
+    yield lambda entries: zoneinfo.reset_tzpath(to=entries)
+    zoneinfo.reset_tzpath(to=before)
+
+
+def test_a_non_empty_search_path_is_refused_with_the_fix_in_the_message(search_path):
+    """⛔ A directory on the list answers before the packaged rules, and zoneinfo never says which did."""
+    search_path(["/nowhere/zoneinfo"])
+    with pytest.raises(CivilResolutionError, match="PYTHONTZPATH="):
+        require_packaged_rules_only()
+
+
+def test_an_empty_search_path_leaves_the_packaged_rules_as_the_only_answer(search_path):
+    pytest.importorskip("tzdata")
+    import tzdata
+
+    search_path([])
+    assert require_packaged_rules_only() == tzdata.IANA_VERSION
+
+
+def test_an_empty_search_path_with_no_packaged_rules_is_refused(search_path, monkeypatch):
+    """⛔ Nothing could answer at all — refused here rather than as a zone that is 'unknown'."""
+    import sys
+
+    search_path([])
+    monkeypatch.setitem(sys.modules, "tzdata", None)  # makes the import raise
+    with pytest.raises(CivilResolutionError, match="no packaged rule set"):
+        require_packaged_rules_only()
 
 
 # --------------------------------------------------------------------------------------

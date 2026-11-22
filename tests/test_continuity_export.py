@@ -5,6 +5,11 @@ was meant to price was refused — it never built the header the writer validate
 operator learnt the grid's size and nothing about whether the file could exist. Every test
 here pairs the dry run with the write it predicts, on the same tree and the same input.
 
+⛔ **The timezone rule set is chosen before the run, not inferred after it.** `zoneinfo`
+searches a list of directories before the packaged rules and never says which answered, and
+the sampled implementation resolves zones itself inside the calls it is sampled through. So
+an export refuses to start with anything on that list.
+
 The exporter runs from a committed copy (a dirty tree cannot be stamped), against a sampled
 tree whose calls are the standard library's own: nothing here samples a real implementation.
 """
@@ -88,8 +93,8 @@ def _surface(base: Path, body: str = _PLAIN, *, label: str = "an implementation"
 
 def _run(exporter: Path, surface: Path, out: Path, *extra: str, tzpath: str = "") -> subprocess.CompletedProcess:
     # ⭐ `-B`: a cache directory written into the copy would make it dirty, and the refusal
-    #    under test would then be the dirty-tree one. The empty search path keeps a machine's
-    #    own rule-set directory out of the header, where the writer refuses an absolute path.
+    #    under test would then be the dirty-tree one. The empty search path is what the
+    #    exporter requires; the one test that wants its refusal passes a directory instead.
     environment = dict(os.environ, PYTHONTZPATH=tzpath, PYTHONDONTWRITEBYTECODE="1")
     return subprocess.run(
         [sys.executable, "-B", str(exporter / "generators" / SCRIPT.name), "--surface", str(surface),
@@ -155,3 +160,34 @@ def test_a_dry_run_on_a_dirty_tree_is_refused_as_the_write_would_be(tmp_path):
     wet = _run(exporter, surface, out)
     assert wet.returncode != 0 and "dirty" in wet.stderr and not out.exists()
 
+
+def test_a_zone_search_path_is_refused_before_the_surface_is_read(tmp_path):
+    """⛔ Refused at the start, with the fix in the message — and so is the dry run.
+
+    The directory does not even exist: what is refused is the search path being non-empty,
+    because a rule set found there would answer before the packaged one and nothing would say
+    so. ⚠ Without this the run went on to sample everything and was refused only at the end,
+    by the absolute-path rule acting on the header, with a message that named no fix.
+    """
+    exporter, surface = _exporter(tmp_path), _surface(tmp_path)
+    out = tmp_path / "out"
+    for extra in ((), ("--report-only",)):
+        run = _run(exporter, surface, out, *extra, tzpath=str(tmp_path / "zones"))
+        assert run.returncode != 0, run.stdout[-1500:]
+        assert "PYTHONTZPATH=" in run.stderr, run.stderr[-1500:]
+        assert "surface:" not in run.stdout, "the surface was read before the refusal"
+        assert not out.exists()
+
+
+def test_the_header_records_the_rule_set_and_the_command_that_chose_it(tmp_path):
+    """⭐ The regeneration line is a command that runs: it carries the empty search path."""
+    import json
+
+    exporter, surface = _exporter(tmp_path), _surface(tmp_path)
+    out = tmp_path / "out"
+    run = _run(exporter, surface, out)
+    assert run.returncode == 0, run.stderr[-2000:]
+    header = json.loads(_corpus(out).read_text(encoding="utf-8").splitlines()[0])
+    identity = header["oracle"]["resolved_inputs"]["database_identity"]
+    assert identity["search_path"] == [] and identity["packaged_version"] != "absent"
+    assert header["request"]["regenerate"].startswith("PYTHONTZPATH= ")

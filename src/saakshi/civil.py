@@ -38,6 +38,43 @@ class CivilResolutionError(Exception):
 # --------------------------------------------------------------------------------------
 
 
+def require_packaged_rules_only() -> str:
+    """Refuse unless the packaged rule set is the only one `zoneinfo` can consult; name its release.
+
+    ⛔ **A directory on the search path answers first, and nothing says it did.** `zoneinfo`
+    looks a key up in every directory of `TZPATH` before the packaged rules, and reports
+    neither which one answered nor which release that was. Measured on a workstation: one
+    interpreter's default path held the operating system's rule set (2026f) while the pinned
+    wheel held 2024b, so the same pinned environment could resolve an old offset two ways.
+
+    ⭐ **Refused rather than cleared, deliberately.** The search path is read from the
+    environment when `zoneinfo` is imported, and every resolution in the process consults
+    it — including those a sampled implementation makes inside its own calls, and any zone
+    it resolves when it is imported. An empty variable set before the interpreter starts
+    reaches all of them; a reset made from here reaches only what resolves after it, and
+    would be undone silently by a reordered import. So the fix stays where the operator can
+    see it, on the command line, and a run that forgot it never starts.
+
+    ⛔ An empty path with no packaged rules is refused too: nothing could answer at all, and
+    every zone would come back "unknown" for a reason that has nothing to do with the zone.
+    """
+    if zoneinfo.TZPATH:
+        raise CivilResolutionError(
+            f"zoneinfo's search path is not empty ({', '.join(zoneinfo.TZPATH)}): a rule set "
+            "found there answers before the packaged one, and zoneinfo does not say which "
+            "answered. Run with the variable set and empty, so only the packaged rules can: "
+            "PYTHONTZPATH= <python> <script> ..."
+        )
+    try:
+        import tzdata  # type: ignore[import-not-found]
+    except ImportError as exc:
+        raise CivilResolutionError(
+            "the search path is empty and there is no packaged rule set (tzdata) to answer, "
+            "so no zone can resolve. Install the pinned wheel"
+        ) from exc
+    return str(getattr(tzdata, "IANA_VERSION", "unreadable"))
+
+
 @lru_cache(maxsize=1)
 def tzdb_identity() -> dict[str, Any]:
     """Identify the timezone rules in force, as far as they can honestly be identified.

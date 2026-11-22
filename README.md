@@ -398,8 +398,8 @@ rather than a data file, so that its answers survive it being switched off.
 ```bash
 cp config/predecessor-surface.toml.example config/predecessor-surface.toml   # then fill in
 
-python generators/r5_continuity.py --natives 64 --report-only   # the write's checks, nothing written
-python generators/r5_continuity.py --natives 64 --out out/
+PYTHONTZPATH= python generators/r5_continuity.py --natives 64 --report-only   # the write's checks, nothing written
+PYTHONTZPATH= python generators/r5_continuity.py --natives 64 --out out/
 ```
 
 ⚠ Run it with an interpreter that can **import the tree being sampled** — that tree's own
@@ -410,6 +410,12 @@ filename, header, classification coverage, every row — over the exact bytes a 
 produce, prints their size and sha256, and exits non-zero exactly where the write would be
 refused. On a dirty tree it is refused as the write is, after pricing the grid; it builds no
 stand-in identity, and nothing is stamped either way.
+
+⛔ `PYTHONTZPATH=` (set, and empty) is required, and a run without it is refused before
+anything resolves a zone. `zoneinfo` consults every directory on its search path before the
+packaged rules and never says which answered; the sampled implementation resolves zones inside
+its own calls, so the rule set has to be fixed for the whole process before it starts. With the
+path empty, only the pinned `tzdata` wheel can answer, and the header records which release.
 
 ⭐ **Why this one has a deadline and the others do not.** A kernel or a published table can
 be read again next year. An implementation cannot be sampled once it stops running, and
