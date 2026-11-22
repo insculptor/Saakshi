@@ -893,6 +893,110 @@ def validate_filename(path: Path, *, reserved: Sequence[str] | None = None) -> N
 # --------------------------------------------------------------------------------------
 
 
+def _check_before_rows(
+    path: Path,
+    header: Header,
+    *,
+    declared_sections: Sequence[str] | None,
+    reserved: Sequence[str] | None,
+) -> None:
+    """The refusals that precede any row: the filename, the header, classification coverage."""
+    validate_filename(path, reserved=reserved)
+    validate_header(header, where=str(path), reserved=reserved)
+
+    if header.classification is not None and declared_sections is not None:
+        missing = set(declared_sections) - set(header.classification)
+        if missing:
+            _fail(
+                str(path),
+                header.fixture_kind,
+                "classification",
+                f"no classification for section(s) {sorted(missing)}",
+            )
+
+
+def _check_row(
+    path: Path, header: Header, row: Mapping[str, Any], index: int, reserved: Sequence[str] | None
+) -> None:
+    """The refusals one row is held to: its keys and values, and its section."""
+    _scan_keys(row, where=str(path), path=f"row[{index}]", reserved=reserved)
+    if header.classification is not None:
+        section = row.get("section")
+        if section is None:
+            _fail(str(path), header.fixture_kind, f"row[{index}].section", "absent")
+        if section not in header.classification:
+            _fail(
+                str(path),
+                header.fixture_kind,
+                f"row[{index}].section",
+                f"{section!r} has no entry in `classification`",
+            )
+
+
+def _header_line(header: Header) -> str:
+    return json.dumps(header.as_json(), ensure_ascii=True, sort_keys=False) + "\n"
+
+
+def _row_line(row: Mapping[str, Any]) -> str:
+    return json.dumps({"record": "row", **row}, ensure_ascii=True, sort_keys=False) + "\n"
+
+
+def _no_rows(path: Path) -> FixtureContractError:
+    return FixtureContractError(
+        f"{path}: refused to write a fixture with no rows — an empty evidence file reads "
+        "as evidence, which is the failure this contract exists to prevent"
+    )
+
+
+@dataclass(frozen=True)
+class WouldWrite:
+    """What :func:`check_jsonl` found a write would produce: its rows, its size, its digest."""
+
+    rows: int
+    size: int
+    sha256: str
+
+
+def check_jsonl(
+    path: Path,
+    header: Header,
+    rows: Iterable[Mapping[str, Any]],
+    *,
+    declared_sections: Sequence[str] | None = None,
+    reserved: Sequence[str] | None = None,
+) -> WouldWrite:
+    """Every refusal :func:`write_jsonl` makes, in its order, and the bytes it would write — no file.
+
+    ⭐ **A dry run is a prediction of the write, or it is nothing.** One that sampled and
+    priced a grid without building the header passed while the write was refused (the header
+    carried an absolute path), so it said nothing about whether the file could exist. This
+    runs the writer's own checks — filename, header, classification coverage, every row —
+    and renders every line exactly as the writer does, so the digest it returns is the
+    digest of the file a write would leave, given the same header and rows.
+
+    ⚠ **What it cannot prove**: that the filesystem accepts the bytes (a permission, the
+    space). And the header is the one passed in — a `generated` date taken today is a
+    different header tomorrow.
+    """
+    import hashlib
+
+    _check_before_rows(path, header, declared_sections=declared_sections, reserved=reserved)
+    digest = hashlib.sha256()
+    line = _header_line(header).encode("utf-8")
+    digest.update(line)
+    size = len(line)
+    count = 0
+    for row in rows:
+        _check_row(path, header, row, count, reserved)
+        line = _row_line(row).encode("utf-8")
+        digest.update(line)
+        size += len(line)
+        count += 1
+    if count == 0:
+        raise _no_rows(path)
+    return WouldWrite(rows=count, size=size, sha256=digest.hexdigest())
+
+
 def write_jsonl(
     path: Path,
     header: Header,
@@ -907,49 +1011,25 @@ def write_jsonl(
     table rather than a bit: a row set of this size has to diff per row, so a
     regeneration shows *which* values moved.
 
+    ⭐ Its checks are :func:`check_jsonl`'s, shared rather than copied, so a dry run that
+    passes them cannot be holding a different law from the write it predicts.
+
     Returns the number of rows written.
     """
-    validate_filename(path, reserved=reserved)
-    validate_header(header, where=str(path), reserved=reserved)
-
-    if header.classification is not None and declared_sections is not None:
-        missing = set(declared_sections) - set(header.classification)
-        if missing:
-            _fail(
-                str(path),
-                header.fixture_kind,
-                "classification",
-                f"no classification for section(s) {sorted(missing)}",
-            )
+    _check_before_rows(path, header, declared_sections=declared_sections, reserved=reserved)
 
     path.parent.mkdir(parents=True, exist_ok=True)
     count = 0
     with path.open("w", encoding="utf-8", newline="\n") as fh:
-        fh.write(json.dumps(header.as_json(), ensure_ascii=True, sort_keys=False) + "\n")
+        fh.write(_header_line(header))
         for row in rows:
-            _scan_keys(row, where=str(path), path=f"row[{count}]", reserved=reserved)
-            if header.classification is not None:
-                section = row.get("section")
-                if section is None:
-                    _fail(str(path), header.fixture_kind, f"row[{count}].section", "absent")
-                if section not in header.classification:
-                    _fail(
-                        str(path),
-                        header.fixture_kind,
-                        f"row[{count}].section",
-                        f"{section!r} has no entry in `classification`",
-                    )
-            fh.write(
-                json.dumps({"record": "row", **row}, ensure_ascii=True, sort_keys=False) + "\n"
-            )
+            _check_row(path, header, row, count, reserved)
+            fh.write(_row_line(row))
             count += 1
 
     if count == 0:
         path.unlink(missing_ok=True)
-        raise FixtureContractError(
-            f"{path}: refused to write a fixture with no rows — an empty evidence file reads "
-            "as evidence, which is the failure this contract exists to prevent"
-        )
+        raise _no_rows(path)
     return count
 
 

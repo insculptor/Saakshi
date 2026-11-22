@@ -38,7 +38,9 @@ from saakshi.civil import (  # noqa: E402
     tzdb_identity,
 )
 from saakshi.fixture import (  # noqa: E402
+    FixtureContractError,
     Header,
+    check_jsonl,
     describe_reserved_names,
     redact_environment,
     write_jsonl,
@@ -301,136 +303,22 @@ def _native_kwargs(surface: Surface, instant: CivilInstant) -> dict[str, object]
     return {argument: available[source] for argument, source in surface.native_fields.items()}
 
 
-def main() -> int:
-    parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
-    parser.add_argument(
-        "--surface",
-        default=str(DEFAULT_SURFACE),
-        help="the call-surface declaration (local, not committed)",
-    )
-    parser.add_argument("--out", default="out", help="output directory")
-    parser.add_argument(
-        "--natives",
-        type=int,
-        default=64,
-        help=(
-            "how many grid points to sample. ⭐ The export manifest is what bounds this; "
-            "the number used is recorded in the fixture, so coverage is countable"
-        ),
-    )
-    parser.add_argument(
-        "--report-only",
-        action="store_true",
-        help=(
-            "sample, print the size and the per-atom leaf counts, write nothing. ⭐ Run this "
-            "first: it prices a grid before anyone commits to one"
-        ),
-    )
-    args = parser.parse_args()
+def _header(
+    *,
+    surface: Surface,
+    grid: list[tuple[CivilInstant, int]],
+    rows: list[dict[str, object]],
+    per_section: dict[str, int],
+    failures: list[dict[str, object]],
+    nudged: int,
+    total_leaves: int,
+) -> Header:
+    """The corpus header. ⭐ One function for the write and the dry run, so both hold the same one.
 
-    print(describe_reserved_names())
-
-    surface = load(args.surface)
-    print(f"surface: {len(surface.atoms)} atom(s) -> {len(surface.section_names())} section(s)")
-    print(f"sampled tree at commit {surface.commit[:12]}")
-
-    grid = build_grid(args.natives)
-    nudged = sum(1 for _, nudge in grid if nudge)
-    print(f"grid: {len(grid)} resolved instant(s), {nudged} moved clear of a transition")
-
-    # ⛔ Before anything is sampled. A corpus that disagrees with itself will disagree with
-    #    every future comparison too, and the reason will look like an engine difference.
-    probe_native = surface.native_builder(**_native_kwargs(surface, grid[0][0]))
-    unstable = determinism_probe(surface, probe_native)
-    if unstable:
-        print(
-            "REFUSED: a sampled call returned different values for the same input.",
-            file=sys.stderr,
-        )
-        for finding in unstable:
-            print(
-                f"    {finding['section']}: {finding['leaves_moved']} leaf/leaves moved "
-                f"-> {finding['paths']}",
-                file=sys.stderr,
-            )
-        print(
-            "    Pin the varying input in the surface declaration (an argument defaulting "
-            "to 'now' is the usual cause). An input nobody wrote down is an input nobody "
-            "can reproduce.",
-            file=sys.stderr,
-        )
-        return 1
-    print(f"determinism probe: {len(surface.section_names())} section(s) stable on one input")
-
-    rows: list[dict[str, object]] = []
-    per_section: dict[str, int] = {}
-    failures: list[dict[str, object]] = []
-
-    for instant, nudge in grid:
-        native = surface.native_builder(**_native_kwargs(surface, instant))
-        for atom in surface.atoms:
-            for section, kwargs in atom.variations():
-                call_args: list[object] = [native]
-                if atom.settings is not None and surface.settings_builder is not None:
-                    call_args.append(surface.settings_builder(**atom.settings))
-                try:
-                    value = atom.call(*call_args, **kwargs)
-                except Exception as exc:
-                    # ⚠ Recorded, never swallowed and never fatal. A call the earlier
-                    #    implementation refuses for a given input is itself a fact about it,
-                    #    and losing the rest of the corpus to one refusal would be worse.
-                    failures.append(
-                        {
-                            "grid_id": instant.grid_id,
-                            "section": section,
-                            "error": type(exc).__name__,
-                            "detail": redact_environment(str(exc))[:200],
-                        }
-                    )
-                    continue
-                leaves = flatten(value)
-                # ⛔ Per row, at write time: the pattern and the decimal are the same
-                #    number, or nothing is written. A consumer reading one form and a
-                #    consumer reading the other must never hold different values.
-                verify_bits(leaves, where=f"{instant.grid_id}/{section}")
-                row: dict[str, object] = {
-                    **instant.as_row(),
-                    "section": section,
-                    "call": atom.id,
-                    "leaf_count": len(leaves),
-                    "value_digest": digest(leaves),
-                    "leaves": leaves,
-                }
-                if nudge:
-                    row["transition_nudge_hours"] = nudge
-                if kwargs:
-                    row["call_arguments"] = {k: str(v) for k, v in kwargs.items()}
-                rows.append(row)
-                per_section[section] = per_section.get(section, 0) + len(leaves)
-
-    if not rows:
-        print("REFUSED: nothing was sampled - every call failed.", file=sys.stderr)
-        for failure in failures[:10]:
-            print(f"    {failure}", file=sys.stderr)
-        return 1
-
-    total_leaves = sum(int(row["leaf_count"]) for row in rows)  # type: ignore[arg-type]
-    print(f"sampled: {len(rows)} row(s), {total_leaves} leaves, {len(failures)} refusal(s)")
-    for section in sorted(per_section):
-        print(f"    {section}: {per_section[section]} leaves")
-
-    if args.report_only:
-        import json
-
-        approx = sum(len(json.dumps(row)) for row in rows)
-        per_native = approx / max(1, len(grid))
-        print(f"size: {approx / 1e6:.2f} MB for {len(grid)} natives "
-              f"({per_native / 1e3:.1f} kB per native); "
-              f"1000 natives would be ~{per_native * 1000 / 1e6:.0f} MB")
-        print("report-only: nothing written")
-        return 0
-
-    header = Header(
+    ⛔ `generator_for` refuses a dirty tree here, for both: a dry run builds no stand-in
+    identity, so on a dirty tree it is refused exactly where the write would be.
+    """
+    return Header(
         fixture_kind="numeric_pin",
         reference="R5",
         generator=generator_for(Path(__file__)),
@@ -545,8 +433,165 @@ def main() -> int:
         ],
     )
 
+
+def main() -> int:
+    parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
+    parser.add_argument(
+        "--surface",
+        default=str(DEFAULT_SURFACE),
+        help="the call-surface declaration (local, not committed)",
+    )
+    parser.add_argument("--out", default="out", help="output directory")
+    parser.add_argument(
+        "--natives",
+        type=int,
+        default=64,
+        help=(
+            "how many grid points to sample. ⭐ The export manifest is what bounds this; "
+            "the number used is recorded in the fixture, so coverage is countable"
+        ),
+    )
+    parser.add_argument(
+        "--report-only",
+        action="store_true",
+        help=(
+            "sample, price the grid, and run every check the write makes — filename, header, "
+            "classification coverage, every row — over the exact bytes it would write; print "
+            "their size and sha256; write nothing. ⭐ Exits non-zero exactly where the write "
+            "would be refused, a dirty tree included"
+        ),
+    )
+    args = parser.parse_args()
+
+    print(describe_reserved_names())
+
+    surface = load(args.surface)
+    print(f"surface: {len(surface.atoms)} atom(s) -> {len(surface.section_names())} section(s)")
+    print(f"sampled tree at commit {surface.commit[:12]}")
+
+    grid = build_grid(args.natives)
+    nudged = sum(1 for _, nudge in grid if nudge)
+    print(f"grid: {len(grid)} resolved instant(s), {nudged} moved clear of a transition")
+
+    # ⛔ Before anything is sampled. A corpus that disagrees with itself will disagree with
+    #    every future comparison too, and the reason will look like an engine difference.
+    probe_native = surface.native_builder(**_native_kwargs(surface, grid[0][0]))
+    unstable = determinism_probe(surface, probe_native)
+    if unstable:
+        print(
+            "REFUSED: a sampled call returned different values for the same input.",
+            file=sys.stderr,
+        )
+        for finding in unstable:
+            print(
+                f"    {finding['section']}: {finding['leaves_moved']} leaf/leaves moved "
+                f"-> {finding['paths']}",
+                file=sys.stderr,
+            )
+        print(
+            "    Pin the varying input in the surface declaration (an argument defaulting "
+            "to 'now' is the usual cause). An input nobody wrote down is an input nobody "
+            "can reproduce.",
+            file=sys.stderr,
+        )
+        return 1
+    print(f"determinism probe: {len(surface.section_names())} section(s) stable on one input")
+
+    rows: list[dict[str, object]] = []
+    per_section: dict[str, int] = {}
+    failures: list[dict[str, object]] = []
+
+    for instant, nudge in grid:
+        native = surface.native_builder(**_native_kwargs(surface, instant))
+        for atom in surface.atoms:
+            for section, kwargs in atom.variations():
+                call_args: list[object] = [native]
+                if atom.settings is not None and surface.settings_builder is not None:
+                    call_args.append(surface.settings_builder(**atom.settings))
+                try:
+                    value = atom.call(*call_args, **kwargs)
+                except Exception as exc:
+                    # ⚠ Recorded, never swallowed and never fatal. A call the earlier
+                    #    implementation refuses for a given input is itself a fact about it,
+                    #    and losing the rest of the corpus to one refusal would be worse.
+                    failures.append(
+                        {
+                            "grid_id": instant.grid_id,
+                            "section": section,
+                            "error": type(exc).__name__,
+                            "detail": redact_environment(str(exc))[:200],
+                        }
+                    )
+                    continue
+                leaves = flatten(value)
+                # ⛔ Per row, at write time: the pattern and the decimal are the same
+                #    number, or nothing is written. A consumer reading one form and a
+                #    consumer reading the other must never hold different values.
+                verify_bits(leaves, where=f"{instant.grid_id}/{section}")
+                row: dict[str, object] = {
+                    **instant.as_row(),
+                    "section": section,
+                    "call": atom.id,
+                    "leaf_count": len(leaves),
+                    "value_digest": digest(leaves),
+                    "leaves": leaves,
+                }
+                if nudge:
+                    row["transition_nudge_hours"] = nudge
+                if kwargs:
+                    row["call_arguments"] = {k: str(v) for k, v in kwargs.items()}
+                rows.append(row)
+                per_section[section] = per_section.get(section, 0) + len(leaves)
+
+    if not rows:
+        print("REFUSED: nothing was sampled - every call failed.", file=sys.stderr)
+        for failure in failures[:10]:
+            print(f"    {failure}", file=sys.stderr)
+        return 1
+
+    total_leaves = sum(int(row["leaf_count"]) for row in rows)  # type: ignore[arg-type]
+    print(f"sampled: {len(rows)} row(s), {total_leaves} leaves, {len(failures)} refusal(s)")
+    for section in sorted(per_section):
+        print(f"    {section}: {per_section[section]} leaves")
+
     out_path = Path(args.out) / "continuity" / "corpus.jsonl"
-    written = write_jsonl(out_path, header, rows, declared_sections=sorted(per_section))
+    built = dict(
+        surface=surface,
+        grid=grid,
+        rows=rows,
+        per_section=per_section,
+        failures=failures,
+        nudged=nudged,
+        total_leaves=total_leaves,
+    )
+
+    if args.report_only:
+        import json
+
+        approx = sum(len(json.dumps(row)) for row in rows)
+        per_native = approx / max(1, len(grid))
+        print(f"size: {approx / 1e6:.2f} MB for {len(grid)} natives "
+              f"({per_native / 1e3:.1f} kB per native); "
+              f"1000 natives would be ~{per_native * 1000 / 1e6:.0f} MB")
+        # ⭐ The write's own checks, over the bytes it would write. A dry run that skipped
+        #    them passed while the write was refused, which predicts nothing.
+        try:
+            would = check_jsonl(
+                out_path, _header(**built), rows, declared_sections=sorted(per_section)
+            )
+        except (RuntimeError, FixtureContractError) as exc:
+            print(f"REFUSED: the write would be refused, so the dry run is.\n    {exc}",
+                  file=sys.stderr)
+            print("report-only: nothing written")
+            return 1
+        print(f"report-only: every check the write makes passed; it would write "
+              f"{would.rows} rows, {would.size} bytes, sha256 {would.sha256}")
+        print("report-only: nothing written")
+        return 0
+
+    written = write_jsonl(
+        out_path, _header(**built), rows, declared_sections=sorted(per_section)
+    )
     print(f"wrote {written} rows -> {out_path}")
     if failures:
         print(f"NOTE: {len(failures)} call(s) were refused by the sampled implementation; "

@@ -17,6 +17,7 @@ from saakshi.fixture import (
     Generator,
     Header,
     bits,
+    check_jsonl,
     find_absolute_path,
     patterned,
     redact_environment,
@@ -484,6 +485,52 @@ def test_a_valid_fixture_round_trips(tmp_path):
     assert json.loads(lines[0])["schema_version"] == "1.0.0"
     row = json.loads(lines[1])
     assert row["record"] == "row" and row["value_bits"] == "3ff8000000000000"
+
+
+#: Each case is something `write_jsonl` refuses: (filename, header, rows, declared sections).
+_REFUSED_WRITES = {
+    "a filename that is not plain text": ("s.csv", {}, [{"section": "position"}], None),
+    "a header the contract refuses": ("s.jsonl", {"summary": {"Rows": 1}}, [{"section": "position"}], None),
+    "an absolute path in the header": ("s.jsonl", {"oracle": {"note": "/var/lib/ephe/x"}}, [{"section": "position"}], None),
+    "a declared section with no class": ("s.jsonl", {}, [{"section": "position"}], ["position", "velocity"]),
+    "a row in an undeclared section": ("s.jsonl", {}, [{"section": "velocity"}], None),
+    "a row with no section": ("s.jsonl", {}, [{"v": 1.0}], None),
+    "an absolute path in a later row": (
+        "s.jsonl", {}, [{"section": "position"}, {"section": "position", "detail": "/var/lib/ephe/x"}], None,
+    ),
+    "a pattern disagreeing with its decimal": (
+        "s.jsonl", {}, [{"section": "position", "value": 1.5, "value_bits": bits(2.5)}], None,
+    ),
+    "no rows at all": ("s.jsonl", {}, [], None),
+}
+
+
+@pytest.mark.parametrize("case", sorted(_REFUSED_WRITES))
+def test_a_dry_run_refuses_what_the_write_refuses_with_the_same_words(case, tmp_path):
+    """⛔ The dry run is the write's own law, shared — so its refusal is the write's, word for word."""
+    name, over, rows, declared = _REFUSED_WRITES[case]
+    path = tmp_path / name
+    with pytest.raises(FixtureContractError) as wet:
+        write_jsonl(path, numeric(**over), rows, declared_sections=declared)
+    path.unlink(missing_ok=True)
+    with pytest.raises(FixtureContractError) as dry:
+        check_jsonl(path, numeric(**over), rows, declared_sections=declared)
+    assert str(dry.value) == str(wet.value)
+    assert not path.exists() and not any(tmp_path.iterdir()), "a dry run wrote something"
+
+
+def test_a_dry_run_names_the_bytes_a_write_leaves(tmp_path):
+    """⭐ Its digest and size are those of the file the write then writes."""
+    import hashlib
+
+    rows = [{"section": "position", "value": 1.5, "value_bits": bits(1.5)},
+            {"section": "position", "value": -0.0, "value_bits": bits(-0.0)}]
+    path = tmp_path / "states.jsonl"
+    would = check_jsonl(path, numeric(), rows, declared_sections=["position"])
+    assert not path.exists()
+    assert write_jsonl(path, numeric(), rows, declared_sections=["position"]) == would.rows == 2
+    data = path.read_bytes()
+    assert (len(data), hashlib.sha256(data).hexdigest()) == (would.size, would.sha256)
 
 
 def test_bits_round_trip():
