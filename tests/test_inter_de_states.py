@@ -286,6 +286,10 @@ def test_the_record_edge_rows_carry_their_reasons_and_the_segments_own_pair():
     rows, points, *_ = _rows(gen.EDGE)
     assert rows and all(r["stratum"] == gen.EDGE and "record_boundary_in" in r for r in rows)
     assert {(r["target"], r["centre"]) for r in rows} == set(PAIRS)
+    assert {r["target"]: r["target_name"] for r in rows if r["target"] in (1, 2, 3)} == {
+        1: "mercury_barycentre", 2: "venus_barycentre", 3: "earth_moon_barycentre"}
+    with pytest.raises(gen.Refusal, match="no name"):
+        gen.name_of(11)
     assert len(rows) == 2 * sum(1 for p in points if p.stratum == gen.EDGE)
 
 

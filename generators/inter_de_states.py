@@ -100,6 +100,10 @@ TARGETS: dict[int, str] = {
     6: "saturn_barycentre", 7: "uranus_barycentre", 8: "neptune_barycentre", 9: "pluto_barycentre",
     399: "earth", 3: "earth_moon_barycentre",
 }
+#: The codes the files carry beyond those points, named as the publisher's own comments name them: a record-edge row
+#: is a segment's own pair, and two segments run from these to the solar-system barycentre.
+OTHER_CODES: dict[int, str] = {1: "mercury_barycentre", 2: "venus_barycentre"}
+NAMES: dict[int, str] = {**TARGETS, **OTHER_CODES}
 SOLAR_SYSTEM_BARYCENTRE, GEOCENTRE = 0, 399
 CENTRES = (SOLAR_SYSTEM_BARYCENTRE, GEOCENTRE)
 
@@ -462,6 +466,13 @@ def state_entry(key: str, values: Sequence[float], delta: float, written: Mappin
     return {**patterned("values", list(values)), **patterned("jplephem_max_abs_delta", delta)}
 
 
+def name_of(code: int) -> str:
+    """⛔ A code with no name here is refused, not labelled: a row whose point nobody named is a row nobody can read."""
+    if code not in NAMES:
+        raise Refusal(f"the files carry the code {code}, which has no name here")
+    return NAMES[code]
+
+
 def iter_rows(points: Sequence[Point], readings: Mapping[str, Mapping[int, Reading]],
               reasons: Mapping[tuple[float, int, int], Mapping[str, list[str]]], stratum: str) -> Iterator[dict]:
     """The rows of one stratum, in point order, position before velocity."""
@@ -485,7 +496,7 @@ def iter_rows(points: Sequence[Point], readings: Mapping[str, Mapping[int, Readi
                         if a in values and b in values:
                             differences[f"{a}_minus_{b}"] = difference(values[a], values[b], angle=angle)
             row: dict[str, Any] = {"epoch_id": point.epoch_id, "stratum": stratum, **patterned("jd_tdb", point.jd),
-                                   "target": point.target, "target_name": TARGETS.get(point.target, "segment_body"),
+                                   "target": point.target, "target_name": name_of(point.target),
                                    "centre": point.centre, "section": name, "unit": unit}
             if stratum == EDGE:
                 row.update({k: list(v) for k, v in reasons[(point.jd, point.target, point.centre)].items()})
@@ -600,7 +611,7 @@ ROW_SCHEMA = {
               "J2000, converted exactly; jplephem as the whole day and its fraction, each exact)",
     "jd_tdb_bits": "IEEE-754 bit pattern of jd_tdb",
     "target": "the code of the point whose state this is, as the files carry it",
-    "target_name": "what that code names in these files (segment_body: a code no other row names)",
+    "target_name": "what that code names in these files, as the publisher's comments name it",
     "centre": "the code the state is relative to: 0 the solar-system barycentre, 399 the geocentre; in a record-"
               "edge row, the segment's own centre",
     "section": "position | velocity",
@@ -657,6 +668,7 @@ def build_header(*, stratum: str, generator, pins: Mapping[str, Any], kernels: M
             "geocentric_grid": dict(grid),
             "record_edges": dict(edges),
             "targets": [{"code": code, "names": name} for code, name in TARGETS.items()],
+            "other_codes": [{"code": code, "names": name} for code, name in OTHER_CODES.items()],
             "centres": list(CENTRES),
             "files": [{"key": key, "file": name, "fit": fit} for key, name, fit in FILES],
             "same_fit_as": dict(SAME_FIT_AS),
