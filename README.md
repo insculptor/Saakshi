@@ -70,6 +70,8 @@ generators/          one script per fixture set; each is a recorder
   r1_geocentric_drift.py whether that service still answers a stated sample of that grid's own
                          queries as it recorded; ⛔ never gates
   r2_kernel_states.py    geometric states from a pinned DE kernel, read twice
+  inter_de_states.py     three fits side by side in their six files, read twice; both files
+                         of one fit recorded where they share days, ⛔ neither chosen
   publisher_testpo.py    the ephemeris publisher's own test-value set
   r3_swiss.py            the same grid under each ephemeris source, source asserted per row
                          and per body; and the survey of which entry points report
@@ -119,6 +121,9 @@ python -m pip install -r requirements.txt
 cp config/reserved-names.txt.example config/reserved-names.txt   # then add your own
 
 python generators/r2_kernel_states.py --kernel <path to de440s.bsp> --out out/
+python generators/inter_de_states.py --kernels <the directory of the six pinned files> \
+    --kernel-terms <the publisher's terms page, as read> --grid-values <a geocentric values file> \
+    --grid-values-sha256 <its digest> --budget-row <the consumer's row id> --out <a new directory>
 python generators/publisher_testpo.py --kernel <path to de440s.bsp> --out out/
 python generators/r1_horizons.py --kernel <path to de440s.bsp> --out out/
 python generators/r1_of_date_probe.py --profile <a data profile manifest> \
