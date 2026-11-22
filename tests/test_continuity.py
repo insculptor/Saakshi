@@ -25,7 +25,7 @@ from saakshi.surface import RESOLVED_FIELDS, SurfaceError, load
 _OK = dict(
     grid_id="g0000",
     stratum="general",
-    civil=_dt.datetime(1992, 11, 11, 6, 40),
+    civil=_dt.datetime(2003, 4, 5, 7, 20),
     zone="Asia/Kolkata",
     latitude=26.4499,
     longitude=80.3319,
@@ -36,7 +36,7 @@ def test_resolves_the_offset_rather_than_recording_the_zone_alone():
     instant = resolve(**_OK)
     # +05:30 — the fact a later database release could move, written down now.
     assert instant.utc_offset_seconds == 19800
-    assert instant.utc == "1992-11-11T01:10:00Z"
+    assert instant.utc == "2003-04-05T01:50:00Z"
     row = instant.as_row()
     assert row["utc_offset_seconds"] == 19800
     assert row["latitude"] == pytest.approx(26.4499)
@@ -61,7 +61,7 @@ def test_the_coordinate_crosses_the_text_boundary_as_bits_not_only_as_decimal():
 def test_refuses_an_offset_asserted_by_the_caller():
     """An aware datetime carries an offset nobody derived; the point is to derive it."""
     with pytest.raises(CivilResolutionError, match="naive local clock reading"):
-        resolve(**{**_OK, "civil": _dt.datetime(1992, 11, 11, 6, 40, tzinfo=_dt.timezone.utc)})
+        resolve(**{**_OK, "civil": _dt.datetime(2003, 4, 5, 7, 20, tzinfo=_dt.timezone.utc)})
 
 
 def test_refuses_an_unknown_zone():
