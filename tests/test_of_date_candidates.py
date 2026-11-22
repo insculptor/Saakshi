@@ -129,6 +129,25 @@ def test_the_tally_keeps_the_largest_magnitude_its_place_and_the_range():
     assert entry["above_levels"] == [2, 1, 0]
 
 
+def test_a_build_records_file_names_are_carried_as_values_not_keys():
+    """⛔ The writer refuses ``target.c`` as a key; the record keeps every name and digest, in order, as values."""
+    from saakshi.fixture import validate_header
+
+    record = {"compiler": "c", "archive_sha256": "a" * 64, "sources": {"target.c": "1" * 64, "solsys-cspice.c": "2" * 64}}
+    carried = gen.carried_build_record(record)
+    assert carried["sources"] == [{"file": "target.c", "sha256": "1" * 64},
+                                  {"file": "solsys-cspice.c", "sha256": "2" * 64}]
+    assert {k: v for k, v in carried.items() if k != "sources"} == {"compiler": "c", "archive_sha256": "a" * 64}
+    from saakshi.fixture import Generator, Header
+
+    header = Header(fixture_kind="numeric_pin", reference="R2", generated="2026-01-01", budget_row="r",
+                    generator=Generator(repo="r", script="s", commit="0" * 40), request={"grid": "x"},
+                    classification={"a": {"class": "reference_only"}}, oracle={"build": carried})
+    validate_header(header, where="t")
+    with pytest.raises(gen.Refusal, match="no sources"):
+        gen.carried_build_record({"compiler": "c"})
+
+
 def test_a_library_other_than_the_pin_is_refused_before_it_is_imported(monkeypatch):
     monkeypatch.setattr(gen.metadata, "version", lambda name: "0")
     monkeypatch.setitem(sys.modules, "erfa", None)  # an import would raise, and the refusal must come first

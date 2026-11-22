@@ -280,6 +280,19 @@ def python_identity(erfa_licence: Path) -> dict[str, Any]:
     return {"versions": versions, "erfa_library": library, "licences": licences}
 
 
+def carried_build_record(record: dict[str, Any]) -> dict[str, Any]:
+    """The library's build record as a fixture may carry it: its source file names become values, never keys.
+
+    ⛔ A file name is not a fixture key (``target.c`` is not lower_snake_case), so the map of name to digest is
+    carried as a list of ``{file, sha256}`` in the record's own order. Nothing else in it changes.
+    """
+    sources = record.get("sources")
+    if not isinstance(sources, dict) or not sources:
+        raise Refusal("the library's build record names no sources")
+    return {**{k: v for k, v in record.items() if k != "sources"},
+            "sources": [{"file": name, "sha256": digest} for name, digest in sources.items()]}
+
+
 def build_driver(source_dir: Path, toolkit: Path, archive: Path, record: Path,
                  work: Path) -> tuple[Path, dict[str, Any]]:
     """Compile the committed driver against the built library and the toolkit. Returns the binary and its record.
@@ -287,7 +300,7 @@ def build_driver(source_dir: Path, toolkit: Path, archive: Path, record: Path,
     ⛔ The library's build record must name the archive given, by digest: the record is what says which sources,
     flags and compiler made it.
     """
-    library_build = json.loads(record.read_text(encoding="utf-8"))
+    library_build = carried_build_record(json.loads(record.read_text(encoding="utf-8")))
     if library_build.get("archive_sha256") != sha256_file(archive):
         raise Refusal("the library's build record names another archive")
     binary = work / "supernovas_of_date"
