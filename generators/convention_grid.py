@@ -42,9 +42,15 @@ is right; a difference between two forms is a difference between two conventions
 ⛔ **Recorder, never explainer.** Nothing here says how the library computes anything. Where its documentation names
 a parameter, that name is quoted and attributed; nothing is read from or about its source.
 
+⭐ **Rising and setting alone, at other sites**: given ``--rise-sites`` (a sites file, named by its digest), the run
+reads the third file only, at the file's sites instead of the ten, and writes ``convention-rise-set.jsonl`` alone; its
+header carries the file's digest and its sites. ⛔ A site whose coordinates come from a source that may not be
+committed is given in such a file, outside the tracked tree, never in the list below.
+
 Usage (a clean tree; the binding of ``requirements.txt``):
     python generators/convention_grid.py --ephe-path DIR --grid-values VALUES.jsonl \\
-        --grid-values-sha256 HEX --budget-row ROW --out DIR [--workers N]
+        --grid-values-sha256 HEX --budget-row ROW --out DIR [--workers N] \\
+        [--rise-sites SITES.json --rise-sites-sha256 HEX]
 """
 
 from __future__ import annotations
@@ -54,6 +60,7 @@ import datetime
 import hashlib
 import json
 import math
+import re
 import os
 import shutil
 import struct
@@ -63,7 +70,7 @@ import tempfile
 import threading
 from collections import Counter
 from concurrent.futures import ThreadPoolExecutor
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from importlib.metadata import PackageNotFoundError
 from importlib.metadata import version as _distribution_version
 from pathlib import Path
@@ -406,6 +413,67 @@ def grid_instants(values_path: Path, expected_sha256: str) -> list[float]:
     return sorted(seen.values())
 
 
+#: A site id or group from a sites file: a lower-case ASCII label, as the built-in ones are.
+SITE_LABEL = re.compile(r"[a-z][a-z0-9_]*\Z")
+SITE_KEYS = frozenset({"site", "latitude", "longitude", "group"})
+
+
+def _no_repeated_key(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
+    """⛔ A JSON object with a key twice: the digest pins the bytes, but which value they mean depends on the
+    parser, so a reader of the file and this run could see different sites."""
+    keys = [k for k, _v in pairs]
+    if len(keys) != len(set(keys)):
+        raise Refusal(f"the sites file repeats a key in one object: {sorted(k for k in set(keys) if keys.count(k) > 1)}")
+    return dict(pairs)
+
+
+def rise_sites(sites_path: Path, expected_sha256: str) -> tuple[tuple[str, float, float, str], ...]:
+    """The sites of a sites file, in its order — refused unless its digest is the one given.
+
+    JSON: ``{"sites": [{"site": ..., "latitude": ..., "longitude": ..., "group": ...}, ...]}``, degrees north and
+    east; any other top-level key is not read. ⛔ Refused: a key repeated in any object; an entry whose keys are not
+    exactly those four; an id or a group that is not a lower-case ASCII label; an id that repeats or that names a
+    built-in site (it would read as that site at other coordinates); a coordinate that is not a finite number within
+    its range (the bounds themselves admitted).
+    """
+    data = sites_path.read_bytes()
+    actual = hashlib.sha256(data).hexdigest()
+    if actual != expected_sha256:
+        raise Refusal(f"the sites file's sha256 is {actual}, not {expected_sha256}")
+    try:
+        document = json.loads(data.decode("utf-8"), object_pairs_hook=_no_repeated_key)
+    except (UnicodeDecodeError, ValueError) as exc:  # ValueError covers a JSON error and an over-long integer
+        raise Refusal(f"the sites file is not JSON this run reads: {exc}") from exc
+    listed = document.get("sites") if isinstance(document, dict) else None
+    if not isinstance(listed, list) or not listed:
+        raise Refusal("the sites file lists no site")
+    sites: list[tuple[str, float, float, str]] = []
+    for number, entry in enumerate(listed, 1):
+        if not isinstance(entry, dict) or set(entry) != SITE_KEYS:
+            raise Refusal(f"site {number}: its keys are not exactly {sorted(SITE_KEYS)}")
+        sid, group = entry["site"], entry["group"]
+        if not isinstance(sid, str) or not SITE_LABEL.match(sid):
+            raise Refusal(f"site {number}: the id {sid!r} is not a lower-case label")
+        if any(sid == other for other, *_rest in sites):
+            raise Refusal(f"site {number}: the id {sid!r} is listed twice")
+        if any(sid == builtin for builtin, *_rest in SITES):
+            raise Refusal(f"site {number}: the id {sid!r} names a built-in site")
+        coordinates = []
+        for name, bound in (("latitude", 90.0), ("longitude", 180.0)):
+            value = entry[name]
+            try:
+                degrees = float(value) if isinstance(value, (int, float)) and not isinstance(value, bool) else None
+            except OverflowError:
+                degrees = None
+            if degrees is None or not math.isfinite(degrees) or abs(degrees) > bound:
+                raise Refusal(f"site {number}: the {name} {value!r} is not a finite number within ±{bound:g}")
+            coordinates.append(degrees)
+        if not isinstance(group, str) or not SITE_LABEL.match(group):
+            raise Refusal(f"site {number}: the group {group!r} is not a lower-case label")
+        sites.append((sid, coordinates[0], coordinates[1], group))
+    return tuple(sites)
+
+
 @dataclass
 class Grid:
     """The instants and lists one run reads. ⭐ The full grid is :func:`full_grid`; a test builds a smaller one."""
@@ -417,6 +485,8 @@ class Grid:
     house_modes: Sequence[str] = HOUSE_MODES
     house_systems: str = HOUSE_SYSTEMS
     sites: Sequence[tuple[str, float, float, str]] = SITES
+    #: Set when the sites came from a sites file: its digest and count, written into the header.
+    sites_file: Mapping[str, Any] | None = None
 
 
 def chart_instant() -> tuple[str, float]:
@@ -803,7 +873,9 @@ def request_block(stratum: str, grid: Grid, grid_values: Mapping[str, Any], budg
         "constants": [{"name": n, "value": v} for n, v in CONSTANTS.items()],
         "regenerate": "generators/convention_grid.py --ephe-path <the pinned data files> --grid-values <values "
                       f"file> --grid-values-sha256 {grid_values['values_sha256']} --budget-row {budget_row} "
-                      "--out <a new dir>",
+                      "--out <a new dir>" + ("" if grid.sites_file is None else
+                                             " --rise-sites <the sites file> --rise-sites-sha256 "
+                                             f"{grid.sites_file['sha256']}"),
     }
     if stratum == "ayanamsha":
         return {**common, "modes": [{"name": n, "number": C[n], "class": k} for n, k in grid.modes],
@@ -833,6 +905,8 @@ def request_block(stratum: str, grid: Grid, grid_values: Mapping[str, Any], budg
                          "as the fifth argument; and, files absent only, houses_ex with FLG_SIDEREAL and no "
                          "ephemeris bit, per mode",
                 "angle": "the sidtime reading in degrees plus the site's east longitude, reduced to [0, 360)"}
+    if grid.sites_file is not None:
+        common = {**common, "sites_file": dict(grid.sites_file)}
     return {**common, "sites": sites, "bodies": [b.lower() for b in RISE_BODIES],
             "events": ["rise", "set"], "condition": CONDITIONS[0][0],
             "dates": {"count": len(grid.rise_dates),
@@ -879,7 +953,7 @@ def build_header(*, stratum: str, generator, grid: Grid, oracle: Mapping[str, An
         reference="R3",
         generator=generator,
         generated=today(),
-        title=TITLES[stratum],
+        title=TITLES[stratum] + ("" if grid.sites_file is None else ", at the sites of a sites file"),
         oracle=dict(oracle),
         request=request_block(stratum, grid, grid_values, budget_row),
         classification={name: {"class": "reference_only"} for name in SECTIONS[stratum]},
@@ -941,37 +1015,51 @@ def require_empty(directory: Path, role: str) -> None:
         raise Refusal(f"the {role} holds {left}")
 
 
+#: Which plan counts each output's stratum holds.
+STRATUM_PLANS: dict[str, tuple[str, ...]] = {
+    "ayanamsha": ("ayanamsha",), "houses": ("house_inputs", "house_cusps"), "rise_set": ("rise_set",)}
+
+
 def run(grid: Grid, *, paths: Mapping[str, str], work_dir: str, staging: Path, workers: int,
-        runner: Callable[[Mapping[str, Any], str], dict[str, Any]] = run_child) -> tuple[dict[str, list[Staged]],
-                                                                                         dict[str, int]]:
-    """Every reading, staged under ``staging``. Returns the staged files per output and the plan's counts."""
+        runner: Callable[[Mapping[str, Any], str], dict[str, Any]] = run_child,
+        strata: Sequence[str] = tuple(OUTPUTS)) -> tuple[dict[str, list[Staged]], dict[str, int]]:
+    """Every reading of the strata asked for, staged under ``staging``. Returns the staged files per output and the
+    plan's counts, for those strata only. ⛔ Nothing of a stratum not asked for is planned or read."""
+    if not strata or len(set(strata)) != len(strata) or not set(strata) <= set(OUTPUTS):
+        raise Refusal(f"the strata {list(strata)} are not distinct names among {list(OUTPUTS)}")
     readers = Readers(work_dir, workers, runner)
-    planned = planned_counts(grid)
+    counts = planned_counts(grid)
+    planned = {name: counts[name] for stratum in OUTPUTS if stratum in strata for name in STRATUM_PLANS[stratum]}
     staged: dict[str, list[Staged]] = {}
 
-    a = plan_ayanamsha(grid)
-    hi = plan_house_inputs(grid)
-    r = plan_rise(grid)
-    for name, plan in (("ayanamsha", a), ("house_inputs", hi), ("rise_set", r)):
-        if len(plan) != planned[name]:
+    plans = {"ayanamsha": plan_ayanamsha(grid) if "ayanamsha" in strata else None,
+             "house_inputs": plan_house_inputs(grid) if "houses" in strata else None,
+             "rise_set": plan_rise(grid) if "rise_set" in strata else None}
+    for name, plan in plans.items():
+        if plan is not None and len(plan) != planned[name]:
             raise Refusal(f"the {name} plan holds {len(plan)} readings; the grid's arithmetic says {planned[name]}")
 
-    s_a = Staged(staging / "ayanamsha.rows")
-    measure(a, readers, paths, s_a)
-    staged["ayanamsha"] = [s_a]
+    if "ayanamsha" in strata:
+        s_a = Staged(staging / "ayanamsha.rows")
+        measure(plans["ayanamsha"], readers, paths, s_a)
+        staged["ayanamsha"] = [s_a]
 
-    s_hi = Staged(staging / "house_inputs.rows")
-    input_rows = measure(hi, readers, paths, s_hi, keep=True)
-    h = plan_houses(grid, house_inputs_from(hi, input_rows))
-    if len(h) != planned["house_cusps"]:
-        raise Refusal(f"the house plan holds {len(h)} readings; the grid's arithmetic says {planned['house_cusps']}")
-    s_h = Staged(staging / "house_cusps.rows")
-    measure(h, readers, paths, s_h)
-    staged["houses"] = [s_hi, s_h]
+    if "houses" in strata:
+        hi = plans["house_inputs"]
+        s_hi = Staged(staging / "house_inputs.rows")
+        input_rows = measure(hi, readers, paths, s_hi, keep=True)
+        h = plan_houses(grid, house_inputs_from(hi, input_rows))
+        if len(h) != planned["house_cusps"]:
+            raise Refusal(f"the house plan holds {len(h)} readings; the grid's arithmetic says "
+                          f"{planned['house_cusps']}")
+        s_h = Staged(staging / "house_cusps.rows")
+        measure(h, readers, paths, s_h)
+        staged["houses"] = [s_hi, s_h]
 
-    s_r = Staged(staging / "rise_set.rows")
-    measure(r, readers, paths, s_r)
-    staged["rise_set"] = [s_r]
+    if "rise_set" in strata:
+        s_r = Staged(staging / "rise_set.rows")
+        measure(plans["rise_set"], readers, paths, s_r)
+        staged["rise_set"] = [s_r]
 
     read = len(readers.nonces)
     if read != sum(planned.values()):
@@ -982,12 +1070,17 @@ def run(grid: Grid, *, paths: Mapping[str, str], work_dir: str, staging: Path, w
 def emit(out_dir: Path, *, staged: Mapping[str, Sequence[Staged]], planned: Mapping[str, int], generator, grid: Grid,
          oracle: Mapping[str, Any], grid_values: Mapping[str, Any], budget_row: str) -> list[tuple[Path, int]]:
     written = []
-    plans = {"ayanamsha": planned["ayanamsha"], "houses": planned["house_inputs"] + planned["house_cusps"],
-             "rise_set": planned["rise_set"]}
     for stratum, output in OUTPUTS.items():
+        if not all(name in planned for name in STRATUM_PLANS[stratum]):
+            if stratum in staged:
+                raise Refusal(f"the {stratum} stratum was staged but not planned")
+            continue  # ⭐ a stratum that was not planned writes no file
+        if stratum not in staged:
+            raise Refusal(f"the {stratum} stratum was planned but nothing was staged")
         parts = staged[stratum]
         header = build_header(stratum=stratum, generator=generator, grid=grid, oracle=oracle, grid_values=grid_values,
-                              staged=parts, planned=plans[stratum], budget_row=budget_row)
+                              staged=parts, planned=sum(planned[n] for n in STRATUM_PLANS[stratum]),
+                              budget_row=budget_row)
 
         def rows() -> Iterator[dict[str, Any]]:
             for part in parts:
@@ -998,12 +1091,27 @@ def emit(out_dir: Path, *, staged: Mapping[str, Sequence[Staged]], planned: Mapp
     return written
 
 
+def grid_for(values: Sequence[float], sites_path: str | None,
+             sites_sha256: str | None) -> tuple[Grid, tuple[str, ...]]:
+    """The grid one run reads, and its strata: the full grid and every stratum; or, given a sites file, rising and
+    setting alone, at the file's sites instead of the ten."""
+    grid = full_grid(values)
+    if sites_path is None:
+        return grid, tuple(OUTPUTS)
+    sites = rise_sites(Path(sites_path), sites_sha256)
+    return replace(grid, sites=sites, sites_file={"sha256": sites_sha256, "count": len(sites)}), ("rise_set",)
+
+
 def main(argv: Sequence[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     for name in ("--ephe-path", "--grid-values", "--grid-values-sha256", "--budget-row", "--out"):
         parser.add_argument(name, required=True)
     parser.add_argument("--workers", type=int, default=6)
+    parser.add_argument("--rise-sites", help="a sites file: read rising and setting alone, at its sites")
+    parser.add_argument("--rise-sites-sha256", help="the sites file's sha256; required with --rise-sites")
     args = parser.parse_args(argv)
+    if (args.rise_sites is None) != (args.rise_sites_sha256 is None):
+        parser.error("--rise-sites and --rise-sites-sha256 are given together or not at all")
     print(describe_reserved_names())
     out_dir = Path(args.out)
     temp_root = Path(tempfile.mkdtemp(prefix="convention-grid-")).resolve()
@@ -1018,13 +1126,15 @@ def main(argv: Sequence[str] | None = None) -> int:
         ephe = Path(args.ephe_path).resolve()
         data_files = require_data_directory(ephe)
         values = grid_instants(Path(args.grid_values), args.grid_values_sha256)
-        grid = full_grid(values)
+        grid, strata = grid_for(values, args.rise_sites, args.rise_sites_sha256)
         empty, work, staging = temp_root / "empty", temp_root / "work", temp_root / "staging"
         for d in (empty, work, staging):
             d.mkdir()
         paths = {"empty_directory": str(empty), "data_files": str(ephe)}
-        print(f"planned: {planned_counts(grid)}")
-        staged, planned = run(grid, paths=paths, work_dir=str(work), staging=staging, workers=args.workers)
+        counts = planned_counts(grid)
+        print(f"planned: { {n: counts[n] for s in strata for n in STRATUM_PLANS[s]} }")
+        staged, planned = run(grid, paths=paths, work_dir=str(work), staging=staging, workers=args.workers,
+                              strata=strata)
         require_empty(empty, "empty directory")
         require_empty(work, "work directory")
         if sorted(p.name for p in ephe.iterdir()) != sorted(data_files_names(data_files)):

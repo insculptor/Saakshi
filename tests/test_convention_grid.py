@@ -16,6 +16,7 @@ import os
 import struct
 import sys
 import threading
+from dataclasses import replace
 from pathlib import Path
 
 import pytest
@@ -465,3 +466,211 @@ def test_a_tiny_grid_through_real_fresh_children(tmp_path):
              and r["section"] == "house_cusps"]
     assert polar and all("library_error" in r for r in polar)
     assert not any(os.sep + "Users" + os.sep in json.dumps(r) for r in rows)
+
+
+# --- rising and setting alone, at the sites of a sites file (synthetic sites only) --------------------------------
+
+SYNTHETIC_SITES = [{"site": "equator_east", "latitude": 0.0, "longitude": 45.0, "group": "synthetic"},
+                   {"site": "north_west", "latitude": 41.5, "longitude": -12.25, "group": "synthetic"}]
+
+
+def _sites_file(tmp_path, sites=None, raw=None):
+    path = tmp_path / "sites.json"
+    path.write_bytes(raw if raw is not None else json.dumps({"note": "x", "sites": sites or SYNTHETIC_SITES}).encode())
+    return path, hashlib.sha256(path.read_bytes()).hexdigest()
+
+
+def test_a_sites_file_is_read_in_its_order_and_only_by_its_digest(tmp_path):
+    path, digest = _sites_file(tmp_path)
+    assert gen.rise_sites(path, digest) == (("equator_east", 0.0, 45.0, "synthetic"),
+                                            ("north_west", 41.5, -12.25, "synthetic"))
+    with pytest.raises(gen.Refusal, match="sha256"):
+        gen.rise_sites(path, "0" * 64)
+
+
+@pytest.mark.parametrize("change, match", [
+    (lambda s: [{**s[0], "extra": 1}, s[1]], "keys are not exactly"),
+    (lambda s: [{k: v for k, v in s[0].items() if k != "group"}, s[1]], "keys are not exactly"),
+    (lambda s: [s[0], {**s[1], "site": s[0]["site"]}], "listed twice"),
+    (lambda s: [{**s[0], "site": "Equator"}, s[1]], "lower-case label"),
+    (lambda s: [{**s[0], "latitude": 90.5}, s[1]], "latitude"),
+    (lambda s: [{**s[0], "longitude": -180.5}, s[1]], "longitude"),
+    (lambda s: [{**s[0], "latitude": True}, s[1]], "latitude"),
+    (lambda s: [{**s[0], "longitude": "45"}, s[1]], "longitude"),
+    (lambda s: [{**s[0], "group": " synthetic"}, s[1]], "group"),
+    (lambda s: [{**s[0], "group": ""}, s[1]], "group"),
+    (lambda s: [{**s[0], "group": "/a/path"}, s[1]], "group"),
+    (lambda s: [{**s[0], "group": "syn\u200bthetic"}, s[1]], "group"),
+    (lambda s: [{**s[0], "site": "equator_east\n"}, s[1]], "lower-case label"),
+    (lambda s: [{**s[0], "site": gen.SITES[0][0]}, s[1]], "built-in site"),
+    (lambda s: [], "lists no site"),
+])
+def test_a_sites_file_that_is_not_exactly_a_list_of_sites_is_refused(tmp_path, change, match):
+    path, digest = _sites_file(tmp_path, sites=change(SYNTHETIC_SITES) or None,
+                               raw=b'{"sites": []}' if match == "lists no site" else None)
+    with pytest.raises(gen.Refusal, match=match):
+        gen.rise_sites(path, digest)
+
+
+def test_a_coordinate_that_is_not_finite_is_refused(tmp_path):
+    path, digest = _sites_file(tmp_path, raw=b'{"sites": [{"site": "a", "latitude": NaN, "longitude": 0, '
+                                             b'"group": "g"}]}')
+    with pytest.raises(gen.Refusal, match="finite"):
+        gen.rise_sites(path, digest)
+
+
+def _rise_only_grid(tmp_path):
+    path, digest = _sites_file(tmp_path)
+    return replace(_tiny(), sites=gen.rise_sites(path, digest), sites_file={"sha256": digest, "count": 2})
+
+
+def test_a_rise_only_run_reads_rising_and_setting_alone_at_the_files_sites(tmp_path):
+    grid = _rise_only_grid(tmp_path)
+    child = FakeChild()
+    staged, planned = gen.run(grid, paths=_dirs(tmp_path), work_dir=str(tmp_path / "work"),
+                              staging=tmp_path / "staging", workers=3, runner=child, strata=("rise_set",))
+    assert set(staged) == {"rise_set"} and set(planned) == {"rise_set"}
+    assert child.n == planned["rise_set"] == gen.planned_counts(grid)["rise_set"]
+    assert {s["call"]["function"] for s in child.specs} == {"rise_trans", "calc_ut"}
+    assert {r["site"] for r in _rows(staged, "rise_set") if r["section"] == "rise_set"} == {"equator_east",
+                                                                                           "north_west"}
+
+
+def test_a_rise_only_emission_writes_one_file_naming_the_sites_file(tmp_path):
+    grid = _rise_only_grid(tmp_path)
+    staged, planned = gen.run(grid, paths=_dirs(tmp_path), work_dir=str(tmp_path / "work"),
+                              staging=tmp_path / "staging", workers=3, runner=FakeChild(), strata=("rise_set",))
+    written = gen.emit(tmp_path / "out", staged=staged, planned=planned, generator=GENERATOR, grid=grid,
+                       oracle=gen.oracle_block("2.10.03", "2.10.3.2", {"files": []}),
+                       grid_values={"values_sha256": "0" * 64, "distinct_instants": 1}, budget_row="row-1")
+    assert [p.name for p, _r in written] == [gen.OUTPUTS["rise_set"]]
+    assert sorted(p.name for p in (tmp_path / "out").iterdir()) == [gen.OUTPUTS["rise_set"]]
+    header = json.loads((tmp_path / "out" / gen.OUTPUTS["rise_set"]).read_text().splitlines()[0])
+    assert header["request"]["sites_file"] == grid.sites_file
+    assert [s["site"] for s in header["request"]["sites"]] == ["equator_east", "north_west"]
+    assert f"--rise-sites-sha256 {grid.sites_file['sha256']}" in header["request"]["regenerate"]
+    assert header["summary"]["readings"] == header["summary"]["readings_planned"] == planned["rise_set"]
+
+
+def test_without_a_sites_file_the_header_names_none(tmp_path):
+    staged, planned = _run(tmp_path)
+    gen.emit(tmp_path / "out", staged=staged, planned=planned, generator=GENERATOR, grid=_tiny(),
+             oracle=gen.oracle_block("2.10.03", "2.10.3.2", {"files": []}),
+             grid_values={"values_sha256": "0" * 64, "distinct_instants": 1}, budget_row="row-1")
+    header = json.loads((tmp_path / "out" / gen.OUTPUTS["rise_set"]).read_text().splitlines()[0])
+    assert "sites_file" not in header["request"] and "--rise-sites" not in header["request"]["regenerate"]
+
+
+@pytest.mark.parametrize("strata", [(), ("rise_set", "rise_set"), ("rise",)])
+def test_strata_that_are_not_distinct_known_names_are_refused(tmp_path, strata):
+    with pytest.raises(gen.Refusal, match="strata"):
+        gen.run(_tiny(), paths=_dirs(tmp_path), work_dir=str(tmp_path / "work"), staging=tmp_path / "staging",
+                workers=1, runner=FakeChild(), strata=strata)
+
+
+def test_a_sites_file_without_its_digest_is_refused_before_anything_is_read(tmp_path, capsys):
+    path, _digest = _sites_file(tmp_path)
+    with pytest.raises(SystemExit) as stopped:
+        gen.main(["--ephe-path", str(tmp_path), "--grid-values", "v", "--grid-values-sha256", "0" * 64,
+                  "--budget-row", "row-1", "--out", str(tmp_path / "out"), "--rise-sites", str(path)])
+    assert stopped.value.code == 2 and "given together" in capsys.readouterr().err
+    assert not (tmp_path / "out").exists()
+
+
+def test_a_sites_file_chooses_rising_and_setting_alone_at_its_sites(tmp_path):
+    path, digest = _sites_file(tmp_path)
+    grid, strata = gen.grid_for([2451545.0], str(path), digest)
+    assert strata == ("rise_set",)
+    assert [s[0] for s in grid.sites] == ["equator_east", "north_west"]
+    assert grid.sites_file == {"sha256": digest, "count": 2}
+    full, every = gen.grid_for([2451545.0], None, None)
+    assert every == tuple(gen.OUTPUTS) and tuple(full.sites) == gen.SITES and full.sites_file is None
+    assert full.rise_dates == grid.rise_dates
+
+
+def test_the_sites_keep_the_files_order_and_integer_coordinates_become_floats(tmp_path):
+    sites = [{"site": "zulu", "latitude": 90, "longitude": -180, "group": "synthetic"},
+             {"site": "alpha", "latitude": -90.0, "longitude": 180, "group": "synthetic"}]
+    path, digest = _sites_file(tmp_path, sites=sites)
+    read = gen.rise_sites(path, digest)
+    assert [s[0] for s in read] == ["zulu", "alpha"]  # ⭐ not sorted; and the bounds themselves are admitted
+    assert read[0][1:3] == (90.0, -180.0) and all(type(v) is float for s in read for v in s[1:3])
+
+
+@pytest.mark.parametrize("raw, match", [
+    (b'{"sites": [{"site": "a", "latitude": 1, "latitude": 2, "longitude": 0, "group": "g"}]}', "repeats a key"),
+    (b'{"sites": [], "sites": [{"site": "a", "latitude": 1, "longitude": 0, "group": "g"}]}', "repeats a key"),
+    (b'{"sites": [{"site": "a", "latitude": 1' + b"0" * 400 + b', "longitude": 0, "group": "g"}]}', "latitude"),
+    (b'{"sites": [{"site": "a", "latitude": ' + b"1" * 5000 + b', "longitude": 0, "group": "g"}]}', "not JSON"),
+    (b'[{"site": "a", "latitude": 1, "longitude": 0, "group": "g"}]', "lists no site"),
+    (b'\xff\xfe{"sites": []}', "not JSON"),
+])
+def test_bytes_that_do_not_say_one_list_of_sites_are_refused(tmp_path, raw, match):
+    path, digest = _sites_file(tmp_path, raw=raw)
+    with pytest.raises(gen.Refusal, match=match):
+        gen.rise_sites(path, digest)
+
+
+def test_a_rise_only_plan_whose_length_is_not_the_arithmetic_refuses_the_run(tmp_path, monkeypatch):
+    real = gen.planned_counts
+    monkeypatch.setattr(gen, "planned_counts", lambda g: {**real(g), "rise_set": real(g)["rise_set"] + 1})
+    with pytest.raises(gen.Refusal, match="the rise_set plan holds"):
+        gen.run(_rise_only_grid(tmp_path), paths=_dirs(tmp_path), work_dir=str(tmp_path / "work"),
+                staging=tmp_path / "staging", workers=3, runner=FakeChild(), strata=("rise_set",))
+
+
+def test_a_rise_only_header_says_so_and_names_the_option_in_full(tmp_path):
+    grid = _rise_only_grid(tmp_path)
+    staged, planned = gen.run(grid, paths=_dirs(tmp_path), work_dir=str(tmp_path / "work"),
+                              staging=tmp_path / "staging", workers=3, runner=FakeChild(), strata=("rise_set",))
+    gen.emit(tmp_path / "out", staged=staged, planned=planned, generator=GENERATOR, grid=grid,
+             oracle=gen.oracle_block("2.10.03", "2.10.3.2", {"files": []}),
+             grid_values={"values_sha256": "0" * 64, "distinct_instants": 1}, budget_row="row-1")
+    header = json.loads((tmp_path / "out" / gen.OUTPUTS["rise_set"]).read_text().splitlines()[0])
+    assert header["title"] == gen.TITLES["rise_set"] + ", at the sites of a sites file"
+    assert f"--rise-sites <the sites file> --rise-sites-sha256 {grid.sites_file['sha256']}" \
+        in header["request"]["regenerate"]
+
+
+def test_emit_refuses_a_planned_stratum_with_nothing_staged_and_a_staged_one_not_planned(tmp_path):
+    staged, planned = _run(tmp_path)
+    kwargs = dict(generator=GENERATOR, grid=_tiny(), oracle=gen.oracle_block("2.10.03", "2.10.3.2", {"files": []}),
+                  grid_values={"values_sha256": "0" * 64, "distinct_instants": 1}, budget_row="row-1")
+    with pytest.raises(gen.Refusal, match="planned but nothing was staged"):
+        gen.emit(tmp_path / "a", staged={k: v for k, v in staged.items() if k != "houses"}, planned=planned,
+                 **kwargs)
+    with pytest.raises(gen.Refusal, match="staged but not planned"):
+        gen.emit(tmp_path / "b", staged=staged, planned={"rise_set": planned["rise_set"]}, **kwargs)
+
+
+@pytest.mark.parametrize("given", ["--rise-sites", "--rise-sites-sha256"])
+def test_either_half_of_the_sites_option_alone_is_refused(tmp_path, capsys, given):
+    with pytest.raises(SystemExit) as stopped:
+        gen.main(["--ephe-path", str(tmp_path), "--grid-values", "v", "--grid-values-sha256", "0" * 64,
+                  "--budget-row", "row-1", "--out", str(tmp_path / "out"), given, "x"])
+    assert stopped.value.code == 2 and "given together" in capsys.readouterr().err
+
+
+@pytest.mark.parametrize("with_sites", [True, False])
+def test_main_hands_the_run_the_grid_and_strata_the_sites_file_chose(tmp_path, monkeypatch, with_sites):
+    """⭐ What `main` passes to `run`, with every check before it stood in for: nothing is read."""
+    path, digest = _sites_file(tmp_path)
+    seen = {}
+    monkeypatch.setattr(gen, "generator_for", lambda _p: GENERATOR)
+    monkeypatch.setattr(gen, "require_binding", lambda: ("2.10.03", "2.10.3.2"))
+    monkeypatch.setattr(gen, "require_data_directory", lambda _p: {"files": []})
+    monkeypatch.setattr(gen, "grid_instants", lambda _p, _s: [2451545.0])
+    monkeypatch.setattr(gen, "run", lambda grid, **kw: seen.update(grid=grid, **kw) or ({}, {}))
+    monkeypatch.setattr(gen, "emit", lambda *a, **kw: [])
+    ephe = tmp_path / "ephe"
+    ephe.mkdir()
+    argv = ["--ephe-path", str(ephe), "--grid-values", "v", "--grid-values-sha256", "0" * 64,
+            "--budget-row", "row-1", "--out", str(tmp_path / "out")]
+    if with_sites:
+        argv += ["--rise-sites", str(path), "--rise-sites-sha256", digest]
+    assert gen.main(argv) == 0
+    if with_sites:
+        assert seen["strata"] == ("rise_set",) and [s[0] for s in seen["grid"].sites] == ["equator_east",
+                                                                                        "north_west"]
+    else:
+        assert seen["strata"] == tuple(gen.OUTPUTS) and tuple(seen["grid"].sites) == gen.SITES

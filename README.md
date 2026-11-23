@@ -288,7 +288,8 @@ python generators/r3_swiss.py --ephe-path <directory of .se1 files> --out out/
 python generators/convention_probes.py --ephe-path <directory of .se1 files> --out out/
 python generators/convention_grid.py --ephe-path <directory of .se1 files> \
     --grid-values <a geocentric values file> --grid-values-sha256 <its digest> \
-    --budget-row <the consumer's row id> --out <a new directory> [--workers N]
+    --budget-row <the consumer's row id> --out <a new directory> [--workers N] \
+    [--rise-sites <a sites file> --rise-sites-sha256 <its digest>]
 python generators/mean_node_modes.py --ephe-path <directory of .se1 files> \
     --empty-dir <an empty directory> --profile <a data profile manifest> \
     --out out/mean-node-modes.jsonl
@@ -603,6 +604,16 @@ files:
   a year. It records the disc-centre rise and set under a stated atmosphere, beside the library's
   other disc definitions and atmospheres, and beside the same call with the atmosphere left to
   the binding's defaults.
+
+⭐ **Rising and setting alone, at other sites.** Given `--rise-sites` and that file's
+`--rise-sites-sha256`, the run reads the third file only, at the file's sites instead of the
+ten, and writes `convention-rise-set.jsonl` alone. The header names the file by its digest and
+lists its sites. The file is JSON: `{"sites": [{"site", "latitude", "longitude", "group"}, ...]}`,
+degrees north and east, read in its order. It is refused if any object repeats a key, and
+unless each entry has exactly those keys, an id and a group that are lower-case labels, an id
+that neither repeats nor names a built-in site, and finite coordinates within their range. The
+file's header title says it was read at the sites of a sites file. ⛔ A site whose coordinates come from a source that may not be committed is
+given this way, from a file outside the tracked tree, never added to the built-in list.
 
 Wherever both apply, each is read under two conditions: an empty directory with the analytical
 ephemeris requested, and the pinned data files with the data files requested.
