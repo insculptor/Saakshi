@@ -367,9 +367,11 @@ they are absent it skips and says so:
 * without the three data files in `cache/ephe/`, or `de440s.bsp` in `cache/kernels/`, the
   end-to-end runs that read them skip.
 
-⚠ `ORACLE_LIBRARIES` (`absent` or `present`) is checked against the ephemeris binding only. A
-run declared `present` can still skip the tests of the other libraries, and `-rs` is what shows
-it.
+⚠ `ORACLE_LIBRARIES` (`absent` or `present`) is checked against the four oracle modules the
+tests skip without: `swisseph`, `spiceypy`, `jplephem` and `numpy`. `present` means all four,
+`absent` means none, and an environment holding some of them is `partial`, which both
+declarations refuse. `tzdata` is not among them, so a run declared either way can still skip a
+civil-time test, and `-rs` is what shows it.
 
 Several tests commit a temporary copy of the tree and run a generator in it, so a generator's
 refusals are tested by running the generator, not by reading it.
