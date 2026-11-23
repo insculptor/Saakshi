@@ -173,8 +173,10 @@ Some generators take inputs this repository does not produce, or does not choose
   `jd_tdb_bits`. The file is refused unless its digest is the one given.
 * **A budget row** (`--budget-row`): the id of the row a consumer compares a file against.
   It is the consumer's, written into the header as given — ⛔ never chosen here — and it is
-  refused unless given exactly, with no surrounding space. `mean_node_section.py` fixes its
-  row in code, and `r1_geocentric_vectors.py` has a default.
+  refused unless given exactly, with no surrounding space. Six generators take it, and all but
+  one require it: `r1_geocentric_vectors.py` has a default. ⚠ Six others take no such argument
+  and fix their row in code: `r1_horizons.py`, `r2_kernel_states.py`, `r3_swiss.py`,
+  `r5_continuity.py`, `publisher_testpo.py` and `convention_probes.py` (two rows).
 * **An empty directory** (`--empty-dir`): the "no data files" condition. It is verified
   empty before and after the run.
 
@@ -291,7 +293,8 @@ python generators/mean_node_modes.py --ephe-path <directory of .se1 files> \
     --out out/mean-node-modes.jsonl
 python generators/mean_node_section.py --ephe-path <directory of .se1 files> \
     --empty-dir <an empty directory> --profile <a data profile manifest> \
-    --survey out/swiss/r3-flag-reporting.jsonl --out-dir out/mean-node-section/
+    --survey out/swiss/r3-flag-reporting.jsonl --budget-row <the consumer's row id> \
+    --out-dir out/mean-node-section/
 python generators/nutation_obliquity_modes.py --ephe-path <directory of .se1 files> \
     --empty-dir <an empty directory> --profile <a data profile manifest> \
     --out out/nutation-obliquity-modes.jsonl

@@ -162,9 +162,16 @@ def test_a_field_that_would_forge_a_boundary_or_a_file_twice_is_refused(m):
                                  configuration=configuration)
 
 
-def test_it_names_the_row_its_consumer_minted(m):
-    """⭐ The consumer named the row ``BU03``. ⛔ The earlier proposal is not the name."""
-    assert m.BUDGET_ROW == "BU03"
+def test_the_row_id_is_a_parameter_and_never_a_default(m, tmp_path):
+    """⛔ The row is the consumer's: given on the command line, never fixed here."""
+    assert not hasattr(m, "BUDGET_ROW")
+    proc = subprocess.run([sys.executable, str(SCRIPT), "--ephe-path", "x", "--empty-dir", "y", "--profile", "z",
+                           "--survey", "s", "--out-dir", str(tmp_path / "o")], capture_output=True, text=True)
+    assert proc.returncode == 2 and "--budget-row" in proc.stderr
+    for bad in ("", " ROW", "ROW "):
+        with pytest.raises(m.Refusal) as excinfo:
+            m.generate("x", "y", "z", "s", str(tmp_path / "o"), bad)
+        assert "empty or padded" in str(excinfo.value)
 
 
 # ---------------------------------------------------------------------------------------
@@ -493,7 +500,7 @@ def emission(tmp_path_factory):
     survey = _survey(base, [_edge_row(1)])
     proc = subprocess.run([sys.executable, "-B", str(repo / "generators" / "mean_node_section.py"),
                            "--ephe-path", str(EPHE), "--empty-dir", str(empty), "--profile", str(_manifest(base)),
-                           "--survey", str(survey), "--out-dir", str(out)],
+                           "--survey", str(survey), "--budget-row", "ROW-UNDER-TEST", "--out-dir", str(out)],
                           capture_output=True, text=True, timeout=1800)
     assert proc.returncode == 0, proc.stderr[-2000:]
     read = lambda name: [json.loads(line) for line in (out / name).read_text(encoding="utf-8").splitlines()]
@@ -526,8 +533,8 @@ def test_every_row_carries_its_own_unit_spelled_exactly(emission):
     assert [r.get("unit") for r in section[1:]] == ["degree"] * 76 and "unit" in section[0]["row_schema"]
 
 
-def test_the_header_names_the_row_its_consumer_minted(emission):
-    assert emission["section"][0]["budget_row"] == "BU03"
+def test_the_header_names_the_row_it_was_given(emission):
+    assert emission["section"][0]["budget_row"] == "ROW-UNDER-TEST"
 
 
 def test_its_readings_are_the_pinned_ones(emission):
@@ -544,4 +551,4 @@ def test_a_second_emission_into_the_same_place_is_refused(emission):
     m = _load(SCRIPT, "mean_node_section_again")
     with pytest.raises(m.Refusal):
         m.write_files([], [], {"interval": {}, "epochs": [], "word": 66, "library_version": "x"}, {},
-                      str(emission["out"]))
+                      str(emission["out"]), "ROW")

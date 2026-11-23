@@ -37,7 +37,8 @@ fixture contract, which refuses at write time what the contract refuses.
 
 Usage::
 
-    python mean_node_section.py --ephe-path DIR --empty-dir DIR --profile MANIFEST --survey FILE --out-dir DIR
+    python mean_node_section.py --ephe-path DIR --empty-dir DIR --profile MANIFEST --survey FILE \
+        --budget-row ID --out-dir DIR
 """
 
 from __future__ import annotations
@@ -110,11 +111,6 @@ STATE_DISCIPLINE: dict[str, str] = {
     "tidal_acceleration": "never set: put back by setting the path, and read back after every call",
     "leap_second_table": "never read: no child converts a civil instant",
 }
-
-#: ⭐ The row this section is compared against, by the id its consumer minted for it. It replaces this file's earlier
-#: proposal `mean-node-convention-1` at the consumer's request. ⛔ The row is the consumer's; nothing here asserts
-#: it exists.
-BUDGET_ROW = "BU03"
 
 #: ⭐ The unit of the one component every row carries, written on EVERY row: a consumer reads a row's unit from the
 #: row itself, ⛔ never from the classification beside it, and refuses a row with none or another spelling.
@@ -765,7 +761,8 @@ def refuse_existing(out_dir: str) -> dict[str, str]:
     return paths
 
 
-def write_files(rows: list[dict], controls: list[dict], context: dict, summary: dict, out_dir: str) -> dict:
+def write_files(rows: list[dict], controls: list[dict], context: dict, summary: dict, out_dir: str,
+                budget_row: str) -> dict:
     """Both files through the fixture contract; ⛔ refused if either exists."""
     paths = refuse_existing(out_dir)
     fixture, provenance = _contract()
@@ -825,12 +822,12 @@ def write_files(rows: list[dict], controls: list[dict], context: dict, summary: 
                  "epochs": [{"epoch_id": e["epoch_id"], **patterned("jd", e["jd"])} for e in context["epochs"]],
                  "regenerate": "generators/mean_node_section.py --ephe-path <the pinned files' directory> --empty-dir "
                                "<an empty directory> --profile <the data profile manifest> --survey <the survey> "
-                               "--out-dir <a directory>"},
+                               "--budget-row <the row's id> --out-dir <a directory>"},
         # ⭐ A tolerance, MEASURED here and with no headroom: the largest difference between the row and any other
         #    reading of it the controls took -- none. ⛔ The band a consumer applies is its own; this one is context.
         classification={SECTION: {"class": "tolerance", "band": summary["invariance"]["largest_difference_arcseconds"]
                                   / ARCSECONDS_PER_DEGREE, "unit": SECTION_UNIT}},
-        budget_row=BUDGET_ROW,
+        budget_row=budget_row,
         row_schema=SECTION_ROW_SCHEMA,
         summary={"configuration_sha256": identity, "epochs": epochs_summary,
                  "controls": {"record": "mean-node-section-controls.jsonl", "invariance": summary["invariance"],
@@ -901,14 +898,17 @@ def write_files(rows: list[dict], controls: list[dict], context: dict, summary: 
     os.makedirs(out_dir, exist_ok=True)
     fixture.write_jsonl(Path(paths["mean-node-section.jsonl"]), section_header, rows, declared_sections=[SECTION])
     fixture.write_jsonl(Path(paths["mean-node-section-controls.jsonl"]), control_header, controls)
-    out = {"commit": generator.commit, "configuration_sha256": identity}
+    out = {"commit": generator.commit, "configuration_sha256": identity, "budget_row": budget_row}
     for name, path in paths.items():
         with open(path, "rb") as handle:
             out[name] = hashlib.sha256(handle.read()).hexdigest()
     return out
 
 
-def generate(ephe_path: str, empty_dir: str, profile: str, survey_path: str, out_dir: str) -> dict:
+def generate(ephe_path: str, empty_dir: str, profile: str, survey_path: str, out_dir: str, budget_row: str) -> dict:
+    # ⛔ The row is the consumer's and is given on the command line, never chosen here.
+    if not budget_row or budget_row != budget_row.strip():
+        raise Refusal(f"the row id {budget_row!r} is empty or padded")
     _fixture, provenance = _contract()
     provenance.generator_for(Path(__file__))  # ⛔ refuse a dirty tree before anything is measured
     refuse_existing(out_dir)
@@ -924,7 +924,7 @@ def generate(ephe_path: str, empty_dir: str, profile: str, survey_path: str, out
     verify_data_directory(ephe_path)
     verify_empty_directory(empty_dir)
     summary = check(rows, controls, context, survey)
-    return write_files(rows, controls, context, summary, out_dir)
+    return write_files(rows, controls, context, summary, out_dir, budget_row)
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -937,10 +937,12 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--empty-dir", required=True, help="an empty directory")
     parser.add_argument("--profile", required=True, help="the data profile manifest whose coverage bounds the rows")
     parser.add_argument("--survey", required=True, help="the survey whose coverage_edge rows place the witness")
+    parser.add_argument("--budget-row", required=True, help="the id of the row the section is compared against: the "
+                                                            "consumer's, ⛔ never chosen here")
     parser.add_argument("--out-dir", required=True, help="where the two files are written; neither may exist")
     args = parser.parse_args(argv)
     try:
-        written = generate(args.ephe_path, args.empty_dir, args.profile, args.survey, args.out_dir)
+        written = generate(args.ephe_path, args.empty_dir, args.profile, args.survey, args.out_dir, args.budget_row)
     except Refusal as refusal:
         sys.stderr.write(f"refused: {refusal}\n")
         return 2

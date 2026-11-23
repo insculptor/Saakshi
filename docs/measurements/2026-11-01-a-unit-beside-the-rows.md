@@ -26,8 +26,8 @@ digest.
 
 The change, in the generator: every row carries `"unit": "degree"`, written from the one constant the
 classification's unit is also written from; the section refuses to be written if any row carries no
-unit or another spelling of it; and the header's `budget_row` is `BU03`, the id the consumer minted
-for the row it compares this section against. That id replaces this file's earlier proposal,
+unit or another spelling of it; and the header's `budget_row` is the id the consumer minted for the
+row it compares this section against. That id replaces this file's earlier proposal,
 `mean-node-convention-1`.
 
 ---
@@ -66,7 +66,8 @@ The judgment itself is the consumer's to make.
 it did with the 2026-10-31 outputs, and every decision it prints about every body, entry point and
 word is the same. Only the controls' digest differs. The consumer's own tests move exactly as they
 did with the earlier outputs. The one exception is the refusal that named the earlier proposal for
-the row id, which now names `BU03`. Given a registry holding that row, that test loads the section.
+the row id, which now names the consumer's id. Given a registry holding that row, that test loads the
+section.
 
 **Judged.** One observation, the section's own longitudes shifted, judged against a row in degrees
 with a band of 0.001:
@@ -123,4 +124,12 @@ skipped**.
   one host.
 * ⛔ No judgment. The rows above judge the section against itself, shifted, through a prototype; the
   consumer judges its own engine against this section.
-* ⚠ The row `BU03` is the consumer's. This file names it, and nothing here asserts it exists.
+* ⚠ The row is the consumer's. Nothing here asserts it exists.
+
+## 6. Later · 2026-11-23
+
+* The row id is no longer fixed in the generator. It is given on the command line (`--budget-row`)
+  and written into the header as given. The section emitted on 2026-11-01 is unchanged, and its
+  header carries the consumer's id.
+* Where this note named that id, it now says *the consumer's id*: this repository's tracked text no
+  longer writes a consumer's row ids. Nothing measured, compared or concluded above changed.
