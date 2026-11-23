@@ -264,7 +264,7 @@ Two controls were added because the sweep showed nothing would have caught them:
 ## 7. ⛔⛔⛔ And the leak check was disarmed by a pipe
 
 The publication guard, `tools/check_public_tree.py`, found a reserved pattern in **this
-document** — three `§`-plus-number section references, which are the shape of a citation into
+document** — three section-sign-plus-number references, which are the shape of a citation into
 a private specification. That is the guard doing its job on prose written this session.
 
 ⛔⛔⛔ **BUT IT WAS RUN AS `python tools/check_public_tree.py 2>&1 | tail -3 && git commit`,
@@ -328,3 +328,9 @@ change is the docstring being right rather than a measurement drifting.
 5. ⬜ Carried forward unchanged: a second machine reading of the fifth edition (priced only),
    no earlier printing reached, the registry-row pair, R4 has no generator, and the kernels
    still under a session scratch directory.
+
+## Later · 2026-11-23
+
+Wording only. Section 7 named the section sign by printing it; it now spells it out
+(*section-sign-plus-number*), so no tracked text here carries the sign outside the check that
+looks for it. Nothing measured or concluded above changed.

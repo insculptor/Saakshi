@@ -186,8 +186,8 @@ test scores **0 of 11 → a perfect pass**. Under the replacement it scores **0 
    row's `the translator's notes` attribution remains unverified.
 2. ⛔⛔ **`revised_printing_cannot_witness_the_unrevised_words` STANDS, unchanged and
    unretired.** The replacement does not answer that refusal's question and must not be read
-   as discharging it. ⬜ Open question 3 of the hand-off — that no unrevised printing was
-   reached — is untouched.
+   as discharging it. ⬜ The open question that no unrevised printing was reached is
+   untouched.
 3. ⛔ **The second translator is himself a modern commentator.** Two copies agreeing
    establishes that a rule is **not one hand's invention**; it does not establish that the
    rule is in the sutras. ⚠ The corroboration rows already say this and it does not weaken
@@ -341,7 +341,7 @@ Taking it would mean, and only means:
 1. arming a refusal — a rule filed as a **hand's** commentary must carry an attestation in a
    copy outside that hand's reach, with P1–P4 measured;
 2. ⛔ leaving `revised_printing_cannot_witness_the_unrevised_words` **standing**, and leaving
-   hand-off open question 3 open;
+   open the question that no unrevised printing was reached;
 3. publishing what the attestation does **not** establish (*what it does not establish*) on the row itself, not in prose;
 4. ⚠ deciding what happens to the retired control
    `the_second_printing_test_was_run_and_no_candidate_passed_it` — it is currently written to
@@ -448,3 +448,9 @@ commit, and only the generator travels in the repository. Re-measured after the 
 names `a1b371b`, which is local-only and unpushed — *an artifact that names an unpushed commit
 is stamped with an address nobody can reach*. It is present, digest-pinned, self-consistent and
 unciteable until a push.
+
+## Later · 2026-11-23
+
+Wording only. Two places named an open question by its number in a working document that is not
+part of this repository; each now states the question itself (that no unrevised printing was
+reached). Nothing proposed, measured or decided above changed.
