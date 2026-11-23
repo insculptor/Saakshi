@@ -1,0 +1,18 @@
+# Private patterns — one POSIX extended regular expression per line. `#` starts a comment, so
+# a pattern cannot contain one. Read only by `tools/check_public_tree.py`.
+#
+# ⛔ For identifiers whose SHAPE is private: a consumer's row, gate or iteration ids. A literal
+#    name belongs in `config/reserved-names.txt`; a pattern here is for a family of ids.
+#
+# ⚠ Each pattern is matched, ignoring case, against every tracked file at HEAD, every commit
+#    after the boundary the check names (its tree and its message), and every path and text
+#    file in the working tree, `out/` included. A short generic shape (a letter and two
+#    digits) matches ids that generators write into emitted rows: measure before adding one.
+#
+# ⚠ Spell a boundary with POSIX classes. `\b`, `\d` and their kin are honoured by one regex
+#    library and not another, and the check refuses them.
+#
+# Copy this file to `config/reserved-patterns.txt`, which is NOT committed. With no such file
+# the check runs without these patterns and says so. An example, for a made-up id family:
+#
+# (^|[^[:alnum:]_])zz[0-9][0-9]

@@ -5,23 +5,27 @@ name that reaches a public commit cannot be recalled — deleting it forward lea
 the history, and rewriting the history after a push leaves it in every clone and in
 GitHub's own dangling objects.
 
-So this runs **before** a push, over three things:
+So this runs **before** a push, over four things:
 
 * every **tracked file at HEAD**,
 * every **commit reachable from any ref**, because a name removed in a later commit is
-  still published by the earlier one, and
+  still published by the earlier one,
 * ⭐ every **path and every text file in the working tree**, tracked or not, ignored or
-  not — see ``PRIVATE_BY_DESIGN`` for why git's opinion of a path buys it nothing.
+  not — see ``PRIVATE_BY_DESIGN`` for why git's opinion of a path buys it nothing, and
+* every **commit message**, which is published with its commit — see
+  ``PUBLISHED_BEFORE_MESSAGES_WERE_SCANNED``.
 
 ⭐ **The mechanism is public and the list is not.** The names come from
 ``config/reserved-names.txt``, which is git-ignored. ⛔ With no list, this exits non-zero
 rather than passing: a check that silently has nothing to check is worse than no check,
-because it reports success.
+because it reports success. Patterns whose shape is itself private — a consumer's row,
+gate or iteration ids — come from ``config/reserved-patterns.txt``, also git-ignored and
+optional; without it, the report says those ids are not checked.
 
     python tools/check_public_tree.py
 
-⚠ Two of the three scopes read **committed** content, so run it after committing and
-before pushing. The third reads what is on disk right now, and a hit there is the cheap
+⚠ Three of the four scopes read **committed** content, so run it after committing and
+before pushing. The working tree is what is on disk right now, and a hit there is the cheap
 kind: nothing has been published yet, so deleting the path is the whole fix.
 """
 
@@ -40,6 +44,7 @@ if hasattr(sys.stdout, "reconfigure"):  # pragma: no cover - platform dependent
 
 ROOT = Path(__file__).resolve().parents[1]
 NAMES_FILE = ROOT / "config" / "reserved-names.txt"
+PATTERNS_FILE = ROOT / "config" / "reserved-patterns.txt"
 
 #: git's own storage. Not part of the working tree, and every commit inside it is already
 #: read by the history scope, through git rather than by walking loose objects.
@@ -66,6 +71,7 @@ PATH_LISTING = ".working-tree-paths.tmp"
 #: exemption nobody can withdraw.
 PRIVATE_BY_DESIGN: dict[str, str] = {
     "config/reserved-names.txt": "it IS the list this check reads, not a leak of it",
+    "config/reserved-patterns.txt": "it IS the private pattern list this check reads",
     "config/predecessor-surface.toml": "names another tree's module paths, and is git-ignored for that reason",
     "docs/local": "cross-repository notes, git-ignored for that reason",
 }
@@ -167,6 +173,30 @@ def _identifier_patterns() -> list[tuple[str, str, str, str]]:
 
 EXTRA_PATTERNS = _identifier_patterns()
 
+#: ⛔ **A COMMIT MESSAGE IS PUBLISHED WITH ITS COMMIT, AND UNTIL 2026-11-23 NOTHING HERE READ
+#: ONE.** Every message is now scanned for every pattern this check holds, and for the
+#: patterns below that apply to messages only. This repository's commits name one author, so
+#: a co-author trailer is refused.
+_TRAILER = "co-authored-by"
+MESSAGE_PATTERNS = [
+    (
+        # ⚠ git's trailer parser accepts space before the colon and before the key.
+        f"^[[:space:]]*{_TRAILER}[[:space:]]*:",
+        "a co-author trailer",
+        f"  {_TRAILER.title()} : A. Person <a.person@example.org>",
+        # ⛔ must NOT match: the key in prose, not at the start of a line
+        f"see the {_TRAILER}: line",
+    )
+]
+
+#: ⚠ **THE BOUNDARY.** Messages, and the private patterns in history, were first scanned when
+#: this commit was the tip. Everything reachable from it was already public, and only a
+#: rewrite of public history could change it, so a hit there is reported as a count on every
+#: run and never fails. ⛔ Every other commit is held to every pattern, in its message and in
+#: its tree: its descendants, and any commit on another ref that it cannot reach — which fails
+#: closed, and is reported as "after the boundary" although it may be older.
+PUBLISHED_BEFORE_MESSAGES_WERE_SCANNED = "05b59644f429ff08568e8d3213b53380bf8e0532"
+
 
 #: ⛔ **Decode what git prints, never let the locale decide.** `text=True` alone decodes with
 #: the console's encoding, and this scan reads *every* text file on disk — the first byte
@@ -177,11 +207,16 @@ EXTRA_PATTERNS = _identifier_patterns()
 _DECODE = {"encoding": "utf-8", "errors": "replace"}
 
 
-def _git(*args: str) -> str:
+def _git(*args: str, root: Path = ROOT, private: bool = False) -> str:
+    """⚠ `private`: the arguments carry a pattern from the private list, so a failure names
+    neither them nor git's message, which repeats them."""
     result = subprocess.run(
-        ["git", *args], cwd=ROOT, capture_output=True, check=False, **_DECODE
+        ["git", *args], cwd=root, capture_output=True, check=False, **_DECODE
     )
     if result.returncode != 0:
+        if private:
+            raise SystemExit(f"⛔ git {args[0]} failed (exit {result.returncode}) on a pattern; "
+                             "neither it nor git's message is printed. Check the pattern lists.")
         raise SystemExit(f"git {' '.join(args)} failed: {result.stderr.strip()}")
     return result.stdout
 
@@ -204,6 +239,71 @@ def reserved_names() -> list[str]:
     return names
 
 
+def private_patterns(path: Path = PATTERNS_FILE) -> list[tuple[str, str]] | None:
+    """`(pattern, description)` per line of the private pattern list, or None with no list.
+
+    One POSIX extended regular expression per line, read by `git grep -E` and `git log -E`;
+    `#` starts a comment, so a pattern cannot contain one. ⚠ The description names the line,
+    never the pattern: the shape of a consumer's ids is what the file keeps private.
+    """
+    if not path.is_file():
+        return None
+    found = []
+    for number, line in enumerate(path.read_text(encoding="utf-8").splitlines(), 1):
+        pattern = line.split("#", 1)[0].strip()
+        if not pattern:
+            continue
+        escape = NON_PORTABLE_ESCAPE.search(pattern)
+        if escape:
+            raise SystemExit(
+                f"⛔ {path.name} line {number} uses {escape.group()!r}, which one regex library "
+                "honours and another does not; on the one that does not, it matches nothing"
+            )
+        found.append((pattern, f"private pattern, line {number} of {path.name}"))
+    return found
+
+
+def scan_after_boundary(
+    patterns: list[tuple[str, str]], boundary: str, *, contents: bool, root: Path = ROOT
+) -> tuple[list[str], list[str], int]:
+    """`(failures, published, commits scanned)` for commit messages, or for contents.
+
+    ⛔ A hit in a commit after the boundary fails. A hit only in commits reachable from it is
+    already public: it is counted under `published`, said on every run, and never fails.
+    """
+    if subprocess.run(["git", "cat-file", "-e", f"{boundary}^{{commit}}"], cwd=root,
+                      capture_output=True, check=False).returncode != 0:
+        raise SystemExit(
+            f"⛔ the boundary commit {boundary[:12]} is not in this clone, so a published hit "
+            "cannot be told from a new one; fetch it, or run this where it is"
+        )
+    every = _git("rev-list", "--all", root=root).split()
+    after = set(_git("rev-list", "--all", f"^{boundary}", root=root).split())
+    before = [r for r in every if r not in after]
+    failures: list[str] = []
+    published: list[str] = []
+    for pattern, description in patterns:
+        if contents:
+            new = _git_grep(["-inE", "-e", pattern, *sorted(after), "--", "."], root) if after else []
+            old = _git_grep(["-ilE", "-e", pattern, *before, "--", "."], root) if before else []
+            old_count = len({hit.split(":", 1)[1] for hit in old})
+            scope, unit = "in a commit after the boundary", "path(s)"
+        else:
+            lines = _git("log", "--all", "-E", "-i", f"--grep={pattern}", "--format=%H %s",
+                         root=root, private=True).splitlines()
+            new = [line for line in lines if line.split(" ", 1)[0] in after]
+            old_count = sum(1 for line in lines if line.strip()) - len(new)
+            scope, unit = "in a commit MESSAGE", "commit(s)"
+        if new:
+            failures.extend(_report(description, scope, new))
+        if old_count:
+            # ⚠ Said on every GREEN run, so it never names a reserved name: a report that only
+            #    a failing run prints is read by the person fixing it; this one is read by all.
+            label = "a reserved name" if description.startswith("the reserved name") else description
+            published.append(f"{label}: {old_count} {unit} published at or before {boundary[:7]}")
+    return failures, published, len(every)
+
+
 def self_test() -> int:
     """Prove every pattern is live, through the same engine the check uses.
 
@@ -212,7 +312,7 @@ def self_test() -> int:
     """
     probe = ROOT / ".matcher-probe.tmp"
     failures: list[str] = []
-    for pattern, description, _positive, _negative in EXTRA_PATTERNS:
+    for pattern, description, _positive, _negative in EXTRA_PATTERNS + MESSAGE_PATTERNS:
         escape = NON_PORTABLE_ESCAPE.search(pattern)
         if escape:
             failures.append(
@@ -221,7 +321,7 @@ def self_test() -> int:
                 "pattern matches nothing and this check goes green over an empty set."
             )
     try:
-        for pattern, description, positive, negative in EXTRA_PATTERNS:
+        for pattern, description, positive, negative in EXTRA_PATTERNS + MESSAGE_PATTERNS:
             probe.write_text(positive + "\n", encoding="utf-8")
             if not _grep_no_index(pattern, probe):
                 failures.append(
@@ -242,20 +342,26 @@ def self_test() -> int:
     if failures:
         print("\n".join(failures))
         return 1
-    print(f"✅ all {len(EXTRA_PATTERNS)} identifier patterns match what they must, and "
+    print(f"✅ all {len(EXTRA_PATTERNS) + len(MESSAGE_PATTERNS)} public patterns match what they must, and "
           "nothing they must not")
     return 0
 
 
 def _git_grep(args: list[str], root: Path) -> list[str]:
+    """The matching lines. ⛔ Exit 1 is "no match"; anything above it is git refusing — a
+    malformed pattern, an unknown option — and it stops the run, because an empty result from
+    a refusal reads exactly like a clean tree. The message prints no pattern."""
     result = subprocess.run(
         ["git", "grep", *args], cwd=root, capture_output=True, check=False, **_DECODE
     )
+    if result.returncode > 1:
+        raise SystemExit(f"⛔ git grep failed (exit {result.returncode}) on a pattern; neither it "
+                         "nor git's message is printed. Check the pattern lists.")
     return [line for line in result.stdout.splitlines() if line.strip()]
 
 
 def _grep_file(pattern: str, path: Path, root: Path = ROOT) -> list[str]:
-    return _git_grep(["--no-index", "-inE", pattern, "--", path.name], root)
+    return _git_grep(["--no-index", "-inE", "-e", pattern, "--", path.name], root)
 
 
 def _grep_no_index(pattern: str, path: Path) -> bool:
@@ -320,7 +426,7 @@ def scan_working_tree(
 
     for pattern, description in patterns:
         hits = []
-        for line in _git_grep(["--no-index", "-I", "-inE", pattern, "--", "."], root):
+        for line in _git_grep(["--no-index", "-I", "-inE", "-e", pattern, "--", "."], root):
             relative_path = line.split(":", 1)[0]
             if content_exemption(relative_path) is None:
                 hits.append(line)
@@ -365,6 +471,9 @@ def main() -> int:
     patterns += [(p, d) for p, d, _positive, _negative in EXTRA_PATTERNS]
     if not patterns:
         raise SystemExit("⛔ nothing to scan for beyond this repository's own name")
+    privates = private_patterns()
+    message_only = [(p, d) for p, d, _positive, _negative in MESSAGE_PATTERNS]
+    boundary = PUBLISHED_BEFORE_MESSAGES_WERE_SCANNED
 
     revisions = _git("rev-list", "--all").split()
     if not revisions:
@@ -376,28 +485,55 @@ def main() -> int:
         # reporting them apart makes "still at the tip" and "only in history"
         # distinguishable, and they need different fixes.
         for scope, args in (
-            ("tracked at HEAD", ["grep", "-inE", pattern, "HEAD", "--"]),
-            ("in history", ["grep", "-inE", pattern, *revisions, "--"]),
+            ("tracked at HEAD", ["grep", "-inE", "-e", pattern, "HEAD", "--"]),
+            ("in history", ["grep", "-inE", "-e", pattern, *revisions, "--"]),
         ):
             hits = _git_grep([*args[1:], "."], ROOT)
             if hits:
                 failures.extend(_report(description, scope, hits))
                 break  # history covers HEAD; one report per pattern is enough
 
+    # The private patterns: HEAD in full; history only after the boundary, because before it
+    # the hits are published and counted (see `scan_after_boundary`).
+    published: list[str] = []
+    for pattern, description in privates or []:
+        hits = _git_grep(["-inE", "-e", pattern, "HEAD", "--", "."], ROOT)
+        if hits:
+            failures.extend(_report(description, "tracked at HEAD", hits))
+    if privates:
+        found, counted, _ = scan_after_boundary(privates, boundary, contents=True)
+        failures.extend(found)
+        published.extend(counted)
+
+    found, counted, messages = scan_after_boundary(
+        patterns + (privates or []) + message_only, boundary, contents=False)
+    failures.extend(found)
+    published.extend(counted)
+
     # ⛔ NOT part of that break-chain. An untracked path is in neither committed scope, so a
     #    scope that "subsumes" it does not exist and skipping this on a committed hit would
     #    hide the one failure this pass was added for.
-    working_tree_failures, examined = scan_working_tree(patterns)
+    working_tree_failures, examined = scan_working_tree(patterns + (privates or []))
     failures.extend(working_tree_failures)
 
     print(
         f"scanned {len(revisions)} commit(s) and {examined} working-tree path(s) "
-        f"for {len(patterns)} pattern(s)"
+        f"for {len(patterns)} pattern(s) and {len(privates or [])} private pattern(s)"
     )
     print(
         "  working tree: every path, and the contents of every file git reads as text "
         "(binary files are skipped)"
     )
+    print(f"  commit messages: {messages}, for every pattern and {len(message_only)} more "
+          "that apply to messages only")
+    if not privates:
+        why = "absent" if privates is None else "holds no pattern"
+        print(f"  ⚠ private patterns: NONE ({PATTERNS_FILE.relative_to(ROOT)} {why}) - row, "
+              "gate and iteration ids are NOT checked")
+    else:
+        print(f"  private patterns: {len(privates)} in force (not printed)")
+    for line in published:
+        print(f"  published, not failed: {line}")
     for path, reason in PRIVATE_BY_DESIGN.items():
         present = "" if (ROOT / path).exists() else "  [absent]"
         print(f"  exempt: {path} — {reason}{present}")
@@ -419,7 +555,8 @@ def main() -> int:
             "  and an ignored path is scanned here exactly like any other."
         )
         return 1
-    print("✅ no reserved name and no internal document identifier reaches a commit, or sits in the working tree")
+    print("✅ no reserved name, internal document identifier, private pattern or co-author trailer "
+          "reaches a commit or a message after the boundary, or sits in the working tree")
     return 0
 
 

@@ -107,10 +107,11 @@ requirements. See its section.
 
 ### Local configuration
 
-Two files are copied from committed examples, and the copies are git-ignored:
+Three files are copied from committed examples, and the copies are git-ignored:
 
 ```bash
 cp config/reserved-names.txt.example config/reserved-names.txt              # then add every consumer's name
+cp config/reserved-patterns.txt.example config/reserved-patterns.txt        # optional; the leak check only
 cp config/predecessor-surface.toml.example config/predecessor-surface.toml  # r5_continuity.py only; then fill in
 ```
 
@@ -402,14 +403,16 @@ checked by a person, on a machine that holds the libraries and the data.
 
 ```bash
 python -m pytest -q -rs                  # the contract's refusals, and whatever this machine can run of the rest
-python tools/check_public_tree.py        # no reserved name or internal identifier reaches a commit, or waits to
+python tools/check_public_tree.py        # no reserved name or internal identifier reaches a commit or message, or waits to
 ```
 
 ⚠ The second needs `config/reserved-names.txt`, and exits non-zero when it is missing rather
 than passing on an empty list. It proves its own matcher first (`--self-test`). It then looks,
-case-insensitively, for every reserved name except this repository's own, and for three
-identifier shapes: `adr-` or `rfc-` followed by a digit, and a section sign followed by a
-digit. It looks in:
+case-insensitively, for every reserved name except this repository's own, for three
+identifier shapes (`adr-` or `rfc-` followed by a digit, and a section sign followed by a
+digit), and for the patterns in `config/reserved-patterns.txt` if there is one: identifiers
+whose shape is itself private, such as a consumer's row or gate ids. Without that file the
+report says those ids are not checked. It looks in:
 
 * every tracked file at HEAD, and **every reachable commit**, because a name removed in a later
   commit is still published by the earlier one;
@@ -418,16 +421,27 @@ digit. It looks in:
   been published, so deleting the path is the whole fix. But an untracked path is invisible to
   a scan of commits, and a single `git add -A` publishes it permanently. ⛔ Being git-ignored
   buys a path nothing here, deliberately: ignoring one is how the same failure comes back under
-  a different name in a different path.
+  a different name in a different path;
+* **every commit message**, for every pattern above and for a co-author trailer, because this
+  repository's commits name one author.
+
+⚠ **Commit messages, and the private patterns in history, are held from a boundary**, the
+commit named in the check (`PUBLISHED_BEFORE_MESSAGES_WERE_SCANNED`), which was the tip when
+they were first scanned. A hit in a commit reachable from it was already public, and only a
+rewrite of public history could remove it, so it is counted on every run and never fails. Every
+other commit is held to every pattern, in its message and in its tree: the boundary's
+descendants, and any commit on another ref that it cannot reach (which fails closed, and is
+reported as after the boundary although it may be older). A green run names no reserved name
+and prints no private pattern.
 
 Two kinds of path are exempt, and every run prints both. The short list of paths that exist *to
-hold* private material is exempt entirely: the local name list, the local continuity surface and
-`docs/local/`. `cache/` is exempt in its **contents** only, because its acquired third-party
+hold* private material is exempt entirely: the local name list, the local pattern list, the
+local continuity surface and `docs/local/`. `cache/` is exempt in its **contents** only, because its acquired third-party
 texts were written by their authors; its paths are still scanned.
 
-⚠ It reads file contents, never commit messages, and it knows only the shapes above. It cannot
-see another kind of internal identifier, a private path written in prose, or an attribution in
-a commit message. Review those by hand.
+⚠ It knows only the shapes above. It cannot see an identifier no pattern describes, a private
+path written in prose, an attribution other than a co-author trailer, an annotated tag's
+message, or a commit's author and committer identities. Review those by hand.
 
 ⚠ **A virtual environment inside the tree is scanned like everything else**, and the
 packages in one quote other people's protocol numbers and section signs — 40-odd hits on a

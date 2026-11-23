@@ -279,3 +279,143 @@ def test_an_identifier_in_a_file_is_refused_and_its_lookalike_is_not(repo):
         (repo / "notes.md").write_text(negative + "\n", encoding="utf-8")
         found, _examined = check.scan_working_tree(patterns, root=repo)
         assert found == [], negative
+
+
+# --- commit messages, the private patterns, and the boundary between published and new --------------------------
+
+PRIVATE = [("(^|[^[:alnum:]_])zz[0-9][0-9]", "private pattern, line 1 of a list")]
+TRAILER = f"{check._TRAILER.title()}: A. Person <a.person@example.org>"
+
+
+def _commit(repo: Path, message: str, files: dict[str, str | None] | None = None) -> str:
+    for name, text in (files or {}).items():
+        if text is None:
+            (repo / name).unlink()
+        else:
+            (repo / name).write_text(text, encoding="utf-8")
+    subprocess.run(["git", "add", "-A"], cwd=repo, check=True)
+    subprocess.run(["git", "-c", "user.name=t", "-c", "user.email=t@t", "commit", "-q", "--allow-empty",
+                    "-m", message], cwd=repo, check=True)
+    return subprocess.run(["git", "rev-parse", "HEAD"], cwd=repo, capture_output=True, text=True,
+                          check=True).stdout.strip()
+
+
+def _message_patterns():
+    return [(p, d) for p, d, _positive, _negative in check.MESSAGE_PATTERNS]
+
+
+def test_a_trailer_after_the_boundary_is_refused_and_one_at_it_is_counted(repo):
+    """⭐ The published trailer is said on every run and never fails; a new one fails."""
+    boundary = _commit(repo, f"published\n\n{TRAILER}")
+    _commit(repo, f"new\n\n{TRAILER}")
+    failures, published, scanned = check.scan_after_boundary(_message_patterns(), boundary, contents=False,
+                                                             root=repo)
+    report = "\n".join(failures)
+    assert scanned == 2
+    assert "in a commit MESSAGE" in report and " new" in report and "published" not in report
+    assert published == [f"a co-author trailer: 1 commit(s) published at or before {boundary[:7]}"]
+
+
+def test_the_control_a_clean_message_after_the_boundary_passes(repo):
+    boundary = _commit(repo, f"published\n\n{TRAILER}")
+    _commit(repo, "new, and naming one author only")
+    failures, published, _ = check.scan_after_boundary(_message_patterns(), boundary, contents=False,
+                                                       root=repo)
+    assert failures == [] and len(published) == 1
+
+
+def test_a_reserved_name_in_a_message_is_refused(repo):
+    boundary = _commit(repo, "published")
+    _commit(repo, "a note about acme")
+    failures, _published, _ = check.scan_after_boundary(PATTERNS, boundary, contents=False, root=repo)
+    assert "the reserved name 'acme'" in "\n".join(failures)
+
+
+def test_a_private_pattern_in_a_tree_after_the_boundary_is_refused_and_one_before_it_is_counted(repo):
+    """⚠ A tree after the boundary is held in full: a published id still present at a later tip fails there."""
+    _commit(repo, "one", {"a.txt": "row ZZ12\n"})
+    boundary = _commit(repo, "two", {"a.txt": None})
+    failures, published, _ = check.scan_after_boundary(PRIVATE, boundary, contents=True, root=repo)
+    assert failures == [] and published == [f"{PRIVATE[0][1]}: 1 path(s) published at or before {boundary[:7]}"]
+    _commit(repo, "three", {"b.txt": "row zz34\n"})
+    failures, _published, _ = check.scan_after_boundary(PRIVATE, boundary, contents=True, root=repo)
+    report = "\n".join(failures)
+    assert "in a commit after the boundary" in report and "b.txt" in report and "a.txt" not in report
+
+
+def test_a_boundary_this_clone_does_not_hold_is_refused(repo):
+    _commit(repo, "one")
+    with pytest.raises(SystemExit, match="not in this clone"):
+        check.scan_after_boundary(PATTERNS, "0" * 40, contents=False, root=repo)
+
+
+def test_the_private_list_reads_patterns_and_never_names_them(tmp_path):
+    listed = tmp_path / "reserved-patterns.txt"
+    assert check.private_patterns(listed) is None
+    listed.write_text("# a comment\n\n(^|[^[:alnum:]_])zz[0-9][0-9]   # trailing comment\n", encoding="utf-8")
+    assert check.private_patterns(listed) == [("(^|[^[:alnum:]_])zz[0-9][0-9]",
+                                               "private pattern, line 3 of reserved-patterns.txt")]
+
+
+def test_the_private_list_refuses_an_escape_one_regex_library_ignores(tmp_path):
+    listed = tmp_path / "reserved-patterns.txt"
+    listed.write_text("zz\\d\\d\n", encoding="utf-8")
+    with pytest.raises(SystemExit, match="line 1"):
+        check.private_patterns(listed)
+
+
+def test_the_private_list_is_private_by_design():
+    assert check.exemption("config/reserved-patterns.txt") is not None
+    if not (check.ROOT / ".git").exists():
+        pytest.skip("not a git checkout, so git cannot say what it ignores")
+    ignored = subprocess.run(["git", "check-ignore", "-q", "config/reserved-patterns.txt"],
+                             cwd=check.ROOT, check=False)
+    assert ignored.returncode == 0, "the private pattern list must be git-ignored"
+
+
+def test_a_pattern_that_begins_with_a_dash_is_a_pattern_and_not_an_option(repo):
+    """⛔ Without `-e`, git read such a pattern as a switch, refused, and the empty result read as clean."""
+    (repo / "leak.txt").write_text("x-zz42\n", encoding="utf-8")
+    found, _examined = check.scan_working_tree([("-zz[0-9][0-9]", "private pattern, line 1")], root=repo)
+    assert "leak.txt" in "\n".join(found)
+
+
+def test_a_pattern_git_refuses_stops_the_run_without_printing_it(repo, capsys):
+    secret = "secretshape(zz[0-9]"
+    with pytest.raises(SystemExit) as stopped:
+        check.scan_working_tree([(secret, "private pattern, line 1")], root=repo)
+    assert secret not in str(stopped.value)
+    boundary = _commit(repo, "one")
+    with pytest.raises(SystemExit) as stopped:
+        check.scan_after_boundary([(secret, "private pattern, line 1")], boundary, contents=False, root=repo)
+    assert secret not in str(stopped.value) and "secretshape" not in capsys.readouterr().out
+
+
+def test_a_published_reserved_name_is_counted_without_being_named(repo):
+    boundary = _commit(repo, "a note about acme")
+    failures, published, _ = check.scan_after_boundary(PATTERNS, boundary, contents=False, root=repo)
+    assert failures == [] and published == [f"a reserved name: 1 commit(s) published at or before {boundary[:7]}"]
+
+
+def test_a_trailer_with_space_before_its_colon_is_refused(repo):
+    boundary = _commit(repo, "published")
+    _commit(repo, f"new\n\n{check._TRAILER.title()} : A. Person <a.person@example.org>")
+    failures, _published, _ = check.scan_after_boundary(_message_patterns(), boundary, contents=False, root=repo)
+    assert "in a commit MESSAGE" in "\n".join(failures)
+
+
+def test_a_commit_the_boundary_cannot_reach_is_held_to_every_pattern(repo):
+    """⚠ Fails closed: an older commit on another ref is not reachable from the boundary."""
+    _commit(repo, "root")
+    subprocess.run(["git", "checkout", "-q", "-b", "side"], cwd=repo, check=True)
+    _commit(repo, f"side\n\n{TRAILER}")
+    subprocess.run(["git", "checkout", "-q", "-"], cwd=repo, check=True)
+    boundary = _commit(repo, "main")
+    failures, _published, _ = check.scan_after_boundary(_message_patterns(), boundary, contents=False, root=repo)
+    assert " side" in "\n".join(failures)
+
+
+def test_an_empty_private_list_holds_no_pattern(tmp_path):
+    listed = tmp_path / "reserved-patterns.txt"
+    listed.write_text("# only a comment\n", encoding="utf-8")
+    assert check.private_patterns(listed) == []

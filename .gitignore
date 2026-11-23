@@ -26,6 +26,10 @@ dist/
 # are not. `config/reserved-names.txt.example` is committed and documents the format.
 config/reserved-names.txt
 
+# The private pattern list (a consumer's row, gate and iteration ids, by shape). Same split,
+# same reason. `config/reserved-patterns.txt.example` is committed and documents the format.
+config/reserved-patterns.txt
+
 # The R5 call surface. Same split, same reason: it names functions inside another tree, and
 # the shape of an unreleased tree leaks through its module paths as surely as through its
 # name. `config/predecessor-surface.toml.example` is committed and documents the format.
