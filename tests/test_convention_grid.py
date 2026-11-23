@@ -15,6 +15,7 @@ import math
 import os
 import struct
 import sys
+import threading
 from pathlib import Path
 
 import pytest
@@ -47,14 +48,20 @@ class FakeChild:
         self.n = 0
         self.tamper = tamper
         self.specs = []
+        self.lock = threading.Lock()
 
     def __call__(self, spec, work_dir):
-        self.n += 1
-        self.specs.append(spec)
+        # ⚠ The run calls this from several threads at once. The count is taken under a lock and kept in a local:
+        #   read back from `self.n` later, two readings could carry one nonce, and the run would refuse them as
+        #   one child's — a refusal of the fake, not of the code under test.
+        with self.lock:
+            self.n += 1
+            n = self.n
+            self.specs.append(spec)
         call = spec["call"]
         f = call["function"]
         args = call["args"]
-        base = 0.001 * self.n
+        base = 0.001 * n
         if f == "calc_ut":
             returned = _seq(_seq(*[_f(base + i) for i in range(6)]), {"integer": args[2]["integer"]})
         elif f == "get_ayanamsa_ex_ut":
@@ -67,7 +74,7 @@ class FakeChild:
             returned = _seq({"integer": 0}, _seq(*[_f(2461000.5 + base)] + [_f(0.0)] * 9))
         else:
             raise AssertionError(f)
-        result = {"nonce": f"{self.n:032x}", "fresh_interpreter": True, "calls": gen.declared_calls(spec),
+        result = {"nonce": f"{n:032x}", "fresh_interpreter": True, "calls": gen.declared_calls(spec),
                   "returned": returned}
         return self.tamper(spec, result) if self.tamper else result
 
