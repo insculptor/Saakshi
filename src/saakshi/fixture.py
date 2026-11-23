@@ -212,9 +212,10 @@ def reserved_names() -> tuple[str, ...]:
     """The names forbidden in fixture keys and filenames, lowercased.
 
     ⚠ If the local list is absent only the built-in default applies. That is a real
-    weakening, so `describe_reserved_names()` says so out loud and every generator prints
-    it before writing anything — a check that quietly protects less than you think is
-    worse than one that is visibly off.
+    weakening, so `describe_reserved_names()` says so out loud, and a generator that prints
+    it does so before writing anything — a check that quietly protects less than you think
+    is worse than one that is visibly off. ⚠ Not every generator prints it:
+    `docs/fixture-contract.md` names the ones that do not.
     """
     names = set(DEFAULT_RESERVED_NAMES)
     path = _config_path()
@@ -227,7 +228,7 @@ def reserved_names() -> tuple[str, ...]:
 
 
 def describe_reserved_names() -> str:
-    """The one line every generator prints before writing anything.
+    """The one line a generator prints before writing anything (not every one does; see `reserved_names`).
 
     ⚠ **ASCII only, deliberately.** This string is printed to a console, and a default
     Windows console encoding cannot encode the marker glyphs used elsewhere in this

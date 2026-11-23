@@ -12,6 +12,7 @@
 # ⚠ Copy this file to `config/reserved-names.txt` and add the names of every consumer.
 #    That file is NOT committed — the mechanism belongs in the open, the names of
 #    unreleased projects do not. With no local file only the default below applies, and
-#    every generator prints that fact before it writes anything.
+#    a generator that prints that fact does so before it writes anything. ⚠ Not every
+#    generator prints it: `docs/fixture-contract.md` names the ones that do not.
 
 saakshi

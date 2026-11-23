@@ -527,7 +527,10 @@ are written.
   holding:
   * `pyerfa` 2.0.1.5, `skyfield` 1.55, `jplephem` 2.23 and `numpy` 2.5.1;
   * the SuperNOVAS 1.8.0 source, its release tarball, the built static archive, and that
-    build's JSON record naming the archive by SHA-256;
+    build's JSON record naming the archive by SHA-256. ⚠ Nothing in this tree writes the
+    record: it is made where the library is built. The generator requires two of its fields,
+    `archive_sha256` (the archive's digest, checked) and `sources` (each source file's name
+    mapped to its SHA-256), and carries every other field into the record as it stands;
   * the CSPICE toolkit N0067 and its package;
   * ERFA's licence text;
   * a C compiler on the path as `cc`, which builds `generators/native/supernovas_of_date.c`.

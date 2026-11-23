@@ -1,6 +1,7 @@
 """What a running deployment's ephemeris library resolves, captured on the host that runs it.
 
-⛔ **The one generator here that writes no fixture and imports nothing from this repository.**
+⛔ **A generator that writes no fixture and imports nothing from this repository** (one of two:
+`utc_conversion.py` is the other).
 It is run on the host whose behaviour it records — a host where this repository is not
 installed and must never be — so it needs the standard library and the ephemeris binding and
 nothing else. It prints one JSON document, the **raw observation**, and a second line carrying

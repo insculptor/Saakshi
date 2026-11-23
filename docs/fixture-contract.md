@@ -275,9 +275,16 @@ because a value records origin and is not an identifier.
 
 The list lives in `config/reserved-names.txt` and is not committed: the mechanism belongs
 in the open, the names of unreleased consumers do not. See
-[`config/reserved-names.txt.example`](../config/reserved-names.txt.example). Every
-generator prints how many names are in force before it writes anything, so a list that is
+[`config/reserved-names.txt.example`](../config/reserved-names.txt.example). A generator
+that prints how many names are in force does so before it writes anything, so a list that is
 not loaded is visible rather than silent.
+
+⚠ **Not every generator prints it.** `mean_node_section.py` and `nutation_obliquity_section.py`
+write through the contract's writer, which applies the list, without printing the line.
+`mean_node_modes.py`, `nutation_obliquity_modes.py` and `nutation_obliquity_grid.py` write a
+record of their own without the contract's writer, so the list is not applied when they
+write. `deployment_capture.py` and `utc_conversion.py` write no file. Every other generator
+prints it.
 
 ## `reference` names a source — except once, where it names a relationship
 
