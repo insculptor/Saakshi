@@ -93,8 +93,13 @@ it a rising, at one temperate site:
 | omitted, observer at 500 m | −34.283′ | +10.310 s |
 | omitted, observer at 2000 m | −27.996′ | +38.378 s |
 | centre, atmosphere off entirely | +0.147′ | +164.017 s |
-| leading edge of the disc | −20.530′ | +71.707 s |
+| `BIT_DISC_BOTTOM` in place of the centre bit ¹ | −20.530′ | +71.707 s |
 | the library's own named composite | +0.003′ | +163.375 s |
+
+¹ *Relabelled 2026-11-22.* This row read "leading edge of the disc", and the fixture named the
+definition `upper_limb`. Both name a mechanism; the row's own figures say this word rises
+**after** the centre word. The definition is now named `disc_bottom`, for the bit it sets. Its
+figures are unchanged.
 
 ⚠ **The observer height is live even with the pressure argument at zero.** A site given an
 elevation gets a different sunrise from the same site given none — 38 s different at

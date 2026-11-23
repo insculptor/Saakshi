@@ -1322,10 +1322,13 @@ RISE_DEFINITIONS: tuple[tuple[str, int, str], ...] = (
         swe.CALC_RISE | swe.BIT_DISC_CENTER | swe.BIT_NO_REFRACTION,
         "the centre of the disc, with the atmosphere switched off entirely",
     ),
+    # ⚠ Named for the bit the word sets, not for a mechanism. It was named `upper_limb` until
+    #   2026-11-22; measured, this word's rise comes AFTER the centre word's, and a word with
+    #   no disc bit comes BEFORE it. `tests/test_conventions.py` pins that order.
     (
-        "upper_limb",
+        "disc_bottom",
         swe.CALC_RISE | swe.BIT_DISC_BOTTOM,
-        "the leading edge of the disc rather than its centre",
+        "the library's BIT_DISC_BOTTOM in place of BIT_DISC_CENTER",
     ),
     (
         "library_named_convention",

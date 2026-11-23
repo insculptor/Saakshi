@@ -12,6 +12,8 @@ or to one the surrounding code was already caught making elsewhere.
 
 from __future__ import annotations
 
+import json
+import subprocess
 import sys
 from pathlib import Path
 
@@ -87,6 +89,58 @@ def test_the_omitted_atmosphere_is_visited_first():
 def test_the_definition_a_caller_gets_by_default_is_visited_first():
     """Same dependency, on the other axis."""
     assert RISE_DEFINITIONS[0][0] == "disc_centre"
+
+
+#: One reading set, in an interpreter that has imported nothing: the Sun's rise at one site
+#: on one date under three words, plus the source proxy. ⛔ Nothing is read in this process.
+_RISE_ORDER_CHILD = r"""
+import json, sys
+spec = json.loads(sys.stdin.read())
+fresh = "swisseph" not in sys.modules
+import swisseph as swe
+swe.set_ephe_path(spec["ephe"])
+jd = swe.julday(*spec["date"], 0.0) - spec["lon"] / 360.0
+events = []
+for word in spec["words"]:
+    code, times = swe.rise_trans(jd, swe.SUN, word, (spec["lon"], spec["lat"], 0.0), 0.0, 0.0, swe.FLG_MOSEPH)
+    events.append([code, float(times[0]).hex()])
+_, flag = swe.calc_ut(jd, swe.SUN, swe.FLG_MOSEPH)
+print(json.dumps({"fresh": fresh, "events": events, "proxy_flag": flag}))
+"""
+
+
+def test_the_disc_bottom_word_rises_after_the_centre_word_and_no_disc_bit_before_it(tmp_path):
+    """⭐ The rise definition is named for the bit it sets, and the measured order is pinned.
+
+    The word carrying `BIT_DISC_BOTTOM` was once named `upper_limb`, "the leading edge of the
+    disc". Measured, it rises after the centre word, and a word with no disc bit rises before
+    it. ⛔ So no definition here is named for a limb or an edge.
+
+    Measured in a fresh `-I` child: the Sun at Kanpur (26.4499 N, 80.3319 E, height 0), the
+    search starting at local mean midnight of 2026-03-20, the atmosphere omitted (0, 0), the
+    analytical ephemeris, and the returned ephemeris bits of the source proxy asserted.
+    """
+    by_name = {name: (rsmi, note) for name, rsmi, note in RISE_DEFINITIONS}
+    assert by_name["disc_bottom"][0] == swe.CALC_RISE | swe.BIT_DISC_BOTTOM
+    assert "BIT_DISC_BOTTOM" in by_name["disc_bottom"][1]
+    for name, _rsmi, note in RISE_DEFINITIONS:
+        assert not {"limb", "edge"} & set((name.replace("_", " ") + " " + note).split()), name
+
+    words = [swe.CALC_RISE, by_name["disc_centre"][0], by_name["disc_bottom"][0]]
+    (tmp_path / "empty").mkdir()
+    spec = {"ephe": str(tmp_path / "empty"), "date": [2026, 3, 20], "lat": 26.4499, "lon": 80.3319,
+            "words": words}
+    proc = subprocess.run([sys.executable, "-I", "-c", _RISE_ORDER_CHILD], input=json.dumps(spec),
+                          cwd=tmp_path, capture_output=True, text=True, timeout=60, check=True)
+    result = json.loads(proc.stdout)
+    assert result["fresh"] is True
+    assert result["proxy_flag"] & (swe.FLG_JPLEPH | swe.FLG_SWIEPH | swe.FLG_MOSEPH) == swe.FLG_MOSEPH
+    assert [code for code, _ in result["events"]] == [0, 0, 0]
+    no_disc_bit, centre, bottom = (float.fromhex(t) for _, t in result["events"])
+    assert no_disc_bit < centre < bottom
+    # The same morning's event, not a later day's: all three within ten minutes.
+    assert (bottom - no_disc_bit) * 86400.0 < 600.0
+    assert not list((tmp_path / "empty").iterdir())
 
 
 def test_the_conventional_atmosphere_is_present_only_as_a_hypothesis():
