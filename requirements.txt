@@ -9,7 +9,11 @@ jplephem==2.23           # BSD-2-Clause, pure Python — the second, independent
 numpy==2.5.1
 
 # --- R1: the Horizons sampler, and publisher file acquisition ----------------------------
-requests==2.34.2
+# Nothing to pin: both use the standard library's `urllib` (`src/saakshi/acquisition.py`).
+
+# --- civil time ---------------------------------------------------------------------------
+# `tzdata` is installed separately, at the release continuous integration pins (README,
+# *Install*): it is a data package, not an oracle, and CI installs it without this file.
 
 # --- R3: the Swiss Ephemeris generators (AGPL; the reason this repository is AGPL) --------
 pyswisseph==2.10.3.2
