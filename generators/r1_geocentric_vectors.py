@@ -502,8 +502,14 @@ def canonical(query: dict[str, str]) -> Callable[[bytes], bytes]:
     return lambda payload: split(payload, query=query).resource_text.encode("utf-8")
 
 
-def hold(response: Response, request: dict, *, center: str, version: str | None) -> str:
-    """⛔ Every check a response is held to. Returns the interface version it named."""
+def hold(response: Response, request: dict, *, center: str, version: str | None,
+         solutions: tuple[str, str] | None = None) -> str:
+    """⛔ Every check a response is held to. Returns the interface version it named.
+
+    ``solutions`` is the (target, centre) pair of solutions the response must name, for a caller whose targets
+    are answered from solutions of their own; ⭐ without it, the pair is this table's: DE441 for the target and
+    the centre's recorded solution.
+    """
     where = request["request_id"]
     state, correction, command = response.service_state, request["correction"], request["target"]["command"]
     if state.get("interface_source") != EXPECTED_INTERFACE_SOURCE:
@@ -515,7 +521,8 @@ def hold(response: Response, request: dict, *, center: str, version: str | None)
     if version is not None and named != version:
         raise Refusal(f"⛔ STOP: {where}: interface version {named!r} after {version!r} earlier in this run")
     expected_center = CENTERS[center]
-    for key, wanted in (("target_solution", EXPECTED_SOLUTION), ("center_solution", expected_center["solution"])):
+    wanted_target, wanted_center = solutions or (EXPECTED_SOLUTION, expected_center["solution"])
+    for key, wanted in (("target_solution", wanted_target), ("center_solution", wanted_center)):
         if state.get(key) != wanted:
             raise Refusal(f"⛔ STOP: {where}: {key} is {state.get(key)!r}, not {wanted!r}")
     for key, wanted in (("target_echo", command), ("center_echo", expected_center["body"]),
