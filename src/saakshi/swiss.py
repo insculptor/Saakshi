@@ -647,8 +647,13 @@ def coverage_edges(
     jd_high: float,
     session: Session,
     extra: int = swe.FLG_SPEED,
+    entry_point: str = "calc_ut",
 ) -> dict[str, Any]:
     """Find where the requested ephemeris stops answering, from a reset state each time.
+
+    ⭐ ``entry_point`` is the position call the boundary is located through, and its time argument names the
+    fields (:data:`TIME_ARGUMENTS`). Located through ``calc``, the ends are instants of TT and the edge says so in
+    every field and in ``entry_point``; through ``calc_ut`` the edge is written exactly as it always was.
 
     ⭐ The returned flag is used here as an *instrument*: the boundary is located by asking
     the library which ephemeris answered, not by reading a published coverage range. A
@@ -670,11 +675,12 @@ def coverage_edges(
     pattern beside the decimal, and the bracket is a pair of adjacent doubles.
     """
     word = mode.flag | extra
+    ends = edge_ends(entry_point)
 
     def answered(jd: float) -> bool:
         session.reset()
         try:
-            _, returned = swe.calc_ut(jd, body, word)
+            _, returned = getattr(swe, entry_point)(jd, body, word)
         except Exception:
             return False
         return (returned & SOURCE_MASK) == mode.flag
@@ -713,23 +719,25 @@ def coverage_edges(
                 "boundary may be reported from it."
             )
 
-    return {
+    scale = TIME_ARGUMENTS[entry_point][len("jd_"):]
+    edge: dict[str, Any] = {
         "body": body,
         "located_by": (
             "bisection on the returned ephemeris flag, every probe taken from a reset "
             "library state, endpoints re-verified"
         ),
-        "lower_edge_last_outside_jd_ut": low_out,
-        "lower_edge_last_outside_jd_ut_bits": bits_of(low_out),
-        "lower_edge_first_inside_jd_ut": low_in,
-        "lower_edge_first_inside_jd_ut_bits": bits_of(low_in),
-        "upper_edge_first_inside_jd_ut": high_in,
-        "upper_edge_first_inside_jd_ut_bits": bits_of(high_in),
-        "upper_edge_last_outside_jd_ut": high_out,
-        "upper_edge_last_outside_jd_ut_bits": bits_of(high_out),
-        "lower_edge_calendar_ut": calendar_ut(low_in),
-        "upper_edge_calendar_ut": calendar_ut(high_in),
-        "search_range_jd_ut": [jd_low, jd_high],
+    }
+    for end, jd in zip(ends, (low_out, low_in, high_in, high_out)):
+        edge[end] = jd
+        edge[f"{end}_bits"] = bits_of(jd)
+    edge[f"lower_edge_calendar_{scale}"] = calendar_of(low_in, scale)
+    edge[f"upper_edge_calendar_{scale}"] = calendar_of(high_in, scale)
+    edge[f"search_range_{TIME_ARGUMENTS[entry_point]}"] = [jd_low, jd_high]
+    if entry_point != "calc_ut":
+        # ⭐ Only where it is not the one every earlier edge was located through, so those stay byte-identical.
+        edge["entry_point"] = entry_point
+    return {
+        **edge,
         "scope": (
             "this edge is the one body's. The data files do not share a boundary, so a "
             "different body has a different edge"
@@ -876,6 +884,24 @@ EDGE_ENDS: tuple[str, ...] = (
     "upper_edge_last_outside_jd_ut",
 )
 
+#: ⭐ The position entry points a per-body survey can read a returned word through, and the time argument each
+#: takes — the suffix its edges' fields carry. ⛔ An edge located through one is never filed under the other's
+#: names: the two arguments are different time scales, and an instant placed against an edge of the other scale is
+#: placed against another instant.
+TIME_ARGUMENTS: dict[str, str] = {"calc_ut": "jd_ut", "calc": "jd_tt"}
+
+
+def edge_ends(entry_point: str = "calc_ut") -> tuple[str, ...]:
+    """The four fields an edge located through ``entry_point`` carries, in bracket order."""
+    if entry_point not in TIME_ARGUMENTS:
+        raise SurveyRefusal(f"{entry_point}: no time argument is recorded for it, so it cannot be surveyed here")
+    return tuple(end[: -len("jd_ut")] + TIME_ARGUMENTS[entry_point] for end in EDGE_ENDS)
+
+
+def _ends_of(edge: Mapping[str, Any]) -> tuple[str, ...]:
+    """The fields of an edge as it was written: through the entry point it names, or ``calc_ut``'s."""
+    return edge_ends(str(edge.get("entry_point", "calc_ut")))
+
 CHILD_TIMEOUT_SECONDS = 120
 
 
@@ -890,8 +916,12 @@ def body_edges(
     jd_low: float,
     jd_high: float,
     session: Session,
+    entry_point: str = "calc_ut",
 ) -> dict[tuple[int, int], dict[str, Any] | None]:
     """Each body's coverage edge under each key, as adjacent bits — or ``None`` where it has none.
+
+    ⭐ Located through ``entry_point`` (:func:`coverage_edges`): through ``calc`` every probe and every end is an
+    instant of TT.
 
     ⭐ ``None`` is measured, never assumed: the data-file request was answered at both ends of
     the search range and at its middle, so no edge lies inside it. For the mean node that is
@@ -900,6 +930,7 @@ def body_edges(
     doubles, because placing an instant between them would decide nothing.
     """
     swiss_file = MODES["swiss_file"]
+    ends_named = edge_ends(entry_point)
     out: dict[tuple[int, int], dict[str, Any] | None] = {}
     for body in bodies:
         for key in keys:
@@ -908,7 +939,7 @@ def body_edges(
             def answered(jd: float) -> bool:
                 session.reset()
                 try:
-                    _, returned = swe.calc_ut(jd, body, word)
+                    _, returned = getattr(swe, entry_point)(jd, body, word)
                 except Exception:
                     return False
                 return (returned & SOURCE_MASK) == swiss_file.flag
@@ -925,9 +956,9 @@ def body_edges(
                 )
             edge = coverage_edges(
                 swiss_file, body=body, jd_low=jd_low, jd_high=jd_high, session=session,
-                extra=key,
+                extra=key, entry_point=entry_point,
             )
-            for low, high in (EDGE_ENDS[:2], EDGE_ENDS[2:]):
+            for low, high in (ends_named[:2], ends_named[2:]):
                 a = int(edge[f"{low}_bits"], 16)
                 b = int(edge[f"{high}_bits"], 16)
                 if abs(a - b) != 1:
@@ -953,7 +984,7 @@ def one_edge_per_body(
     for body in sorted({body for body, _ in edges}):
         found = [edges[(body, key)] for key in keys]
         rendered = {
-            None if e is None else tuple(e[f"{end}_bits"] for end in EDGE_ENDS) for e in found
+            None if e is None else tuple(e[f"{end}_bits"] for end in _ends_of(e)) for e in found
         }
         if len(rendered) != 1:
             raise SurveyRefusal(
@@ -974,7 +1005,7 @@ def placement(jd: float, edge: Mapping[str, Any] | None) -> str:
     if edge is None:
         return "no_edge"
     lo_out, lo_in, up_in, up_out = (
-        value_of_bits(edge[f"{end}_bits"]) for end in EDGE_ENDS
+        value_of_bits(edge[f"{end}_bits"]) for end in _ends_of(edge)
     )
     if jd <= lo_out or jd >= up_out:
         return "outside"
@@ -1289,7 +1320,7 @@ from saakshi import swiss
 session = swiss.Session(ephe_path=spec["ephe_path"], sidereal_mode=spec["sidereal_mode"])
 low, high = (swiss.swe.julday(year, 1, 1, 0.0) for year in spec["edge_search_years"])
 edges = swiss.body_edges(bodies=spec["bodies"], keys=spec["keys"], jd_low=low, jd_high=high,
-                         session=session)
+                         session=session, entry_point=spec["entry_point"])
 with tempfile.TemporaryDirectory() as empty, tempfile.TemporaryDirectory() as work:
     for directory in (empty, work):
         if os.listdir(directory):
@@ -1297,6 +1328,7 @@ with tempfile.TemporaryDirectory() as empty, tempfile.TemporaryDirectory() as wo
     readings = swiss.fixed_condition_readings(
         bodies=spec["bodies"], keys=spec["keys"], edges=edges, ephe_path=spec["ephe_path"],
         empty_dir=empty, work_dir=work, sidereal_mode=spec["sidereal_mode"],
+        entry_point=spec["entry_point"],
     )
     for directory in (empty, work):
         if os.listdir(directory):
@@ -1326,11 +1358,14 @@ def measure_reporting(
     child (:data:`_ATTESTATION_CHILD`). ⛔ The verdicts are the parent's, recomputed from the
     returned readings by :func:`reporting_by_body`; the child supplies rows, never verdicts.
     ⛔ A body and key with no verdict is refused here, before anything reads a flag through it.
+
+    ⭐ ``entry_point`` is a position call of :data:`TIME_ARGUMENTS`; through ``calc`` the edges are located through
+    ``calc`` too, in TT, and every fixed-condition reading is a ``calc`` reading.
     """
-    if entry_point != "calc_ut":
-        raise SurveyRefusal(f"{entry_point}: only calc_ut readings are measured here")
+    edge_ends(entry_point)  # ⛔ refuses an entry point with no recorded time argument
     bodies, keys = [int(b) for b in bodies], [int(k) for k in keys]
     spec = {
+        "entry_point": entry_point,
         "src": str(Path(__file__).resolve().parents[1]),
         "ephe_path": os.path.abspath(ephe_path),
         "sidereal_mode": int(sidereal_mode),
@@ -2026,6 +2061,16 @@ def measured_entry_point_records(
         if mediation is not None:
             row["state_mediation"] = mediation
     return rows
+
+
+def calendar_of(jd: float, scale: str) -> str:
+    """A Julian day as a readable calendar string, labelled with the scale it is an instant of (``ut`` or ``tt``).
+    ⚠ Display; the bits are the value."""
+    if scale == "ut":
+        return calendar_ut(jd)
+    if scale == "tt":
+        return calendar_ut(jd)[:-1] + " TT"
+    raise ValueError(f"no calendar label for the scale {scale!r}")
 
 
 def calendar_ut(jd: float) -> str:
