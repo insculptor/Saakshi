@@ -298,6 +298,30 @@ def ulps(a: float, b: float) -> int:
     return abs(ia - ib)
 
 
+def compare(primary: Sequence[dict[str, str]], other: Sequence[dict[str, str]], *, against: str
+            ) -> list[dict[str, Any]]:
+    """Per field: how many instants differ in bits, and the largest difference, where it is, and in ulps."""
+    if len(primary) != len(other) or [a["jd_tdb"] for a in primary] != [b["jd_tdb"] for b in other]:
+        raise Refusal(f"{against}: the two answer sets are not at the same instants")
+    rows = []
+    for field in FIELDS[1:]:
+        differ, worst, worst_at, worst_ulps = 0, 0.0, None, 0
+        for a, b in zip(primary, other):
+            if a[field] != b[field]:
+                differ += 1
+                d = abs(value_of(a[field]) - value_of(b[field]))
+                if d > worst or worst_at is None:
+                    worst, worst_at, worst_ulps = d, a["jd_tdb"], ulps(value_of(a[field]), value_of(b[field]))
+        entry = {"finding": "bit_identity", "against": against, "field": field, "compared": len(other),
+                 "differing": differ, "identical": differ == 0}
+        if differ:
+            entry.update({"largest_abs_difference": worst, "largest_abs_difference_bits": bits(worst),
+                          "largest_at_jd_tdb": value_of(worst_at), "largest_at_jd_tdb_bits": worst_at,
+                          "largest_in_ulps": worst_ulps})
+        rows.append(entry)
+    return rows
+
+
 def cmd_bit_identity(args: argparse.Namespace) -> int:
     import importlib.metadata as metadata
 
@@ -347,22 +371,8 @@ def cmd_bit_identity(args: argparse.Namespace) -> int:
         return out
 
     candidates = {"erfa": [erfa_at(a) for a in answers["primary"]], "sofa_control_build": answers["control"]}
-    rows, summary = [], []
-    for name, other in candidates.items():
-        for field in FIELDS[1:]:
-            differ, worst, worst_at, worst_ulps = 0, 0.0, None, 0
-            for a, b in zip(answers["primary"], other):
-                if a[field] != b[field]:
-                    differ += 1
-                    d = abs(value_of(a[field]) - value_of(b[field]))
-                    if d > worst:
-                        worst, worst_at, worst_ulps = d, a["jd_tdb"], ulps(value_of(a[field]), value_of(b[field]))
-            entry = {"finding": "bit_identity", "against": name, "field": field, "compared": len(other),
-                     "differing": differ, "identical": differ == 0, "largest_abs_difference": worst,
-                     "largest_abs_difference_bits": bits(worst), "largest_at_jd_tdb_bits": worst_at,
-                     "largest_in_ulps": worst_ulps}
-            rows.append(entry)
-            summary.append({k: entry[k] for k in ("against", "field", "differing", "identical")})
+    rows = [row for name, other in candidates.items() for row in compare(answers["primary"], other, against=name)]
+    summary = [{k: r[k] for k in ("against", "field", "differing", "identical")} for r in rows]
     import platform
 
     header = Header(

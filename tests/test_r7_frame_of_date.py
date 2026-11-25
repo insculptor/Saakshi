@@ -159,3 +159,15 @@ def test_the_real_driver_answers_every_instant_and_the_rows_hold_together(named_
             for i in range(3):  # each row a unit vector: the matrix is a rotation, row-major
                 assert abs(sum(m[3 * i + j] ** 2 for j in range(3)) - 1.0) < 1e-14
     assert driver["binary_sha256"] == hashlib.sha256(binary.read_bytes()).hexdigest()
+
+
+def test_two_answer_sets_are_compared_field_by_field_and_a_difference_is_located():
+    jds = [2451545.0, 2451561.0]
+    a = [dict(zip(r7.FIELDS, _answer(jd).split()[1:])) for jd in jds]
+    b = [dict(zip(r7.FIELDS, _answer(jd, obl06=0.409 + (5e-17 if k else 0.0)).split()[1:])) for k, jd in enumerate(jds)]
+    rows = {r["field"]: r for r in r7.compare(a, b, against="x")}
+    assert rows["dpsi"]["identical"] and "largest_in_ulps" not in rows["dpsi"]
+    assert rows["obl06"]["differing"] == 1 and rows["obl06"]["largest_at_jd_tdb_bits"] == bits(2451561.0)
+    assert rows["obl06"]["largest_in_ulps"] >= 1
+    with pytest.raises(r7.Refusal, match="same instants"):
+        r7.compare(a, b[::-1], against="x")
