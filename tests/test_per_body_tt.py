@@ -10,7 +10,10 @@ from __future__ import annotations
 import math
 
 import pytest
-import swisseph as swe
+swe = pytest.importorskip(
+    "swisseph",
+    reason="this module calls the ephemeris library; it cannot run where it is not installed",
+)
 
 from saakshi import swiss
 from saakshi.fixture import bits
