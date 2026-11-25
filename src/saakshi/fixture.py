@@ -59,11 +59,13 @@ PUBLISHER_SELF_CONSISTENCY = "publisher_self_consistency"
 #: ``R4``                             published external values: almanacs, vendor exports, printed tables
 #: ``R5``                             the predecessor engine, for continuity only
 #: ``R6``                             textual authority — what an identifiable source text states
+#: ``R7``                             the International Astronomical Union's standard models, as computed by its
+#:                                    own library, from its own distribution, at a named release
 #: ``instrument``                     a harness with no authority of its own
 #: ``publisher_self_consistency``     a publisher's own artifact checked against a second artifact of its own
 #: =================================  ================================================
 REFERENCES_CONTRACT = frozenset(
-    {"R1", "R2", "R3", "R4", "R5", "R6", "instrument", PUBLISHER_SELF_CONSISTENCY}
+    {"R1", "R2", "R3", "R4", "R5", "R6", "R7", "instrument", PUBLISHER_SELF_CONSISTENCY}
 )
 
 #: ⚠ **The value for a claim this registry cannot yet express.**
@@ -493,6 +495,8 @@ def validate_header(
 
     for name in _REQUIRED[kind]:
         if getattr(header, name) is None:
+            if name == "budget_row" and kind == "numeric_pin" and _is_constituent(header.classification):
+                continue
             _fail(where, kind, name, "required by this kind and absent")
     for name in _FORBIDDEN[kind]:
         if getattr(header, name) is not None:
@@ -554,6 +558,19 @@ def _validate_self_consistency_oracle(
                     f"oracle.{artifact}.{member}",
                     "required and absent or empty",
                 )
+
+
+def _is_constituent(classification: Mapping[str, Mapping[str, Any]] | None) -> bool:
+    """⭐ A numeric pin every section of which is ``reference_only`` may name no budget row.
+
+    Such a file is never compared on its own: whatever uses it names it by its digest, and may use one such file
+    for several comparisons, so a single row named inside it would be a claim the file cannot support. ⛔ One
+    section of any other class, and the row is required again — a number that is compared is compared against a
+    row.
+    """
+    return bool(classification) and all(
+        isinstance(spec, Mapping) and spec.get("class") == "reference_only" for spec in classification.values()
+    )
 
 
 def _validate_classification(

@@ -13,6 +13,7 @@ import json
 import pytest
 
 from saakshi.fixture import (
+    REFERENCES_CONTRACT,
     FixtureContractError,
     Generator,
     Header,
@@ -69,7 +70,7 @@ def test_unknown_kind_is_refused():
 
 def test_unknown_reference_is_refused():
     with pytest.raises(FixtureContractError, match="reference"):
-        validate_header(numeric(reference="R7"), where="t")
+        validate_header(numeric(reference="R8"), where="t")
 
 
 def test_reference_none_without_a_deviation_block_is_refused():
@@ -200,9 +201,31 @@ def test_textual_kinds_are_r6_only():
 # --- per-kind required / forbidden fields -----------------------------------------------
 
 
-def test_numeric_pin_needs_a_budget_row():
+TOLERANCE = {"class": "tolerance", "band": "0.01", "unit": "arcsec"}
+
+
+def test_numeric_pin_with_a_compared_section_needs_a_budget_row():
     with pytest.raises(FixtureContractError, match="budget_row"):
-        validate_header(numeric(budget_row=None), where="t")
+        validate_header(numeric(budget_row=None, classification={"position": TOLERANCE}), where="t")
+    with pytest.raises(FixtureContractError, match="budget_row"):
+        validate_header(numeric(budget_row=None, classification={"position": {"class": "exact"}}), where="t")
+
+
+def test_a_constituent_every_section_reference_only_may_name_no_budget_row():
+    """⭐ Never compared on its own; whatever uses it names it by digest."""
+    validate_header(numeric(budget_row=None, classification={"a": {"class": "reference_only"},
+                                                            "b": {"class": "reference_only"}}), where="t")
+
+
+def test_one_compared_section_makes_the_row_required_again():
+    with pytest.raises(FixtureContractError, match="budget_row"):
+        validate_header(numeric(budget_row=None, classification={"a": {"class": "reference_only"},
+                                                                "b": TOLERANCE}), where="t")
+
+
+def test_the_seventh_reference_is_in_the_registry():
+    validate_header(numeric(reference="R7", budget_row=None), where="t")
+    assert "R7" in REFERENCES_CONTRACT and "R8" not in REFERENCES_CONTRACT
 
 
 def test_numeric_pin_may_not_carry_a_locus():
