@@ -47,9 +47,10 @@ def test_every_source_assertion_names_its_body_word_and_attestation():
     for path in SOURCES:
         for call in _calls(ast.parse(path.read_text(encoding="utf-8")), "assert_reported"):
             sites[f"{path.relative_to(ROOT).as_posix()}:{call.lineno}"] = {k.arg for k in call.keywords}
-    # ⚠ The control: the three files that call it are all found, or this passes over nothing.
+    # ⚠ The control: the four files that call it are all found, or this passes over nothing.
     assert {site.split(":")[0] for site in sites} == {
-        "generators/r3_swiss.py", "generators/probe6b_ffi.py", "src/saakshi/conventions.py"
+        "generators/r3_swiss.py", "generators/probe6b_ffi.py", "src/saakshi/conventions.py",
+        "generators/r3_cutover_grid.py",
     }
     for site, keywords in sites.items():
         assert REQUIRED <= keywords, (site, sorted(REQUIRED - keywords))
