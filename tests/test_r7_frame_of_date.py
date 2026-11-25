@@ -94,10 +94,17 @@ def _build(tmp_path: Path, **over) -> tuple[Path, Path]:
     return build, source
 
 
-def test_a_build_of_the_pinned_distribution_is_read_with_its_sources_as_values(tmp_path):
+def test_a_build_of_the_pinned_distribution_is_read_with_its_file_names_as_values(tmp_path):
+    """⛔ A file name is not a key: the record the header carries must pass the contract's key rule."""
+    from saakshi.fixture import Header, validate_header
+
     build, source = _build(tmp_path)
     record = r7.read_build(build, source)
     assert record["sources"] == [{"file": "a.c", "sha256": "0" * 64}]
+    assert {h["file"] for h in record["headers"]} == {"sofa.h", "sofam.h"}
+    validate_header(Header(fixture_kind="numeric_pin", reference="R7", generator=IDENTITY, generated="2026-11-25",
+                           oracle={"build": record}, request={"r": 1},
+                           classification={"s": {"class": "reference_only"}}), where="t")
 
 
 @pytest.mark.parametrize("over, match", [

@@ -141,7 +141,9 @@ def read_build(build: Path, source: Path) -> dict[str, Any]:
             raise Refusal(f"the header {name} is not the one the library was built with")
     if record.get("validation_last_line") != "t_sofa_c validation successful":
         raise Refusal("the build's own validation did not report success")
-    return {**{k: v for k, v in record.items() if k != "sources"},
+    # ⛔ A file name is not a fixture key: both maps of name to digest are carried as lists of {file, sha256}.
+    return {**{k: v for k, v in record.items() if k not in ("sources", "header_sha256")},
+            "headers": [{"file": f, "sha256": d} for f, d in record["header_sha256"].items()],
             "sources": [{"file": f, "sha256": d} for f, d in record["sources"].items()]}
 
 
