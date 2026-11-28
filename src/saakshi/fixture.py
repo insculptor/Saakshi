@@ -401,6 +401,8 @@ class Header:
     # per-kind fields — presence is checked, never assumed
     request: Mapping[str, Any] | None = None
     classification: Mapping[str, Mapping[str, Any]] | None = None
+    #: ⭐ Optional, numeric pins only: per classified section, per value stem, one unit per component.
+    section_units: Mapping[str, Mapping[str, Sequence[str]]] | None = None
     budget_row: str | None = None
     budget_basis: str | None = None
     locus: Mapping[str, Any] | None = None
@@ -429,6 +431,7 @@ class Header:
             "title",
             "request",
             "classification",
+            "section_units",
             "budget_row",
             "budget_basis",
             "locus",
@@ -504,6 +507,9 @@ def validate_header(
 
     if header.classification is not None:
         _validate_classification(header.classification, where=where, kind=kind)
+
+    if header.section_units is not None:
+        _validate_section_units(header, where=where, kind=kind)
 
     if kind == "worked_example" and header.budget_basis != "source_reproduction":
         _fail(where, kind, "budget_basis", "must be 'source_reproduction'")
@@ -593,6 +599,57 @@ def _validate_classification(
             for extra in ("band", "unit"):
                 if extra in spec and spec[extra] not in (None, ""):
                     _fail(where, kind, label, f"class {cls!r} may not carry a {extra}")
+
+
+#: ⭐ The unit of one component of a value, in ``section_units``: astronomical units, astronomical units per day,
+#: days, kilometres, radians, or ``none`` for a dimensionless number. ⛔ Closed: a unit outside the set is refused,
+#: because a reader that groups on a unit cannot group on a misspelling of one.
+SECTION_UNIT_TOKENS = frozenset({"au", "au_per_day", "day", "km", "radian", "none"})
+
+
+def _validate_section_units(header: Header, *, where: str, kind: str) -> None:
+    """``section_units``: per classified section, per value stem, one unit per component.
+
+    ⭐ The unit of every component is stated beside the values it describes, so a reader takes it from the file and
+    never from prose. ⛔ Refused: on any kind but a numeric pin; a section with no classification; a stem with no
+    units or an empty list; a unit outside :data:`SECTION_UNIT_TOKENS`. Each row of a listed section is then held to
+    it (:func:`_check_row`): the stem present, with exactly as many components as units.
+    """
+    units = header.section_units
+    if kind != "numeric_pin":
+        _fail(where, kind, "section_units", "a unit per component is defined for numeric pins only")
+    if not isinstance(units, Mapping) or not units:
+        _fail(where, kind, "section_units", "present but empty or not an object")
+    classified = header.classification or {}
+    for section, stems in units.items():
+        label = f"section_units.{section}"
+        if section not in classified:
+            _fail(where, kind, label, "names a section that has no entry in `classification`")
+        if not isinstance(stems, Mapping) or not stems:
+            _fail(where, kind, label, "names no value stem")
+        for stem, listed in stems.items():
+            if isinstance(listed, (str, bytes)) or not isinstance(listed, Sequence) or not listed:
+                _fail(where, kind, f"{label}.{stem}", "not a non-empty list of units, one per component")
+            outside = sorted({str(u) for u in listed if u not in SECTION_UNIT_TOKENS})
+            if outside:
+                _fail(where, kind, f"{label}.{stem}",
+                      f"{outside} outside the units {sorted(SECTION_UNIT_TOKENS)}")
+
+
+def _check_row_units(path: Path, header: Header, row: Mapping[str, Any], index: int) -> None:
+    """⛔ A row of a section ``section_units`` lists carries each stem, with one component per unit."""
+    stems = (header.section_units or {}).get(row.get("section"))
+    if not stems:
+        return
+    for stem, listed in stems.items():
+        label = f"row[{index}].{stem}"
+        if stem not in row:
+            _fail(str(path), header.fixture_kind, label, "named in `section_units` and absent from the row")
+        value = row[stem]
+        if not isinstance(value, list) or len(value) != len(listed):
+            count = len(value) if isinstance(value, list) else "not a list of"
+            _fail(str(path), header.fixture_kind, label,
+                  f"{count} components where `section_units` lists {len(listed)} units")
 
 
 def _validate_locus(locus: Any, *, where: str, kind: str) -> None:
@@ -949,6 +1006,7 @@ def _check_row(
                 f"row[{index}].section",
                 f"{section!r} has no entry in `classification`",
             )
+    _check_row_units(path, header, row, index)
 
 
 def _header_line(header: Header) -> str:

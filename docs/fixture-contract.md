@@ -142,6 +142,28 @@ scales wrongly, and not relative to the component, which a near-zero component i
 Where the norm is zero the relative disagreement is emitted as `null` and the row is
 excluded from the band, because a relative band cannot judge a quantity with no scale.
 
+⭐ **A numeric pin every section of which is `reference_only` may name no budget row.** Such a
+file is never compared on its own: whatever uses it names it by its digest, and may use one
+file for several comparisons, so a single row named inside it would be a claim the file
+cannot support. ⛔ One section of any other class, and the row is required again.
+
+## A unit per component
+
+A numeric pin may carry `section_units`, written after `classification`: per classified
+section, per value stem, **one unit per component** —
+`{"position": {"value": ["km", "km", "km"]}}`. The unit then travels with the values it
+describes, and a reader takes it from the file rather than from prose.
+
+* The units are a closed set: `au`, `au_per_day`, `day`, `km`, `radian`, and `none` for a
+  dimensionless number. ⛔ Anything else is refused — `au/day`, the spelling a row schema
+  may use in its prose, included — because a reader grouping on a unit cannot group on a
+  misspelling of one.
+* ⛔ Refused at the header: on any other kind; a section with no classification; a stem
+  with no units.
+* ⛔ Refused at each row of a listed section: the stem absent, or a component count that
+  differs from the number of units. A value with one component is still a list of one.
+* A section the map does not list is not held to it.
+
 ## A bit pattern is for a measurement, and a count is not a measurement
 
 A recorded value that is a double is written twice — as a decimal, and as the IEEE-754 bit

@@ -228,6 +228,62 @@ def test_the_seventh_reference_is_in_the_registry():
     assert "R7" in REFERENCES_CONTRACT and "R8" not in REFERENCES_CONTRACT
 
 
+# --- a unit per component ----------------------------------------------------------------
+
+UNITS = {"position": {"value": ["km", "km", "km"]}}
+
+
+def test_a_unit_per_component_is_written_after_the_classification_and_held_on_every_row(tmp_path):
+    header = numeric(section_units=UNITS)
+    validate_header(header, where="t")
+    keys = list(header.as_json())
+    assert keys.index("section_units") == keys.index("classification") + 1
+    row = {"section": "position", **patterned("value", [1.0, 2.0, 3.0])}
+    assert write_jsonl(tmp_path / "u.jsonl", header, [row]) == 1
+    assert "section_units" not in numeric().as_json()  # ⭐ a header without it writes what it always wrote
+
+
+@pytest.mark.parametrize("units, match", [
+    ({}, "empty"),
+    ({"velocity": {"value": ["km"]}}, "no entry in `classification`"),
+    ({"position": {}}, "no value stem"),
+    ({"position": {"value": []}}, "non-empty list"),
+    ({"position": {"value": "km"}}, "non-empty list"),
+    ({"position": {"value": ["au/day"]}}, "outside the units"),  # ⛔ the spelling a row schema uses is not a unit
+    ({"position": {"value": ["kilometre"]}}, "outside the units"),
+])
+def test_a_unit_map_that_cannot_be_applied_is_refused(units, match):
+    with pytest.raises(FixtureContractError, match=match):
+        validate_header(numeric(section_units=units), where="t")
+
+
+def test_a_unit_map_is_for_numeric_pins_only():
+    record = Header(fixture_kind="provenance_record", reference="instrument", generator=GEN,
+                    generated="2026-08-04", oracle={"implementation": "x"}, attests="a", authority={"held_by": "b"},
+                    record_date="2026-08-04", section_units=UNITS)
+    with pytest.raises(FixtureContractError, match="numeric pins only"):
+        validate_header(record, where="t")
+
+
+@pytest.mark.parametrize("row, match", [
+    ({"section": "position", "v": 1.0}, "absent from the row"),
+    ({"section": "position", **patterned("value", [1.0, 2.0])}, "2 components where"),
+    ({"section": "position", **patterned("value", 1.0)}, "not a list of"),
+])
+def test_a_row_that_disagrees_with_its_unit_map_is_refused(tmp_path, row, match):
+    good = {"section": "position", **patterned("value", [1.0, 2.0, 3.0])}
+    for check in (check_jsonl, write_jsonl):
+        with pytest.raises(FixtureContractError, match=match):
+            check(tmp_path / f"{check.__name__}.jsonl", numeric(section_units=UNITS), [good, row])
+
+
+def test_a_section_the_unit_map_does_not_list_is_not_held_to_it(tmp_path):
+    header = numeric(classification={"position": {"class": "reference_only"}, "velocity": {"class": "reference_only"}},
+                     section_units=UNITS)
+    rows = [{"section": "position", **patterned("value", [1.0, 2.0, 3.0])}, {"section": "velocity", "v": 1.0}]
+    assert check_jsonl(tmp_path / "v.jsonl", header, rows).rows == 2
+
+
 def test_numeric_pin_may_not_carry_a_locus():
     with pytest.raises(FixtureContractError, match="locus"):
         validate_header(numeric(locus=LOCUS), where="t")
