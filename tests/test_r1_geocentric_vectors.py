@@ -429,6 +429,29 @@ def test_the_values_file_holds_the_contract_and_says_what_answered(stand_ins, tm
     assert statements == {c: g.EXPECTED_CORRECTION_STATEMENTS[c]["paragraph"] for c in g.CORRECTIONS}
 
 
+def test_a_file_asked_for_no_row_names_none_and_states_every_unit_and_body(stand_ins, tmp_path):
+    """⭐ The constituent shape: no budget row, a unit per component, the body as an integer on every row."""
+    out = _emit(tmp_path, "live")
+    lines = (out / g.VALUES_PATH).read_text().splitlines()
+    header, rows = json.loads(lines[0]), [json.loads(line) for line in lines[1:]]
+    assert "budget_row" not in header
+    units = ["au", "au", "au", "au_per_day", "au_per_day", "au_per_day", "day", "au", "au_per_day"]
+    assert header["section_units"] == {s: {"value": units} for s in ("state_none", "state_lt", "state_lt_s")}
+    assert all(type(r["target"]) is int and str(r["target"]) == r["target_command"] for r in rows)
+    assert {r["target"] for r in rows} == {10, 301, 199, 299, 4, 5, 6, 7, 8, 9}
+
+
+def test_a_row_asked_for_is_named(stand_ins, tmp_path):
+    out = _emit(tmp_path, "live", "--budget-row", "a-row")
+    assert json.loads((out / g.VALUES_PATH).read_text().splitlines()[0])["budget_row"] == "a-row"
+
+
+@pytest.mark.parametrize("command", ["05", "+5", "5a", "", "-1", "5 ", "٥", "@399"])
+def test_a_body_identifier_that_is_not_its_integer_is_refused(command):
+    with pytest.raises(g.Refusal, match="not a plain integer"):
+        g.naif_target(command)
+
+
 def test_a_record_is_never_overwritten(stand_ins, tmp_path):
     _emit(tmp_path, "live")
     with pytest.raises(g.Refusal, match="never overwritten"):

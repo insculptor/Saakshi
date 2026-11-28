@@ -22,6 +22,9 @@ the service state that answered it.
   acquisition: the values file is byte-identical either way, and the acquisition record says which it was.
 * ⛔ **No band and no derived value.** Every section is `reference_only`. Nothing here relates one correction to
   another, differences one against another, or says what any correction is worth.
+* ⭐ **No budget row unless one is given.** With every section `reference_only` the file is never compared on its own;
+  whatever uses it names it by its digest. Each row carries the body as the integer the service was sent
+  (`target`), and the header the unit of every component (`section_units`).
 * ⛔ **Recorder, never explainer.** Nothing here says how the service computes anything.
 
 The instants are chosen by the rule written out in :data:`EPOCH_RULE` and nowhere else; ⛔ there is no
@@ -148,6 +151,10 @@ EXPECTED_COLUMNS: tuple[str, ...] = ("JDTDB", "Calendar Date (TDB)", "X", "Y", "
 COMPONENTS: tuple[str, ...] = EXPECTED_COLUMNS[2:]
 #: The unit of each component under `OUT_UNITS 'AU-D'`, as the response's own symbol list states it.
 COMPONENT_UNITS: tuple[str, ...] = ("au", "au", "au", "au/day", "au/day", "au/day", "day", "au", "au/day")
+#: ⭐ The same units as the fixture contract spells them, one per component: derived, never written twice.
+SECTION_UNITS: tuple[str, ...] = tuple(unit.replace("/", "_per_") for unit in COMPONENT_UNITS)
+#: A body identifier the service is sent, when it is a plain non-negative integer.
+_NAIF_INTEGER = re.compile(r"(0|[1-9][0-9]*)")
 
 #: ⛔ What every response must state about its own output, whatever the correction.
 EXPECTED_STATED: dict[str, str] = {
@@ -667,6 +674,13 @@ def read(requests: list[dict], *, cache: Path, center: str, digest: str, from_ca
 # ======================================================================================
 
 
+def naif_target(command: str) -> int:
+    """The body a command names, as an integer. ⛔ Refused unless the command is that integer's own spelling."""
+    if not isinstance(command, str) or not _NAIF_INTEGER.fullmatch(command):
+        raise Refusal(f"the body identifier {command!r} is not a plain integer")
+    return int(command)
+
+
 def rows_for(answered: list[tuple[dict, Read, Response]], *, center: str) -> list[dict]:
     rows = []
     for request, _got, response in answered:
@@ -676,6 +690,7 @@ def rows_for(answered: list[tuple[dict, Read, Response]], *, center: str) -> lis
             rows.append({
                 "section": f"state_{CORRECTION_SLUGS[request['correction']]}",
                 "request_id": request["request_id"],
+                "target": naif_target(request["target"]["command"]),
                 "target_command": request["target"]["command"],
                 "target_point": request["target"]["point"],
                 "vec_corr": request["correction"],
@@ -735,7 +750,7 @@ STATED_TERMS: tuple[dict, ...] = (
 
 
 def build_values_header(answered, *, version: str, instants: list[Epoch], interval: dict, kernel_identity: dict,
-                        center: str, corrections: list[str], generator, budget_row: str) -> Header:
+                        center: str, corrections: list[str], generator, budget_row: str | None) -> Header:
     sections = [f"state_{CORRECTION_SLUGS[c]}" for c in corrections]
     first_by_correction = {}
     for request, _got, response in answered:
@@ -800,10 +815,12 @@ def build_values_header(answered, *, version: str, instants: list[Epoch], interv
                           "or --from-cache to read the copies a live run kept; a cache read is not an acquisition",
         },
         classification={section: {"class": "reference_only"} for section in sections},
+        section_units={section: {"value": list(SECTION_UNITS)} for section in sections},
         budget_row=budget_row,
         row_schema={
             "section": "state_none | state_lt | state_lt_s: the correction the row was answered under",
             "request_id": "the request that answered it, as listed in `request.queries`",
+            "target": "the body, as the integer the identifier sent spells",
             "target_command": "the body identifier sent, verbatim",
             "target_point": "body_centre | system_barycentre: which point of the body the state names",
             "vec_corr": "the correction sent, verbatim",
@@ -931,7 +948,8 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--cache", default=HERE.parent / "cache", type=Path)
     parser.add_argument("--center", default="500@399")
     parser.add_argument("--corrections", default="NONE,LT,LT+S")
-    parser.add_argument("--budget-row", default="R1-service-state")
+    parser.add_argument("--budget-row", default=None, help="the id of a row the file is compared against; omitted, "
+                                                           "the file names none")
     parser.add_argument("--from-cache", action="store_true", help="read the copies a live run kept; send nothing")
     parser.add_argument("--plan-only", action="store_true", help="print the request count and estimate; send nothing")
     args = parser.parse_args(argv)
